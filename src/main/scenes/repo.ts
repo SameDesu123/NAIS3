@@ -312,6 +312,8 @@ export async function importScenesJson(presetId: number): Promise<number> {
     scenes?: {
       name?: string
       prompt?: string
+      /** NAIS2 씬 내보내기(JSON) 포맷의 프롬프트 필드명 */
+      scenePrompt?: string
       negativePrompt?: string
       width?: number
       height?: number
@@ -331,7 +333,7 @@ export async function importScenesJson(presetId: number): Promise<number> {
       stmt.run(
         presetId,
         s.name ?? '씬',
-        s.prompt ?? '',
+        s.prompt ?? s.scenePrompt ?? '', // NAIS2 파일은 scenePrompt
         s.negativePrompt ?? '',
         s.width ?? 832,
         s.height ?? 1216,

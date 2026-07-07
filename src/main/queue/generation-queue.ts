@@ -24,7 +24,9 @@ export class GenerationQueue extends EventEmitter {
     const ids: string[] = []
     for (let i = 0; i < count; i++) {
       const id = randomUUID()
-      this.items.set(id, { id, state: 'pending', request })
+      // 배치는 장마다 시드+i — 같은 시드 N장(동일 그림 N장) 방지, 시드 고정 시에도 각 장 재현 가능
+      const req = i === 0 ? request : { ...request, seed: (request.seed + i) % 4294967296 }
+      this.items.set(id, { id, state: 'pending', request: req })
       ids.push(id)
     }
     this.emitChanged()
