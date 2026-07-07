@@ -208,6 +208,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
           r.characters ? `캐릭터 ${r.characters}` : '',
           r.presets ? `프리셋 ${r.presets}` : '',
           r.fragments ? `조각 ${r.fragments}` : '',
+          r.scenes ? `씬 ${r.scenes}` : '',
           r.prompt ? '프롬프트' : ''
         ].filter(Boolean)
         return {

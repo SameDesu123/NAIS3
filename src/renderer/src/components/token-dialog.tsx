@@ -24,6 +24,7 @@ import { useCharactersStore } from '../stores/characters-store'
 import { useFragmentsStore } from '../stores/fragments-store'
 import { useVibesStore, useCharRefsStore } from '../stores/refs-store'
 import { usePromptPresetsStore } from '../stores/prompt-presets-store'
+import { useScenesStore } from '../stores/scenes-store'
 import { useUpdateStore } from '../stores/update-store'
 import { askConfirm } from '../stores/dialog-store'
 import { toast } from '../stores/toast-store'
@@ -301,6 +302,7 @@ function BackupButtons(): React.JSX.Element {
           void useVibesStore.getState().load()
           void useCharRefsStore.getState().load()
           void usePromptPresetsStore.getState().load()
+          void useScenesStore.getState().loadPresets()
           // 메인 프롬프트가 바뀌었으면 재하이드레이트
           if (r.needsPromptReload) void useGenerationStore.getState().hydrate()
         }}

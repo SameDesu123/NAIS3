@@ -6,6 +6,7 @@ export interface Nais2ImportResult {
   characters: number
   presets: number
   fragments: number
+  scenes: number
   prompt: boolean
 }
 
@@ -38,7 +39,7 @@ function mergePrompt(base: unknown, add: unknown, detail: unknown): string {
 
 export function importNais2(data: Obj): Nais2ImportResult {
   const db = getDb()
-  const res: Nais2ImportResult = { characters: 0, presets: 0, fragments: 0, prompt: false }
+  const res: Nais2ImportResult = { characters: 0, presets: 0, fragments: 0, scenes: 0, prompt: false }
 
   const tx = db.transaction(() => {
     // 1. 캐릭터 — 가져올 항목이 있으면 기존 캐릭터를 비우고 교체 (바이브/캐릭레퍼는 건드리지 않음)
@@ -109,7 +110,39 @@ export function importNais2(data: Obj): Nais2ImportResult {
       })
     }
 
-    // 4. 현재 메인 프롬프트 (nais2-generation) → NAIS3 main_params에 병합
+    // 4. 씬 — NAIS2: nais2-scenes.state.presets[] { name, scenes: [{name, scenePrompt, width?, height?}] }
+    //    기존 NAIS3 씬은 생성 이미지와 연결돼 있어 교체하지 않고 새 프리셋으로 추가(merge).
+    //    이미지(url)는 NAIS2 백업에 로컬 경로만 있어 가져오지 않음.
+    const sc = state(data, 'nais2-scenes')
+    if (Array.isArray(sc.presets)) {
+      for (const p of sc.presets as Obj[]) {
+        const scenes = (Array.isArray(p.scenes) ? (p.scenes as Obj[]) : []).map((s) => ({
+          name: String(s.name ?? '씬'),
+          prompt: String(s.scenePrompt ?? ''),
+          width: Number(s.width) || 832,
+          height: Number(s.height) || 1216
+        }))
+        if (!scenes.length) continue
+        const maxOrder = (
+          db.prepare('SELECT COALESCE(MAX(sort_order),0) AS m FROM scene_presets').get() as {
+            m: number
+          }
+        ).m
+        const presetId = Number(
+          db
+            .prepare('INSERT INTO scene_presets (name, sort_order) VALUES (?, ?)')
+            .run(String(p.name ?? '가져온 씬'), maxOrder + 1).lastInsertRowid
+        )
+        scenes.forEach((s, i) => {
+          db.prepare(
+            'INSERT INTO gen_scenes (preset_id, name, prompt, width, height, sort_order) VALUES (?, ?, ?, ?, ?, ?)'
+          ).run(presetId, s.name, s.prompt, s.width, s.height, i)
+          res.scenes++
+        })
+      }
+    }
+
+    // 5. 현재 메인 프롬프트 (nais2-generation) → NAIS3 main_params에 병합
     const gen = state(data, 'nais2-generation')
     const prompt = mergePrompt(gen.basePrompt, gen.additionalPrompt, gen.detailPrompt)
     const negative = removeComments(String(gen.negativePrompt ?? '')).trim()
