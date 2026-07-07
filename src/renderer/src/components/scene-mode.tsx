@@ -29,7 +29,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { AnimatePresence, motion } from 'motion/react'
-import { memo, useEffect, useState, type CSSProperties } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { Scene } from '@shared/types'
 import { RESOLUTIONS, imageUrl } from '../lib/constants'
 import { useGenerationStore } from '../stores/generation-store'
@@ -166,6 +166,9 @@ function IconBtn({
   )
 }
 
+// 씬 그리드 스크롤 위치 — 다른 페이지/씬 상세를 다녀와도 위치 복원 (언마운트돼도 유지)
+let savedGridScroll = 0
+
 function SceneGrid(): React.JSX.Element {
   const scenes = useScenesStore((s) => s.scenes)
   const activePresetId = useScenesStore((s) => s.activePresetId)
@@ -179,6 +182,16 @@ function SceneGrid(): React.JSX.Element {
   const adjustReserveAll = useScenesStore((s) => s.adjustReserveAll)
   const clearReserveAll = useScenesStore((s) => s.clearReserveAll)
   const reorder = useScenesStore((s) => s.reorder)
+
+  // 스크롤 위치 복원 — 마운트 직후 + 씬 목록이 늦게 로드된 경우 한 번 더
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = savedGridScroll
+  }, [])
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el && savedGridScroll > 0 && el.scrollTop === 0) el.scrollTop = savedGridScroll
+  }, [scenes.length])
 
   // 드래그 재정렬 (5px 이동해야 시작 — 클릭과 구분).
   // DragOverlay 사용: 드래그 중엔 가벼운 클론이 커서를 따라가고 원본은 숨겨 프레임 저하 방지
@@ -299,7 +312,13 @@ function SceneGrid(): React.JSX.Element {
       </AnimatePresence>
 
       {/* 카드 그리드 (열 수만큼 폭에 꽉 차게). scrollbar-gutter로 스크롤바 등장 시 밀림 방지 */}
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 no-scrollbar">
+      <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          savedGridScroll = e.currentTarget.scrollTop
+        }}
+        className="min-h-0 flex-1 overflow-y-auto p-3 no-scrollbar"
+      >
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
