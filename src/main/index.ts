@@ -16,7 +16,7 @@ import { logBalance } from './nai/anlas-log'
 import { fetchAnlasBalance, generateImageStream, generateImageZip } from './nai/client'
 import { prepareCharRefs, prepareVibes } from './refs/prepare'
 import { GenerationQueue } from './queue/generation-queue'
-import { getScene } from './scenes/repo'
+import { getPresetName, getScene } from './scenes/repo'
 
 // 앱 이름 (dev 메뉴바·dock에서 'Electron' 대신 표시). 패키징 앱은 productName 사용
 app.setName('NAIS3')
@@ -180,6 +180,8 @@ app.whenReady().then(() => {
     // 자동 저장 off여도 히스토리엔 남긴다 — 다만 저장 폴더 대신 앱 내부 라이브러리에 저장
     // (씬은 항상 저장 폴더). 클릭 시 원본 보기·다른 이름으로 저장 모두 정상 동작.
     const autoSave = getSetting('auto_save') !== '0'
+    // 씬 생성은 저장폴더/씬/<프리셋>/<씬 이름>/에 모아 저장 (NAIS2와 동일 계층)
+    const scene = request.sceneId ? getScene(request.sceneId) : null
     const saved = await saveGeneratedImage({
       png,
       sentPayload,
@@ -188,8 +190,8 @@ app.whenReady().then(() => {
       sceneId: request.sceneId,
       format: imageFormat,
       baseDir: !autoSave && !request.sceneId ? libraryRoot() : undefined,
-      // 씬 생성은 저장폴더/씬/<씬 이름>/에 모아 저장
-      sceneName: request.sceneId ? (getScene(request.sceneId)?.name ?? undefined) : undefined
+      sceneName: scene?.name,
+      scenePresetName: scene ? (getPresetName(scene.presetId) ?? undefined) : undefined
     })
 
     // 씬 생성이면 해당 씬 갱신 알림 (목록 썸네일/개수, 상세 이미지 갱신용)

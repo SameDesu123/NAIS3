@@ -82,6 +82,14 @@ export function listScenes(presetId: number): Scene[] {
   return rows.map(toScene)
 }
 
+/** 씬 저장 폴더 계층용 프리셋 이름 */
+export function getPresetName(id: number): string | null {
+  const r = getDb().prepare('SELECT name FROM scene_presets WHERE id = ?').get(id) as
+    | { name: string }
+    | undefined
+  return r?.name ?? null
+}
+
 export function getScene(id: number): Scene | null {
   const r = getDb()
     .prepare(
