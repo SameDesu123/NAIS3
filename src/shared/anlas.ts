@@ -40,6 +40,21 @@ export interface AnlasEstimate {
 
 const VIBE_ENCODE_COST = 2
 
+/**
+ * 디렉터 툴(배경제거·색칠 등)·업스케일 비용 — 웹 번들 픽셀 버킷 테이블.
+ * [[262144,1],[409600,2],[524288,3],[786432,5],[1048576,7]] — Opus는 409600px 이하 무료.
+ * (실사용 검증: 768×1024 업스케일 = 5 Anlas)
+ */
+export function directorToolCost(width: number, height: number, isOpus: boolean): number {
+  const px = width * height
+  if (isOpus && px <= 409600) return 0
+  if (px <= 262144) return 1
+  if (px <= 409600) return 2
+  if (px <= 524288) return 3
+  if (px <= 786432) return 5
+  return 7
+}
+
 export function estimateAnlas(input: AnlasEstimateInput): AnlasEstimate {
   const px = Math.max(input.width * input.height, 65536)
   const strength = input.strength ?? 1

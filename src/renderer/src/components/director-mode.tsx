@@ -17,7 +17,8 @@ import {
   X,
   type LucideIcon
 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { directorToolCost } from '@shared/anlas'
 import { EMOTIONS, type DirectorMethod } from '@shared/types'
 import { useDirectorStore } from '../stores/director-store'
 import { useGenerationStore } from '../stores/generation-store'
@@ -64,6 +65,23 @@ export function DirectorMode(): React.JSX.Element {
   const isResult = stack.length > 1 // 툴이 한 번 이상 적용된 상태
   const fileRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
+
+  // 예상 Anlas — 현재 이미지 해상도의 픽셀 버킷 요금 (Opus는 409600px 이하 무료)
+  const tier = useGenerationStore((s) => s.subscriptionTier)
+  const [toolCost, setToolCost] = useState<number | null>(null)
+  useEffect(() => {
+    if (!source) {
+      setToolCost(null)
+      return
+    }
+    let alive = true
+    void imageDims(source).then(({ width, height }) => {
+      if (alive) setToolCost(directorToolCost(width, height, tier === 'opus'))
+    })
+    return () => {
+      alive = false
+    }
+  }, [source, tier])
 
   // i2i/인페인트로 보내고 메인 페이지로 전환 (현재 이미지 사용)
   async function sendToMain(mode: 'i2i' | 'inpaint'): Promise<void> {
@@ -204,9 +222,9 @@ export function DirectorMode(): React.JSX.Element {
             onRun={() => sendToMain('inpaint')}
           />
           <div className="!my-3 h-px bg-line" />
-          <UpscaleCard disabled={!source || loading} />
+          <UpscaleCard disabled={!source || loading} cost={toolCost} />
           {TOOLS.map((tool) => (
-            <ToolCard key={tool.method} tool={tool} disabled={!source || loading} />
+            <ToolCard key={tool.method} tool={tool} disabled={!source || loading} cost={toolCost} />
           ))}
         </div>
       </div>
@@ -214,12 +232,28 @@ export function DirectorMode(): React.JSX.Element {
   )
 }
 
+/** 예상 Anlas 칩 — 0=무료(초록), >0=빨간 -N */
+function CostChip({ cost }: { cost: number | null }): React.JSX.Element | null {
+  if (cost == null) return null
+  return cost === 0 ? (
+    <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">
+      무료
+    </span>
+  ) : (
+    <span className="shrink-0 rounded bg-danger/15 px-1.5 py-0.5 font-mono text-[10px] font-medium text-danger">
+      -{cost}
+    </span>
+  )
+}
+
 function ToolCard({
   tool,
-  disabled
+  disabled,
+  cost
 }: {
   tool: (typeof TOOLS)[number]
   disabled: boolean
+  cost: number | null
 }): React.JSX.Element {
   const run = useDirectorStore((s) => s.run)
   // 옵션은 카드별 로컬 state — 툴끼리 값 공유 안 되게
@@ -258,6 +292,7 @@ function ToolCard({
           <p className="text-[13px] font-medium text-ink">{tool.label}</p>
           <p className="truncate text-[11px] text-faint">{tool.desc}</p>
         </div>
+        <CostChip cost={cost} />
         <ChevronRight size={16} className="shrink-0 text-faint transition-colors group-hover:text-accent" />
       </div>
 
@@ -300,7 +335,13 @@ function ToolCard({
 }
 
 /** 업스케일 카드 — 2x/4x 선택 후 클릭 실행 (결과 자동 체이닝) */
-function UpscaleCard({ disabled }: { disabled: boolean }): React.JSX.Element {
+function UpscaleCard({
+  disabled,
+  cost
+}: {
+  disabled: boolean
+  cost: number | null
+}): React.JSX.Element {
   const upscale = useDirectorStore((s) => s.upscale)
   const [scale, setScale] = useState(2)
   return (
@@ -319,6 +360,7 @@ function UpscaleCard({ disabled }: { disabled: boolean }): React.JSX.Element {
           <p className="text-[13px] font-medium text-ink">업스케일</p>
           <p className="truncate text-[11px] text-faint">해상도를 배수로 키움</p>
         </div>
+        <CostChip cost={cost} />
         <ChevronRight size={16} className="shrink-0 text-faint transition-colors group-hover:text-accent" />
       </div>
       {/* 배율 선택 — 클릭이 카드 실행으로 전파되지 않게 */}
