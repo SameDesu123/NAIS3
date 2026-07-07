@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, shell } from 'electron'
 import type { IpcEventMap, IpcInvokeMap } from '../shared/types'
 import {
   createCharacter,
@@ -346,6 +346,14 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     if (result.canceled || !result.filePath) return { saved: false }
     copyFileSync(filePath, result.filePath)
     return { saved: true }
+  })
+
+  handle('images:copy', ({ filePath }) => {
+    if (!isUnderImagesRoot(filePath)) return { copied: false }
+    const img = nativeImage.createFromPath(filePath)
+    if (img.isEmpty()) return { copied: false }
+    clipboard.writeImage(img)
+    return { copied: true }
   })
 
 

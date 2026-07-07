@@ -183,6 +183,7 @@ function StorageSection(): React.JSX.Element {
   const [isDefault, setIsDefault] = useState(true)
   const [autoSave, setAutoSave] = useState(true)
   const [format, setFormat] = useState('png')
+  const [dateFolders, setDateFolders] = useState(true)
 
   const refresh = (): void => {
     void window.nais.invoke('settings:getSaveDir', undefined).then((r) => {
@@ -194,6 +195,7 @@ function StorageSection(): React.JSX.Element {
     refresh()
     void window.nais.invoke('settings:get', { key: 'auto_save' }).then(({ value }) => setAutoSave(value !== '0'))
     void window.nais.invoke('settings:get', { key: 'image_format' }).then(({ value }) => setFormat(value || 'png'))
+    void window.nais.invoke('settings:get', { key: 'date_folders' }).then(({ value }) => setDateFolders(value !== '0'))
   }, [])
 
   return (
@@ -205,6 +207,15 @@ function StorageSection(): React.JSX.Element {
             onCheckedChange={(v) => {
               setAutoSave(v)
               void window.nais.invoke('settings:set', { key: 'auto_save', value: v ? '1' : '0' })
+            }}
+          />
+        </Row>
+        <Row label="날짜별 폴더" hint="NAIS3_output 안을 YYYY-MM으로 정리">
+          <Switch
+            checked={dateFolders}
+            onCheckedChange={(v) => {
+              setDateFolders(v)
+              void window.nais.invoke('settings:set', { key: 'date_folders', value: v ? '1' : '0' })
             }}
           />
         </Row>
@@ -229,8 +240,11 @@ function StorageSection(): React.JSX.Element {
       <div>
         <p className="text-[13px] text-ink">이미지 저장 폴더</p>
       </div>
-      <div className="flex items-center gap-1.5">
-        <div className="min-w-0 flex-1 truncate rounded-md border border-line bg-surface-2/60 px-3 py-2 font-mono text-[12px] text-muted">
+      <div className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden">
+        <div
+          className="w-0 min-w-0 flex-1 truncate rounded-md border border-line bg-surface-2/60 px-3 py-2 font-mono text-[12px] text-muted"
+          title={dir}
+        >
           {dir}
         </div>
         <Button

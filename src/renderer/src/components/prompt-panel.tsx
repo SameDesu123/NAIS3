@@ -135,7 +135,7 @@ export function PromptPanel(): React.JSX.Element {
   }
 
   return (
-    <aside className="relative flex h-full w-[400px] flex-col gap-3 rounded-xl border border-line bg-surface p-3">
+    <aside className="relative flex h-full w-full flex-col gap-3 rounded-xl border border-line bg-surface p-3">
       {/* 상단 여백을 창 드래그 영역으로 (프롬프트 영역 위) */}
       <div className="drag absolute inset-x-0 top-0 h-3" />
       {/* 오버레이는 프롬프트 영역만 덮는다 — 하단 버튼들은 항상 접근 가능 (NAIS2 2.0.7 교훈)

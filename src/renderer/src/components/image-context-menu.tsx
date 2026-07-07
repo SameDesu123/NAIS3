@@ -1,4 +1,5 @@
-import { Download, FileText, FolderOpen, ImageIcon, Layers, Trash2, Wand2 } from 'lucide-react'
+import { Copy, Download, FileText, FolderOpen, ImageIcon, Layers, Trash2, Wand2 } from 'lucide-react'
+import { toast } from '../stores/toast-store'
 import { openInDirector } from '../stores/director-store'
 import { setI2iSource, useGenerationStore } from '../stores/generation-store'
 import { useMetadataStore } from '../stores/metadata-store'
@@ -42,6 +43,14 @@ export function ImageContextMenu({
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => void showMeta({ filePath })}>
           <FileText size={13} className="text-sky-400" /> 메타데이터 보기
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={async () => {
+            const { copied } = await window.nais.invoke('images:copy', { filePath })
+            if (copied) toast('클립보드에 복사됨', 'success')
+          }}
+        >
+          <Copy size={13} className="text-teal-400" /> 이미지 복사
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => void window.nais.invoke('images:saveAs', { filePath })}>
           <Download size={13} className="text-emerald-400" /> 다른 이름으로 저장

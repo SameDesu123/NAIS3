@@ -327,6 +327,8 @@ export interface IpcInvokeMap {
   'images:showInFolder': { req: { filePath: string }; res: void }
   /** 다른 이름으로 저장 — 파일 저장 다이얼로그로 복사 */
   'images:saveAs': { req: { filePath: string }; res: { saved: boolean } }
+  /** 이미지를 클립보드로 복사 */
+  'images:copy': { req: { filePath: string }; res: { copied: boolean } }
   /** 저장 폴더: 현재 경로 조회 / 폴더 선택 / 기본값으로 초기화 */
   'settings:getSaveDir': { req: void; res: { dir: string; isDefault: boolean } }
   'settings:pickSaveDir': { req: void; res: { dir: string | null } }

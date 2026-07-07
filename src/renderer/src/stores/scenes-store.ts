@@ -65,6 +65,8 @@ interface ScenesState {
 
   /** 예약된 씬들을 예약 수만큼 큐에 넣는다 (메인 생성 버튼이 씬 모드에서 호출) */
   generateReserved: () => Promise<void>
+  /** 이 씬 1장 바로 생성 (예약 없이 — NAIS2식 즉석 생성) */
+  generateOne: (sceneId: number) => Promise<void>
 }
 
 /** 씬 프롬프트를 기본 프롬프트 뒤에 이어붙임 (콤마 정리) */
@@ -313,6 +315,15 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
         })
       }
     }
+  },
+
+  generateOne: async (sceneId) => {
+    const scene = get().scenes.find((s) => s.id === sceneId)
+    if (!scene) return
+    await window.nais.invoke('queue:enqueue', {
+      request: { ...buildSceneRequest(scene), seed: randomSeed() },
+      count: 1
+    })
   }
 }))
 

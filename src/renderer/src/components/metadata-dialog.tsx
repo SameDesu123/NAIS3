@@ -41,7 +41,8 @@ export function MetadataDialog(): React.JSX.Element {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-w-[760px] p-0">
+      {/* max-h + 내부 스크롤 — 작은 창에서 다이얼로그가 화면을 넘어 버튼이 가려지는 것 방지 */}
+      <DialogContent className="flex max-h-[85vh] max-w-[760px] flex-col p-0">
         <DialogTitle className="border-b border-line px-5 py-3.5 text-[15px]">
           이미지 메타데이터 <span className="text-[12px] font-normal text-faint">— 체크한 항목만 적용</span>
         </DialogTitle>
@@ -56,7 +57,7 @@ export function MetadataDialog(): React.JSX.Element {
             <p className="text-[13px]">{error}</p>
           </div>
         ) : meta ? (
-          <div className="flex gap-4 p-5">
+          <div className="flex min-h-0 flex-1 gap-4 overflow-y-auto p-5">
             {/* 좌: 이미지(상) + 파라미터(하) */}
             <div className="flex w-[46%] shrink-0 flex-col gap-3">
               <div className="flex items-center justify-center overflow-hidden rounded-lg border border-line bg-surface-2/40">

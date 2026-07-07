@@ -70,14 +70,23 @@ export async function saveGeneratedImage(input: {
   const safe = (s: string): string => s.replace(/[/\\:*?"<>|]/g, '_').trim()
   const now = new Date()
   const root = input.baseDir ?? imagesRoot()
-  const monthDir = input.sceneName
-    ? join(
-        root,
-        '씬',
-        safe(input.scenePresetName ?? '') || '기본',
-        safe(input.sceneName) || `씬-${input.sceneId}`
-      )
-    : join(root, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+  // 구조: 일반 = NAIS3_output/[YYYY-MM/] (날짜 폴더는 설정으로 on/off),
+  //       씬 = NAIS3_scene/<프리셋>/<씬 이름>/
+  let monthDir: string
+  if (input.sceneName) {
+    monthDir = join(
+      root,
+      'NAIS3_scene',
+      safe(input.scenePresetName ?? '') || '기본',
+      safe(input.sceneName) || `씬-${input.sceneId}`
+    )
+  } else {
+    const out = join(root, 'NAIS3_output')
+    monthDir =
+      getSetting('date_folders') !== '0'
+        ? join(out, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+        : out
+  }
   mkdirSync(monthDir, { recursive: true })
 
   const stamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
