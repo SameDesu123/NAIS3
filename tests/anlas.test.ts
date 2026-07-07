@@ -5,7 +5,7 @@ const base = {
   width: 832,
   height: 1216,
   steps: 28,
-  hasCharacterReference: false,
+  charRefCount: 0,
   isOpus: true,
   batchCount: 1
 }
@@ -32,10 +32,15 @@ describe('Anlas 추정 (NAI 웹 공식 이식)', () => {
     expect(estimateAnlas({ ...base, steps: 29 }).free).toBe(false)
   })
 
-  it('캐릭터 레퍼런스가 있으면 무료 조건 박탈 (웹 eX 함수 확인)', () => {
-    const r = estimateAnlas({ ...base, hasCharacterReference: true })
-    expect(r.free).toBe(false)
-    expect(r.generation).toBe(20)
+  it('캐릭터 레퍼런스: 무료 유지 + 장당·레퍼당 5 (실측: Opus·1024²·28스텝·레퍼1 = 5)', () => {
+    const r = estimateAnlas({ ...base, width: 1024, height: 1024, charRefCount: 1 })
+    expect(r.generation).toBe(0) // 생성 자체는 Opus 무료 유지
+    expect(r.charRef).toBe(5)
+    expect(r.total).toBe(5)
+  })
+
+  it('캐릭터 레퍼런스 사용료는 배치 수에 비례', () => {
+    expect(estimateAnlas({ ...base, charRefCount: 1, batchCount: 3 }).total).toBe(15)
   })
 
   it('i2i strength는 비용을 비례 감소 (최소 2)', () => {

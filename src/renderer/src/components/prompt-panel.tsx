@@ -106,7 +106,7 @@ export function PromptPanel(): React.JSX.Element {
         width: request.width,
         height: request.height,
         steps: request.steps,
-        hasCharacterReference: enabledCrefs > 0,
+        charRefCount: enabledCrefs,
         isOpus: subscriptionTier === 'opus',
         batchCount,
         unencodedVibes: 0 // 캐시 상태는 오버레이에서 확인 — 배지로만 안내

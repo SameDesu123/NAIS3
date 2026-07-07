@@ -19,7 +19,8 @@ export interface AnlasEstimateInput {
   steps: number
   /** i2i/인페인트 강도 (t2i는 1) */
   strength?: number
-  hasCharacterReference: boolean
+  /** 활성 캐릭터 레퍼런스 수 — 장당 CHARREF_COST씩 별도 부과 */
+  charRefCount?: number
   isOpus: boolean
   /** NAIS3 배치 = 요청 N개 × 1장 */
   batchCount: number
@@ -32,6 +33,8 @@ export interface AnlasEstimate {
   perImage: number
   /** 생성 비용 합계 (무료 적용 후) */
   generation: number
+  /** 캐릭터 레퍼런스 사용료 (장당·레퍼당) */
+  charRef: number
   /** 바이브 인코딩 비용 (1회성, 캐시되면 이후 0) */
   vibeEncoding: number
   total: number
@@ -39,6 +42,13 @@ export interface AnlasEstimate {
 }
 
 const VIBE_ENCODE_COST = 2
+/**
+ * 캐릭터 레퍼런스 사용료 (장당·레퍼당) — 실측 기반 추정.
+ * 검증 사례: Opus·1024²·28스텝·캐릭레퍼 1 → 장당 5 차감 (생성 자체는 무료 유지).
+ * 과거 번들 분석의 "캐릭레퍼 = 무료 조건 파기"는 실측과 불일치해 폐기.
+ * 레퍼 수·해상도에 따른 변동 여부는 미확정 — 추가 실측 시 갱신.
+ */
+const CHARREF_COST = 5
 
 /**
  * 디렉터 툴(배경제거·색칠 등)·업스케일 비용 — 웹 번들 픽셀 버킷 테이블.
@@ -62,12 +72,13 @@ export function estimateAnlas(input: AnlasEstimateInput): AnlasEstimate {
   const base = Math.ceil(2.951823174884865e-6 * px + 5.753298233447344e-7 * px * input.steps)
   const perImage = Math.max(Math.ceil(base * strength), 2)
 
-  const freeEligible =
-    !input.hasCharacterReference && px <= 1048576 && input.steps <= 28 && input.isOpus
+  // 캐릭레퍼는 무료 조건을 깨지 않는다 (실측) — 대신 아래에서 별도 사용료 부과
+  const freeEligible = px <= 1048576 && input.steps <= 28 && input.isOpus
 
   const generation = freeEligible ? 0 : perImage * input.batchCount
+  const charRef = (input.charRefCount ?? 0) * CHARREF_COST * input.batchCount
   const vibeEncoding = (input.unencodedVibes ?? 0) * VIBE_ENCODE_COST
-  const total = generation + vibeEncoding
+  const total = generation + charRef + vibeEncoding
 
-  return { perImage, generation, vibeEncoding, total, free: total === 0 }
+  return { perImage, generation, charRef, vibeEncoding, total, free: total === 0 }
 }

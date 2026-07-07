@@ -111,7 +111,7 @@ export function Titlebar(): React.JSX.Element {
     height: request.height,
     steps: request.steps,
     strength: request.source ? (request.i2iStrength ?? 0.7) : 1,
-    hasCharacterReference: enabledCrefs > 0,
+    charRefCount: enabledCrefs,
     isOpus: tier === 'opus',
     batchCount,
     unencodedVibes
