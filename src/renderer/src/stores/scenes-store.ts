@@ -307,10 +307,11 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     // 예약을 큐에 넣는 즉시 예약 수는 소진(0) — 예약이란 게 "뽑을 대기열"이므로
     set({ scenes: get().scenes.map((s) => (s.reserveCount > 0 ? { ...s, reserveCount: 0 } : s)) })
     void window.nais.invoke('scenes:setReserveAll', { presetId: get().activePresetId, count: 0 })
+    let offset = 0
     for (const scene of reserved) {
       for (let i = 0; i < scene.reserveCount; i++) {
         await window.nais.invoke('queue:enqueue', {
-          request: { ...buildSceneRequest(scene), seed: randomSeed() },
+          request: { ...buildSceneRequest(scene), seed: sceneSeed(offset++) },
           count: 1
         })
       }
@@ -321,11 +322,17 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     const scene = get().scenes.find((s) => s.id === sceneId)
     if (!scene) return
     await window.nais.invoke('queue:enqueue', {
-      request: { ...buildSceneRequest(scene), seed: randomSeed() },
+      request: { ...buildSceneRequest(scene), seed: sceneSeed(0) },
       count: 1
     })
   }
 }))
+
+/** 씬 생성 시드 — 시드 고정을 존중 (고정이면 base+offset, 아니면 랜덤) */
+function sceneSeed(offset: number): number {
+  const g = useGenerationStore.getState()
+  return g.seedLocked && g.request.seed >= 0 ? (g.request.seed + offset) % 4294967296 : randomSeed()
+}
 
 /** 활성 프리셋의 총 예약 수 (메인 생성 버튼 활성/표시용) */
 export function totalReserved(scenes: Scene[]): number {

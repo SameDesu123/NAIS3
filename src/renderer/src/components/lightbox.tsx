@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { imageUrl } from '../lib/constants'
+import { ImageContextMenu } from './image-context-menu'
 
 /** 이미지 전체 화면 뷰어 (씬 상세/히스토리 공용). filePaths 배열 + 현재 인덱스로 좌우 이동 */
 export function Lightbox({
@@ -51,13 +52,16 @@ export function Lightbox({
           <ChevronLeft size={24} />
         </button>
       )}
-      <img
-        src={imageUrl(filePaths[index])}
-        className="max-h-[92vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        draggable={false}
-        alt=""
-      />
+      {/* 우클릭 메뉴 (저장/복사/메타데이터 등) — 확대 상태에서도 사용 가능 */}
+      <ImageContextMenu filePath={filePaths[index]}>
+        <img
+          src={imageUrl(filePaths[index])}
+          className="max-h-[92vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+          draggable={false}
+          alt=""
+        />
+      </ImageContextMenu>
       {hasNext && (
         <button
           className="absolute right-4 grid size-11 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20"

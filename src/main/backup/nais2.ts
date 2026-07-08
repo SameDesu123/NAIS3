@@ -41,9 +41,28 @@ export function importNais2(data: Obj): Nais2ImportResult {
   const db = getDb()
   const res: Nais2ImportResult = { characters: 0, presets: 0, fragments: 0, scenes: 0, prompt: false }
 
+  // 폴더 find-or-create (동명이면 재사용) — 캐릭터/조각 폴더 구조 유지용
+  const folderIdFor = (table: 'character_folders' | 'fragment_folders', name: string): number => {
+    const existing = db.prepare(`SELECT id FROM ${table} WHERE name = ?`).get(name) as
+      | { id: number }
+      | undefined
+    if (existing) return existing.id
+    const max = (
+      db.prepare(`SELECT COALESCE(MAX(sort_order),0) AS m FROM ${table}`).get() as { m: number }
+    ).m
+    return Number(
+      db.prepare(`INSERT INTO ${table} (name, sort_order) VALUES (?, ?)`).run(name, max + 1)
+        .lastInsertRowid
+    )
+  }
+
   const tx = db.transaction(() => {
     // 1. 캐릭터 — 가져올 항목이 있으면 기존 캐릭터를 비우고 교체 (바이브/캐릭레퍼는 건드리지 않음)
+    //    NAIS2 groups(폴더) → character_folders로 매핑해 폴더 구조 유지
     const chs = state(data, 'nais2-character-prompts')
+    const groups = (Array.isArray(chs.groups) ? (chs.groups as Obj[]) : []).filter(
+      (g) => g.id != null && g.name
+    )
     const rawChars = (Array.isArray(chs.characters) && chs.characters.length
       ? chs.characters
       : chs.presets) as Obj[] | undefined
@@ -51,15 +70,18 @@ export function importNais2(data: Obj): Nais2ImportResult {
       .map((c) => ({
         name: String(c.name ?? ''),
         prompt: String(c.prompt ?? ''),
-        negative: String(c.negative ?? '')
+        negative: String(c.negative ?? ''),
+        groupId: c.groupId != null ? String(c.groupId) : null
       }))
       .filter((c) => c.prompt || c.negative || c.name)
     if (chars.length) {
+      const groupFolder = new Map<string, number>()
+      for (const g of groups) groupFolder.set(String(g.id), folderIdFor('character_folders', String(g.name)))
       db.prepare('DELETE FROM character_prompts').run()
       chars.forEach((c, i) => {
         db.prepare(
-          'INSERT INTO character_prompts (name, prompt, negative_prompt, sort_order) VALUES (?, ?, ?, ?)'
-        ).run(c.name, c.prompt, c.negative, i)
+          'INSERT INTO character_prompts (name, prompt, negative_prompt, folder_id, sort_order) VALUES (?, ?, ?, ?, ?)'
+        ).run(c.name, c.prompt, c.negative, c.groupId ? (groupFolder.get(c.groupId) ?? null) : null, i)
         res.characters++
       })
     }
@@ -100,13 +122,28 @@ export function importNais2(data: Obj): Nais2ImportResult {
       .filter((f) => f.name)
     if (frags.length) {
       db.prepare('DELETE FROM fragments').run()
+      // 이름 UNIQUE — 충돌 시 스킵하지 말고 -2, -3 접미사로 전부 보존 (일부 누락 버그 수정)
+      const used = new Set<string>()
+      const unique = (name: string): string => {
+        if (!used.has(name)) {
+          used.add(name)
+          return name
+        }
+        for (let n = 2; ; n++) {
+          const cand = `${name}-${n}`
+          if (!used.has(cand)) {
+            used.add(cand)
+            return cand
+          }
+        }
+      }
       frags.forEach((f, i) => {
-        const info = db
-          .prepare(
-            'INSERT OR IGNORE INTO fragments (name, content, folder, sort_order) VALUES (?, ?, ?, ?)'
-          )
-          .run(f.name, f.content, f.folder, i)
-        if (info.changes) res.fragments++
+        // NAIS2 folder는 경로 문자열 — fragment_folders를 만들어 folder_id로 매핑 (구조 유지)
+        const folderId = f.folder ? folderIdFor('fragment_folders', f.folder.replace(/\//g, '-')) : null
+        db.prepare(
+          'INSERT INTO fragments (name, content, folder_id, sort_order) VALUES (?, ?, ?, ?)'
+        ).run(unique(f.name), f.content, folderId, i)
+        res.fragments++
       })
     }
 

@@ -108,6 +108,10 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     persistParams(request)
   },
   setSeedLocked: (seedLocked) => {
+    // 시드가 -1(랜덤)인 채로 잠그면 아무것도 고정되지 않음 — 잠그는 순간 시드를 확정
+    if (seedLocked && get().request.seed < 0) {
+      get().patchRequest({ seed: randomSeed() })
+    }
     set({ seedLocked })
     localStorage.setItem('seed_locked', seedLocked ? '1' : '0')
   },
