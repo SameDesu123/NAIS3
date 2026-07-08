@@ -151,12 +151,15 @@ export function deleteFragmentFolder(id: number): void {
   })()
 }
 
-/** content → 치환용 줄 목록 (빈 줄·# 주석 제외 — NAIS2 importFromText와 동일 규칙) */
+/** content → 치환용 줄 목록. #부터 줄 끝까지 주석(프롬프트와 동일 규칙), 빈 줄 제외 */
 export function contentToLines(content: string): string[] {
   return content
     .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.startsWith('#'))
+    .map((l) => {
+      const i = l.indexOf('#')
+      return (i === -1 ? l : l.slice(0, i)).trim()
+    })
+    .filter((l) => l.length > 0)
 }
 
 /** 치환기에 물릴 조회 소스 — 생성 시점마다 DB에서 신선하게 읽는다 */

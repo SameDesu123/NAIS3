@@ -32,9 +32,12 @@ const baseRequest: GenerationRequest = {
 }
 
 describe('payload builder', () => {
-  it('주석 라인은 제거하고 나머지 개행은 보존한다', () => {
+  it('주석은 #부터 줄 끝까지 — # 앞 내용은 유지, 전체 주석 줄은 삭제', () => {
     expect(removeComments('a\n# comment\nb')).toBe('a\nb')
     expect(removeComments('  # indented comment\nkeep')).toBe('keep')
+    // 인라인 주석: # 앞은 살리고 뒤만 제거
+    expect(removeComments('tag1, tag2 # 메모\ntag3')).toBe('tag1, tag2 \ntag3')
+    expect(removeComments('a # x\nb # y')).toBe('a \nb ')
   })
 
   it('UC 프리셋 None(4)은 네거티브를 그대로 두고, 3은 Human Focus다 (실캡처 매핑)', () => {

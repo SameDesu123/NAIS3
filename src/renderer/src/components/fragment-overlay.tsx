@@ -12,7 +12,11 @@ import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Input, Textarea } from './ui/input'
 
 function lineCount(content: string): number {
-  return content.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#')).length
+  // #부터 줄 끝까지 주석 (main의 contentToLines와 동일 규칙)
+  return content.split('\n').filter((l) => {
+    const i = l.indexOf('#')
+    return (i === -1 ? l : l.slice(0, i)).trim().length > 0
+  }).length
 }
 
 export function FragmentOverlay(): React.JSX.Element {
@@ -104,7 +108,7 @@ export function FragmentOverlay(): React.JSX.Element {
         rows={6}
         className="bg-surface-2 font-mono text-[12px]"
         value={fragment.content}
-        placeholder={'한 줄 = 한 옵션 (여러 줄이면 생성마다 랜덤 선택)\n# 으로 시작하면 주석'}
+        placeholder={'한 줄 = 한 옵션 (여러 줄이면 생성마다 랜덤 선택)\n# 부터 줄 끝까지 주석'}
         onChange={(e) => update(fragment.id, { content: e.target.value })}
       />
       <p className="text-[10.5px] text-faint">
