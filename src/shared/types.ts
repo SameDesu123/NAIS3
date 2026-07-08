@@ -357,6 +357,7 @@ export interface IpcInvokeMap {
   'scenePresets:rename': { req: { id: number; name: string }; res: void }
   'scenePresets:delete': { req: { id: number }; res: void }
   'scenePresets:reorder': { req: { ids: number[] }; res: void }
+  'promptPresets:reorder': { req: { ids: number[] }; res: void }
   'promptPresets:list': { req: void; res: { items: PromptPreset[] } }
   'promptPresets:create': {
     req: { name: string; prompt: string; negativePrompt: string }

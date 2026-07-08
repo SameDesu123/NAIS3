@@ -44,3 +44,11 @@ export function updatePromptPreset(
 export function deletePromptPreset(id: number): void {
   getDb().prepare('DELETE FROM prompt_presets WHERE id = ?').run(id)
 }
+
+export function reorderPromptPresets(ids: number[]): void {
+  const db = getDb()
+  const stmt = db.prepare('UPDATE prompt_presets SET sort_order = ? WHERE id = ?')
+  db.transaction(() => {
+    ids.forEach((id, i) => stmt.run(i, id))
+  })()
+}

@@ -29,7 +29,8 @@ interface ScenesState {
   renamePreset: (id: number, name: string) => Promise<void>
   deletePreset: (id: number) => Promise<void>
   /** 프리셋 순서 이동 (dir: -1 위 / +1 아래) */
-  movePreset: (id: number, dir: -1 | 1) => Promise<void>
+  /** 프리셋 드래그 정렬 — 새 id 순서 반영 */
+  reorderPresets: (ids: number[]) => Promise<void>
 
   load: () => Promise<void>
   select: (id: number | null) => void
@@ -152,13 +153,9 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     await window.nais.invoke('scenePresets:delete', { id })
     await get().loadPresets()
   },
-  movePreset: async (id, dir) => {
-    const ids = get().presets.map((p) => p.id)
-    const i = ids.indexOf(id)
-    const j = i + dir
-    if (i < 0 || j < 0 || j >= ids.length) return
-    ;[ids[i], ids[j]] = [ids[j], ids[i]]
-    set({ presets: ids.map((pid) => get().presets.find((p) => p.id === pid)!) })
+  reorderPresets: async (ids) => {
+    const byId = new Map(get().presets.map((p) => [p.id, p]))
+    set({ presets: ids.map((pid) => byId.get(pid)!).filter(Boolean) })
     await window.nais.invoke('scenePresets:reorder', { ids })
   },
 

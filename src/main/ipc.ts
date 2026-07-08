@@ -78,7 +78,8 @@ import {
   listPromptPresets,
   createPromptPreset,
   updatePromptPreset,
-  deletePromptPreset
+  deletePromptPreset,
+  reorderPromptPresets
 } from './prompts/repo'
 import { exportAll, importAll } from './backup/repo'
 import { importNais2 } from './backup/nais2'
@@ -186,6 +187,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   })
   handle('promptPresets:delete', ({ id }) => {
     deletePromptPreset(id)
+  })
+  handle('promptPresets:reorder', ({ ids }) => {
+    reorderPromptPresets(ids)
   })
 
   handle('update:start', () => {

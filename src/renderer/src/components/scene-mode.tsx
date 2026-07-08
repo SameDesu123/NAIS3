@@ -2,8 +2,6 @@ import {
   CalendarPlus,
   CalendarX,
   ChevronDown,
-  ChevronDown as ChevronDownIcon,
-  ChevronUp,
   Copy,
   FileDown,
   FileUp,
@@ -42,6 +40,7 @@ import { askConfirm, askText } from '../stores/dialog-store'
 import { toast } from '../stores/toast-store'
 import { cn } from '../lib/utils'
 import { SceneDetail } from './scene-detail'
+import { SortableList, SortableRow } from './sortable-list'
 import { Button } from './ui/button'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -70,7 +69,7 @@ function PresetDropdown(): React.JSX.Element {
   const createPreset = useScenesStore((s) => s.createPreset)
   const renamePreset = useScenesStore((s) => s.renamePreset)
   const deletePreset = useScenesStore((s) => s.deletePreset)
-  const movePreset = useScenesStore((s) => s.movePreset)
+  const reorderPresets = useScenesStore((s) => s.reorderPresets)
 
   const active = presets.find((p) => p.id === activePresetId)
 
@@ -84,62 +83,50 @@ function PresetDropdown(): React.JSX.Element {
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-1">
         <div className="max-h-64 overflow-y-auto">
-          {presets.map((p) => (
-            <div key={p.id} className="group flex items-center gap-1">
-              <button
-                onClick={() => void setActivePreset(p.id)}
-                className={cn(
-                  'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-surface-2',
-                  p.id === activePresetId && 'font-semibold text-accent'
-                )}
-              >
-                <span className="truncate">{p.name}</span>
-              </button>
-              {/* 순서 이동 ↑↓ */}
-              <button
-                className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-ink group-hover:opacity-100"
-                onClick={() => void movePreset(p.id, -1)}
-                title="위로"
-              >
-                <ChevronUp size={12} />
-              </button>
-              <button
-                className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-ink group-hover:opacity-100"
-                onClick={() => void movePreset(p.id, 1)}
-                title="아래로"
-              >
-                <ChevronDownIcon size={12} />
-              </button>
-              <button
-                className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-fg group-hover:opacity-100"
-                onClick={async () => {
-                  const name = await askText('프리셋 이름', p.name)
-                  if (name) void renamePreset(p.id, name)
-                }}
-                title="이름 변경"
-              >
-                <Pencil size={12} />
-              </button>
-              {presets.length > 1 && (
+          {/* 드래그(그립)로 순서 변경 */}
+          <SortableList ids={presets.map((p) => p.id)} onReorder={(ids) => void reorderPresets(ids)}>
+            {presets.map((p) => (
+              <SortableRow key={p.id} id={p.id} className="group gap-1">
                 <button
-                  className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-danger group-hover:opacity-100"
-                  onClick={async () => {
-                    if (
-                      await askConfirm('프리셋 삭제', {
-                        message: `"${p.name}" 프리셋과 그 안의 씬을 모두 삭제합니다.`,
-                        confirmLabel: '삭제',
-                        danger: true
-                      })
-                    )
-                      void deletePreset(p.id)
-                  }}
-                  title="삭제"
+                  onClick={() => void setActivePreset(p.id)}
+                  className={cn(
+                    'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-surface-2',
+                    p.id === activePresetId && 'font-semibold text-accent'
+                  )}
                 >
-                  <Trash2 size={12} />
+                  <span className="truncate">{p.name}</span>
                 </button>
-              )}
-            </div>
-          ))}
+                <button
+                  className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-fg group-hover:opacity-100"
+                  onClick={async () => {
+                    const name = await askText('프리셋 이름', p.name)
+                    if (name) void renamePreset(p.id, name)
+                  }}
+                  title="이름 변경"
+                >
+                  <Pencil size={12} />
+                </button>
+                {presets.length > 1 && (
+                  <button
+                    className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-danger group-hover:opacity-100"
+                    onClick={async () => {
+                      if (
+                        await askConfirm('프리셋 삭제', {
+                          message: `"${p.name}" 프리셋과 그 안의 씬을 모두 삭제합니다.`,
+                          confirmLabel: '삭제',
+                          danger: true
+                        })
+                      )
+                        void deletePreset(p.id)
+                    }}
+                    title="삭제"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
+              </SortableRow>
+            ))}
+          </SortableList>
         </div>
         <div className="my-1 h-px bg-line" />
         <button

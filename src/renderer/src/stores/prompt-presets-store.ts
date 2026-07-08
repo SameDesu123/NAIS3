@@ -14,6 +14,8 @@ interface PromptPresetsState {
     id: number,
     patch: Partial<Pick<PromptPreset, 'name' | 'prompt' | 'negativePrompt'>>
   ) => Promise<void>
+  /** 드래그 정렬 — 새 id 순서 반영 */
+  reorder: (ids: number[]) => Promise<void>
   remove: (id: number) => Promise<void>
 }
 
@@ -45,6 +47,11 @@ export const usePromptPresetsStore = create<PromptPresetsState>((set, get) => ({
   update: async (id, patch) => {
     set({ presets: get().presets.map((p) => (p.id === id ? { ...p, ...patch } : p)) })
     await window.nais.invoke('promptPresets:update', { id, patch })
+  },
+  reorder: async (ids) => {
+    const byId = new Map(get().presets.map((p) => [p.id, p]))
+    set({ presets: ids.map((id) => byId.get(id)!).filter(Boolean) })
+    await window.nais.invoke('promptPresets:reorder', { ids })
   },
   remove: async (id) => {
     const { presets, activeId } = get()

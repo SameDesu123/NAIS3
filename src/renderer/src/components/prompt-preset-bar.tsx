@@ -4,6 +4,7 @@ import { usePromptPresetsStore } from '../stores/prompt-presets-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { askConfirm, askText } from '../stores/dialog-store'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
+import { SortableList, SortableRow } from './sortable-list'
 import { cn } from '../lib/utils'
 
 /**
@@ -20,6 +21,7 @@ export function PromptPresetBar(): React.JSX.Element {
   const create = usePromptPresetsStore((s) => s.create)
   const update = usePromptPresetsStore((s) => s.update)
   const remove = usePromptPresetsStore((s) => s.remove)
+  const reorder = usePromptPresetsStore((s) => s.reorder)
   const currentPrompt = useGenerationStore((s) => s.request.prompt)
   const currentNegative = useGenerationStore((s) => s.request.negativePrompt)
   const patch = useGenerationStore((s) => s.patchRequest)
@@ -68,39 +70,42 @@ export function PromptPresetBar(): React.JSX.Element {
           {presets.length === 0 ? (
             <p className="px-2 py-3 text-center text-[12px] text-faint">저장된 프리셋 없음</p>
           ) : (
-            presets.map((p) => (
-              <div key={p.id} className="group flex items-center gap-1">
-                <button
-                  onClick={() => apply(p.id)}
-                  className={cn(
-                    'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-surface-2',
-                    p.id === activeId && 'font-semibold text-accent'
-                  )}
-                >
-                  <span className="truncate">{p.name}</span>
-                </button>
-                <button
-                  className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-ink group-hover:opacity-100"
-                  onClick={async () => {
-                    const name = await askText('프리셋 이름', p.name)
-                    if (name) void update(p.id, { name })
-                  }}
-                  title="이름 변경"
-                >
-                  <Pencil size={12} />
-                </button>
-                <button
-                  className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-danger group-hover:opacity-100"
-                  onClick={async () => {
-                    if (await askConfirm(`"${p.name}" 프리셋을 삭제할까요?`, { danger: true }))
-                      void remove(p.id)
-                  }}
-                  title="삭제"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))
+            // 드래그(그립)로 순서 변경
+            <SortableList ids={presets.map((p) => p.id)} onReorder={(ids) => void reorder(ids)}>
+              {presets.map((p) => (
+                <SortableRow key={p.id} id={p.id} className="group gap-1">
+                  <button
+                    onClick={() => apply(p.id)}
+                    className={cn(
+                      'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-surface-2',
+                      p.id === activeId && 'font-semibold text-accent'
+                    )}
+                  >
+                    <span className="truncate">{p.name}</span>
+                  </button>
+                  <button
+                    className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-ink group-hover:opacity-100"
+                    onClick={async () => {
+                      const name = await askText('프리셋 이름', p.name)
+                      if (name) void update(p.id, { name })
+                    }}
+                    title="이름 변경"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                  <button
+                    className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-danger group-hover:opacity-100"
+                    onClick={async () => {
+                      if (await askConfirm(`"${p.name}" 프리셋을 삭제할까요?`, { danger: true }))
+                        void remove(p.id)
+                    }}
+                    title="삭제"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </SortableRow>
+              ))}
+            </SortableList>
           )}
         </div>
         <div className="my-1 h-px bg-line" />
