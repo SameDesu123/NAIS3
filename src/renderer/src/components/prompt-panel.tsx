@@ -65,8 +65,8 @@ export function PromptPanel(): React.JSX.Element {
   const generating = queueCount > 0
   const activeChars = charItems.filter((c) => c.enabled && c.prompt.trim()).length
 
-  // 토큰 예산: 포지티브(기본+캐릭터 합산)와 네거티브(UC+캐릭터 네거 합산)가 각각 512 공유
-  // — 공홈 실측으로 확인. 카운트는 입력 원문 기준 (프리셋/퀄리티 태그 미포함)
+  // 토큰 표시: 포지티브는 기본+캐릭터 합산(공홈과 동일), 네거티브는 메인 것만 —
+  // 공홈이 메인 네거와 캐릭터 네거를 별개로 세므로 합산하지 않는다 (캐릭 네거는 카드에서 자체 표시)
   const [tokenTotals, setTokenTotals] = useState<{ pos: number | null; neg: number | null }>({
     pos: null,
     neg: null
@@ -77,9 +77,7 @@ export function PromptPanel(): React.JSX.Element {
   )
   useEffect(() => {
     const posTexts = [request.prompt, ...enabledChars.map((c) => c.prompt)].filter((t) => t.trim())
-    const negTexts = [request.negativePrompt, ...enabledChars.map((c) => c.negativePrompt)].filter(
-      (t) => t.trim()
-    )
+    const negTexts = [request.negativePrompt].filter((t) => t.trim())
     if (posTexts.length === 0 && negTexts.length === 0) {
       const timer = setTimeout(() => setTokenTotals({ pos: null, neg: null }))
       return () => clearTimeout(timer)

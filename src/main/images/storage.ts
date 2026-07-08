@@ -22,10 +22,20 @@ export function defaultImagesRoot(): string {
   return join(app.getPath('pictures'), 'NAIS3')
 }
 
-/** 현재 저장 폴더 — 설정(save_dir)이 있으면 그걸, 없으면 기본값 */
+/**
+ * 메인 모드 저장 폴더.
+ * - 미지정: 기본폴더/NAIS3_output
+ * - 지정(save_dir): 그 폴더에 바로 쌓임 (하위 폴더 자동 생성 없음 — 유저가 고른 곳 그대로)
+ */
 export function imagesRoot(): string {
   const custom = getSetting('save_dir')
-  return custom && custom.trim() ? custom : defaultImagesRoot()
+  return custom && custom.trim() ? custom : join(defaultImagesRoot(), 'NAIS3_output')
+}
+
+/** 씬 모드 저장 루트 — 미지정이면 기본폴더/NAIS3_scene, 지정(scene_save_dir)이면 그 폴더 */
+export function scenesRoot(): string {
+  const custom = getSetting('scene_save_dir')
+  return custom && custom.trim() ? custom : join(defaultImagesRoot(), 'NAIS3_scene')
 }
 
 /** 앱 내부 라이브러리 폴더 — 자동 저장 OFF일 때 저장 위치 (히스토리엔 남지만 저장 폴더엔 안 감) */
@@ -33,19 +43,14 @@ export function libraryRoot(): string {
   return join(app.getPath('userData'), 'library')
 }
 
-/** 씬 이미지 폴더 경로 — 저장폴더/NAIS3_scene/<프리셋>/<씬 이름>/ (저장·폴더 열기 공용) */
+/** 씬 이미지 폴더 경로 — 씬루트/<프리셋>/<씬 이름>/ (저장·폴더 열기 공용) */
 export function sceneDir(
   presetName: string | null,
   sceneName: string,
   sceneId?: number
 ): string {
   const safe = (s: string): string => s.replace(/[/\\:*?"<>|]/g, '_').trim()
-  return join(
-    imagesRoot(),
-    'NAIS3_scene',
-    safe(presetName ?? '') || '기본',
-    safe(sceneName) || `씬-${sceneId}`
-  )
+  return join(scenesRoot(), safe(presetName ?? '') || '기본', safe(sceneName) || `씬-${sceneId}`)
 }
 
 /**
@@ -61,6 +66,7 @@ function isInside(parent: string, child: string): boolean {
 export function isUnderImagesRoot(filePath: string): boolean {
   return (
     isInside(imagesRoot(), filePath) ||
+    isInside(scenesRoot(), filePath) ||
     isInside(defaultImagesRoot(), filePath) ||
     isInside(libraryRoot(), filePath)
   )
@@ -83,14 +89,16 @@ export async function saveGeneratedImage(input: {
   scenePresetName?: string
 }): Promise<SavedImage> {
   const now = new Date()
-  const root = input.baseDir ?? imagesRoot()
-  // 구조: 일반 = NAIS3_output/[YYYY-MM/] (날짜 폴더는 설정으로 on/off),
-  //       씬 = NAIS3_scene/<프리셋>/<씬 이름>/
+  // 구조: 메인 = 메인폴더/[YYYY-MM/] (날짜 폴더는 설정으로 on/off),
+  //       씬 = 씬루트/<프리셋>/<씬 이름>/
+  // baseDir(자동 저장 OFF → 앱 내부 라이브러리)이 오면 둘 다 그 아래로.
   let monthDir: string
   if (input.sceneName) {
-    monthDir = sceneDir(input.scenePresetName ?? null, input.sceneName, input.sceneId)
+    monthDir = input.baseDir
+      ? join(input.baseDir, 'scene')
+      : sceneDir(input.scenePresetName ?? null, input.sceneName, input.sceneId)
   } else {
-    const out = join(root, 'NAIS3_output')
+    const out = input.baseDir ?? imagesRoot()
     monthDir =
       getSetting('date_folders') !== '0'
         ? join(out, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)

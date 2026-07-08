@@ -352,9 +352,13 @@ export interface IpcInvokeMap {
   /** 이미지를 클립보드로 복사 */
   'images:copy': { req: { filePath: string }; res: { copied: boolean } }
   /** 저장 폴더: 현재 경로 조회 / 폴더 선택 / 기본값으로 초기화 */
-  'settings:getSaveDir': { req: void; res: { dir: string; isDefault: boolean } }
-  'settings:pickSaveDir': { req: void; res: { dir: string | null } }
-  'settings:resetSaveDir': { req: void; res: { dir: string } }
+  /** target 생략 = main(메인 모드). 'scene' = 씬 모드 저장 폴더 */
+  'settings:getSaveDir': {
+    req: { target?: 'main' | 'scene' } | void
+    res: { dir: string; isDefault: boolean }
+  }
+  'settings:pickSaveDir': { req: { target?: 'main' | 'scene' } | void; res: { dir: string | null } }
+  'settings:resetSaveDir': { req: { target?: 'main' | 'scene' } | void; res: { dir: string } }
   /** 생성 지연 시간(ms) 설정 — 큐에 즉시 반영 + 영속 */
   'gen:setDelay': { req: { ms: number }; res: void }
   /** 디렉터 툴 실행 — 결과를 히스토리에 저장하고 파일 경로 + 결과 base64 반환 */

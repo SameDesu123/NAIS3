@@ -99,7 +99,7 @@ import {
   updateRefImage
 } from './refs/repo'
 import { searchTags } from './tags'
-import { imagesRoot, isUnderImagesRoot, defaultImagesRoot, sceneDir } from './images/storage'
+import { imagesRoot, isUnderImagesRoot, sceneDir, scenesRoot } from './images/storage'
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'fs'
 import { basename } from 'path'
 import sharp from 'sharp'
@@ -378,23 +378,31 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   })
 
 
-  handle('settings:getSaveDir', () => ({
-    dir: imagesRoot(),
-    isDefault: imagesRoot() === defaultImagesRoot()
-  }))
-  handle('settings:pickSaveDir', async () => {
+  const saveDirKey = (target?: 'main' | 'scene'): string =>
+    target === 'scene' ? 'scene_save_dir' : 'save_dir'
+  const saveDirOf = (target?: 'main' | 'scene'): string =>
+    target === 'scene' ? scenesRoot() : imagesRoot()
+
+  handle('settings:getSaveDir', (req) => {
+    const target = req?.target
+    return {
+      dir: saveDirOf(target),
+      isDefault: !getSetting(saveDirKey(target))?.trim()
+    }
+  })
+  handle('settings:pickSaveDir', async (req) => {
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
     const result = await dialog.showOpenDialog(win, {
-      title: '저장 폴더 선택',
+      title: req?.target === 'scene' ? '씬 저장 폴더 선택' : '저장 폴더 선택',
       properties: ['openDirectory', 'createDirectory']
     })
     if (result.canceled || result.filePaths.length === 0) return { dir: null }
-    setSetting('save_dir', result.filePaths[0])
+    setSetting(saveDirKey(req?.target), result.filePaths[0])
     return { dir: result.filePaths[0] }
   })
-  handle('settings:resetSaveDir', () => {
-    setSetting('save_dir', '')
-    return { dir: defaultImagesRoot() }
+  handle('settings:resetSaveDir', (req) => {
+    setSetting(saveDirKey(req?.target), '')
+    return { dir: saveDirOf(req?.target) }
   })
   handle('gen:setDelay', ({ ms }) => {
     ctx.queue.setDelayMs(ms)
