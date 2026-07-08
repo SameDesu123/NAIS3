@@ -38,8 +38,17 @@ function toScene(
 // ── 프리셋 ──────────────────────────────────────────────
 export function listPresets(): ScenePreset[] {
   return getDb()
-    .prepare('SELECT id, name FROM scene_presets ORDER BY sort_order, id')
+    .prepare(
+      'SELECT id, name, default_width AS defaultWidth, default_height AS defaultHeight FROM scene_presets ORDER BY sort_order, id'
+    )
     .all() as ScenePreset[]
+}
+
+/** 프리셋의 새 씬 기본 해상도 설정 */
+export function setPresetDefaultResolution(id: number, width: number, height: number): void {
+  getDb()
+    .prepare('UPDATE scene_presets SET default_width = ?, default_height = ? WHERE id = ?')
+    .run(width, height, id)
 }
 
 export function createPreset(name: string): number {
@@ -116,10 +125,16 @@ export function createScene(presetId: number, name: string): number {
   const max = db
     .prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM gen_scenes WHERE preset_id = ?')
     .get(presetId) as { m: number }
+  // 프리셋 기본 해상도 적용 (미설정 시 832×1216)
+  const preset = db
+    .prepare('SELECT default_width AS w, default_height AS h FROM scene_presets WHERE id = ?')
+    .get(presetId) as { w: number | null; h: number | null } | undefined
   return Number(
     db
-      .prepare('INSERT INTO gen_scenes (preset_id, name, sort_order) VALUES (?, ?, ?)')
-      .run(presetId, name, max.m + 1).lastInsertRowid
+      .prepare(
+        'INSERT INTO gen_scenes (preset_id, name, width, height, sort_order) VALUES (?, ?, ?, ?, ?)'
+      )
+      .run(presetId, name, preset?.w ?? 832, preset?.h ?? 1216, max.m + 1).lastInsertRowid
   )
 }
 
@@ -242,16 +257,20 @@ export function bulkClearImages(ids: number[]): number {
 export function sceneImages(
   sceneId: number,
   limit: number,
-  offset: number
+  offset: number,
+  favoritesOnly?: boolean
 ): { items: SceneImage[]; total: number } {
   const db = getDb()
+  const fav = favoritesOnly ? ' AND favorite = 1' : ''
   const total = (
-    db.prepare('SELECT COUNT(*) AS c FROM images WHERE scene_id = ?').get(sceneId) as { c: number }
+    db
+      .prepare(`SELECT COUNT(*) AS c FROM images WHERE scene_id = ?${fav}`)
+      .get(sceneId) as { c: number }
   ).c
   const rows = db
     .prepare(
       `SELECT id, file_path, thumbnail, seed, favorite FROM images
-       WHERE scene_id = ? ORDER BY id DESC LIMIT ? OFFSET ?`
+       WHERE scene_id = ?${fav} ORDER BY id DESC LIMIT ? OFFSET ?`
     )
     .all(sceneId, limit, offset) as {
     id: number
@@ -270,6 +289,23 @@ export function sceneImages(
       favorite: r.favorite === 1
     }))
   }
+}
+
+/** 씬의 즐겨찾기 제외 전체 삭제 (파일 포함) — 반환: 삭제 수 (N5) */
+export function deleteNonFavorites(sceneId: number): number {
+  const db = getDb()
+  const rows = db
+    .prepare('SELECT id, file_path FROM images WHERE scene_id = ? AND favorite = 0')
+    .all(sceneId) as { id: number; file_path: string }[]
+  db.prepare('DELETE FROM images WHERE scene_id = ? AND favorite = 0').run(sceneId)
+  for (const r of rows) {
+    try {
+      unlinkSync(r.file_path)
+    } catch {
+      // 무시
+    }
+  }
+  return rows.length
 }
 
 export function setImageFavorite(id: number, favorite: boolean): void {

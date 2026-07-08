@@ -48,6 +48,8 @@ interface GenerationState {
   avgDurationMs: number | null
   /** 중앙에 표시할 이미지 (완성작 파일 경로) */
   viewingFilePath: string | null
+  /** 생성 중 유저가 클릭해 고정한 보기 — 스트리밍보다 우선 표시 */
+  viewPinned: boolean
   history: HistoryItem[]
   historyTotal: number
 
@@ -98,6 +100,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   genStartAt: null,
   avgDurationMs: Number(localStorage.getItem('gen_avg_ms')) || null,
   viewingFilePath: null,
+  viewPinned: false,
   history: [],
   historyTotal: 0,
 
@@ -190,7 +193,12 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     set({ history: items, historyTotal: total })
   },
 
-  view: (viewingFilePath) => set({ viewingFilePath }),
+  // 생성 중에 유저가 다른 이미지를 클릭하면 "고정 보기" — 스트리밍이 화면을 덮지 않는다 (B11)
+  view: (viewingFilePath) => {
+    const active =
+      get().queue?.items.some((i) => i.state === 'pending' || i.state === 'generating') ?? false
+    set({ viewingFilePath, viewPinned: viewingFilePath != null && active })
+  },
   source: null,
   setSource: (source) => set({ source }),
   inpaintTarget: null,
@@ -286,16 +294,22 @@ export function bindGenerationEvents(): () => void {
         toast(item.error ?? '생성 실패', 'error')
       }
     }
-    // 방금 완료된 항목이 있으면 히스토리 갱신 + 중앙에 표시
+    // 방금 완료된 항목이 있으면 히스토리 갱신 + 중앙에 표시 (고정 보기 중엔 보기 유지)
     const prevDone = new Set(prev?.items.filter((i) => i.state === 'done').map((i) => i.id))
     const newlyDone = queue.items.find((i) => i.state === 'done' && !prevDone.has(i.id))
     if (newlyDone?.filePath) {
-      useGenerationStore.setState({
-        viewingFilePath: newlyDone.filePath,
-        previewPng: null,
-        progress: null
-      })
+      const pinned = useGenerationStore.getState().viewPinned
+      useGenerationStore.setState(
+        pinned
+          ? { previewPng: null, progress: null }
+          : { viewingFilePath: newlyDone.filePath, previewPng: null, progress: null }
+      )
       void useGenerationStore.getState().refreshHistory()
+    }
+    // 큐가 다 끝나면 고정 해제
+    const stillActive = queue.items.some((i) => i.state === 'pending' || i.state === 'generating')
+    if (!stillActive && useGenerationStore.getState().viewPinned) {
+      useGenerationStore.setState({ viewPinned: false })
     }
   })
   const offProgress = window.nais.on('generation:progress', (e) => {

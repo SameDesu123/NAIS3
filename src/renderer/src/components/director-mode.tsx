@@ -163,7 +163,11 @@ export function DirectorMode(): React.JSX.Element {
           </>
         ) : (
           <div
-            className="m-4 flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-line p-8 text-faint transition-colors"
+            // 점선 박스를 실제 드롭 가능 영역(캔버스 전체)과 일치시킴 — 여백만큼 작아 보이던 문제 (B10)
+            className={cn(
+              'absolute inset-2 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 text-faint transition-colors',
+              dragOver ? 'border-accent text-accent' : 'border-line'
+            )}
             onClick={() => fileRef.current?.click()}
           >
             <Upload size={44} strokeWidth={1.2} className="opacity-40" />

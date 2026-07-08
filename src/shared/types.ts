@@ -221,6 +221,9 @@ export interface ImageMetadata {
 export interface ScenePreset {
   id: number
   name: string
+  /** 새 씬 기본 해상도 (null = 832×1216) */
+  defaultWidth: number | null
+  defaultHeight: number | null
 }
 
 /** 프리셋에 함께 저장되는 생성 파라미터 (시드·캐릭터는 제외) */
@@ -381,6 +384,11 @@ export interface IpcInvokeMap {
   'scenePresets:rename': { req: { id: number; name: string }; res: void }
   'scenePresets:delete': { req: { id: number }; res: void }
   'scenePresets:reorder': { req: { ids: number[] }; res: void }
+  /** 프리셋의 새 씬 기본 해상도 (N3) */
+  'scenePresets:setDefaultResolution': {
+    req: { id: number; width: number; height: number }
+    res: void
+  }
   'promptPresets:reorder': { req: { ids: number[] }; res: void }
   'promptPresets:list': { req: void; res: { items: PromptPreset[] } }
   'promptPresets:create': {
@@ -436,9 +444,11 @@ export interface IpcInvokeMap {
   'scenes:bulkExportZip': { req: { ids: number[] }; res: { count: number } }
   /** 씬 상세 이미지 페이지네이션 (수만 장 대비) */
   'scenes:images': {
-    req: { sceneId: number; limit: number; offset: number }
+    req: { sceneId: number; limit: number; offset: number; favoritesOnly?: boolean }
     res: { items: SceneImage[]; total: number }
   }
+  /** 씬의 즐겨찾기 제외 전체 삭제 (파일 포함) */
+  'scenes:deleteNonFavorites': { req: { sceneId: number }; res: { deleted: number } }
   'images:setFavorite': { req: { id: number; favorite: boolean }; res: void }
   /** 이미지 삭제 — deleteFile=true면 파일까지(씬 상세), 아니면 기록만(히스토리, 파일 보존) */
   'images:delete': { req: { id: number; deleteFile?: boolean }; res: void }

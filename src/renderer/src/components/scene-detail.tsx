@@ -5,6 +5,8 @@ import { imageUrl } from '../lib/constants'
 import { ResolutionPicker } from './resolution-picker'
 import { useGenerationStore } from '../stores/generation-store'
 import { useScenesStore } from '../stores/scenes-store'
+import { askConfirm } from '../stores/dialog-store'
+import { toast } from '../stores/toast-store'
 import { cn } from '../lib/utils'
 import { ImageContextMenu } from './image-context-menu'
 import { Lightbox } from './lightbox'
@@ -22,6 +24,9 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
   const toggleFavorite = useScenesStore((s) => s.toggleFavorite)
   const deleteImage = useScenesStore((s) => s.deleteImage)
   const generateOne = useScenesStore((s) => s.generateOne)
+  const favoritesOnly = useScenesStore((s) => s.favoritesOnly)
+  const setFavoritesOnly = useScenesStore((s) => s.setFavoritesOnly)
+  const deleteNonFavorites = useScenesStore((s) => s.deleteNonFavorites)
 
   const source = useGenerationStore((s) => s.source)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -135,6 +140,34 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
           <span className="font-medium text-fg">생성된 이미지</span>
           <span>{imagesTotal.toLocaleString()}장</span>
           <div className="flex-1" />
+          {/* 즐겨찾기만 보기 (N4) */}
+          <button
+            onClick={() => setFavoritesOnly(!favoritesOnly)}
+            className={cn(
+              'flex h-6 items-center gap-1 rounded-md px-2 text-[11.5px] font-medium transition-colors',
+              favoritesOnly ? 'bg-amber-400/90 text-black' : 'bg-surface-2 text-muted hover:text-ink'
+            )}
+            title="즐겨찾기만 보기"
+          >
+            <Star size={12} fill={favoritesOnly ? 'currentColor' : 'none'} /> 즐겨찾기
+          </button>
+          {/* 즐겨찾기 제외 삭제 (N5) */}
+          <button
+            onClick={async () => {
+              const ok = await askConfirm('즐겨찾기 제외 삭제', {
+                message: '이 씬에서 즐겨찾기하지 않은 이미지를 모두 삭제합니다 (파일 포함). 되돌릴 수 없습니다.',
+                confirmLabel: '삭제',
+                danger: true
+              })
+              if (!ok) return
+              const n = await deleteNonFavorites(scene.id)
+              toast(n > 0 ? `${n.toLocaleString()}장 삭제됨` : '삭제할 이미지가 없습니다', n > 0 ? 'success' : 'info')
+            }}
+            className="flex h-6 items-center gap-1 rounded-md bg-surface-2 px-2 text-[11.5px] font-medium text-muted transition-colors hover:text-danger"
+            title="즐겨찾기 제외 전체 삭제"
+          >
+            <Trash2 size={12} /> 정리
+          </button>
           <div className="flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5">
             {[2, 3, 4, 5].map((n) => (
               <button
@@ -153,7 +186,9 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
 
         {images.length === 0 && !imagesLoading ? (
           <p className="py-10 text-center text-[13px] text-faint">
-            아직 생성된 이미지가 없습니다. 위에서 예약(+)하고 좌측 생성 버튼을 누르세요.
+            {favoritesOnly
+              ? '즐겨찾기한 이미지가 없습니다.'
+              : '아직 생성된 이미지가 없습니다. 위에서 예약(+)하고 좌측 생성 버튼을 누르세요.'}
           </p>
         ) : (
           <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>

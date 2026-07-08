@@ -14,24 +14,26 @@ export function PreviewPane(): React.JSX.Element {
   const genStartAt = useGenerationStore((s) => s.genStartAt)
   const avgDurationMs = useGenerationStore((s) => s.avgDurationMs)
 
+  const viewPinned = useGenerationStore((s) => s.viewPinned)
   const generating = queue?.items.some((i) => i.state === 'generating') ?? false
   const preparing = generating && !progress // 스텝 진행 전 = 준비 중(인코딩 등)
 
-  // 생성 중엔 스트리밍 프레임 우선 — 배치 2장째부터 직전 완성작(viewingFilePath)에 가려지던 문제
-  const src =
-    generating && previewPng
-      ? `data:image/png;base64,${previewPng}`
-      : viewingFilePath
-        ? imageUrl(viewingFilePath)
-        : previewPng
-          ? `data:image/png;base64,${previewPng}`
-          : null
+  // 생성 중엔 스트리밍 프레임 우선 — 단, 유저가 다른 이미지를 클릭(고정 보기)하면 그 파일 우선 (B11)
+  const streamShown = generating && previewPng != null && !viewPinned
+  const src = streamShown
+    ? `data:image/png;base64,${previewPng}`
+    : viewingFilePath
+      ? imageUrl(viewingFilePath)
+      : previewPng
+        ? `data:image/png;base64,${previewPng}`
+        : null
 
   const showMeta = useMetadataStore((s) => s.show)
   const seedLocked = useGenerationStore((s) => s.seedLocked)
   const requestSeed = useGenerationStore((s) => s.request.seed)
   const setSeedLocked = useGenerationStore((s) => s.setSeedLocked)
   const patchRequest = useGenerationStore((s) => s.patchRequest)
+  const view = useGenerationStore((s) => s.view)
   const [dragOver, setDragOver] = useState(false)
 
   // 보고 있는 완성작의 해상도·시드 (하단 반투명 칩) — 파일이 바뀌면 메타데이터 로드
@@ -97,10 +99,17 @@ export function PreviewPane(): React.JSX.Element {
       <div className="drag absolute inset-x-0 top-0 z-20 h-6" />
       {src ? (
         // 긴 쪽이 박스 테두리에 닿도록 꽉 채움 (object-contain으로 비율 유지).
-        // 완성작(파일)일 때만 우클릭 메뉴 — 스트리밍 미리보기(previewPng)는 파일이 아님
-        viewingFilePath ? (
+        // 완성작(파일)이 표시 중일 때만 우클릭 메뉴 — 스트리밍 미리보기(previewPng)는 파일이 아님
+        !streamShown && viewingFilePath ? (
           <ImageContextMenu filePath={viewingFilePath}>
-            <img src={src} className="h-full w-full rounded-md object-contain" draggable={false} alt="" />
+            <img
+              src={src}
+              className="h-full w-full rounded-md object-contain"
+              draggable={false}
+              // 파일이 밖에서 지워진 경우 깨진 이미지 대신 빈 상태로 (B8)
+              onError={() => view(null)}
+              alt=""
+            />
           </ImageContextMenu>
         ) : (
           <img src={src} className="h-full w-full rounded-md object-contain" draggable={false} alt="" />
@@ -133,8 +142,8 @@ export function PreviewPane(): React.JSX.Element {
         </div>
       )}
 
-      {/* 해상도·시드 칩 — 반투명, 호버 시 진하게 (이미지 가림 최소화). 시드 클릭=고정 토글 */}
-      {viewingFilePath && !generating && info && (info.width || info.seed != null) && (
+      {/* 해상도·시드 칩 — 완성작(파일)이 표시 중일 때 (생성 중이라도 고정 보기면 표시). 시드 클릭=고정 토글 */}
+      {viewingFilePath && !streamShown && info && (info.width || info.seed != null) && (
         <div className="absolute bottom-3 left-3 flex flex-col items-start gap-0.5 rounded-md bg-paper/35 px-2.5 py-1 font-mono text-[11px] leading-tight text-muted opacity-70 backdrop-blur-sm transition hover:bg-paper/90 hover:text-ink hover:opacity-100">
           {info.width && info.height && (
             <span>

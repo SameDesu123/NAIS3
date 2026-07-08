@@ -39,6 +39,7 @@ import { useResolutionsStore } from '../stores/resolutions-store'
 import { askConfirm, askText } from '../stores/dialog-store'
 import { toast } from '../stores/toast-store'
 import { cn } from '../lib/utils'
+import { ResolutionPicker } from './resolution-picker'
 import { SceneDetail } from './scene-detail'
 import { SortableList, SortableRow } from './sortable-list'
 import { Button } from './ui/button'
@@ -70,11 +71,13 @@ function PresetDropdown(): React.JSX.Element {
   const renamePreset = useScenesStore((s) => s.renamePreset)
   const deletePreset = useScenesStore((s) => s.deletePreset)
   const reorderPresets = useScenesStore((s) => s.reorderPresets)
+  const setPresetDefaultResolution = useScenesStore((s) => s.setPresetDefaultResolution)
+  const [open, setOpen] = useState(false)
 
   const active = presets.find((p) => p.id === activePresetId)
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button className="flex h-8 min-w-52 items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 text-[13px] font-medium hover:bg-surface-2">
           <span className="min-w-0 flex-1 truncate text-left">{active?.name ?? '프리셋'}</span>
@@ -88,7 +91,10 @@ function PresetDropdown(): React.JSX.Element {
             {presets.map((p) => (
               <SortableRow key={p.id} id={p.id} className="group gap-1">
                 <button
-                  onClick={() => void setActivePreset(p.id)}
+                  onClick={() => {
+                    void setActivePreset(p.id)
+                    setOpen(false) // 선택했으면 닫기 (B9)
+                  }}
                   className={cn(
                     'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-surface-2',
                     p.id === activePresetId && 'font-semibold text-accent'
@@ -128,6 +134,20 @@ function PresetDropdown(): React.JSX.Element {
             ))}
           </SortableList>
         </div>
+        <div className="my-1 h-px bg-line" />
+        {/* 활성 프리셋의 새 씬 기본 해상도 (N3) */}
+        {active && (
+          <div className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-muted">
+            <span className="shrink-0">새 씬 기본 해상도</span>
+            <div className="flex-1" />
+            <ResolutionPicker
+              className="w-40"
+              width={active.defaultWidth ?? 832}
+              height={active.defaultHeight ?? 1216}
+              onPick={(w, h) => void setPresetDefaultResolution(active.id, w, h)}
+            />
+          </div>
+        )}
         <div className="my-1 h-px bg-line" />
         <button
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-accent hover:bg-surface-2"

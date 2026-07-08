@@ -50,6 +50,7 @@ import {
   renamePreset,
   deletePreset,
   reorderPresets,
+  setPresetDefaultResolution,
   listScenes,
   createScene,
   getScene,
@@ -67,6 +68,7 @@ import {
   bulkClearImages,
   bulkExportZip,
   sceneImages,
+  deleteNonFavorites,
   setImageFavorite,
   deleteImage,
   clearAllImages,
@@ -166,6 +168,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   })
   handle('scenePresets:reorder', ({ ids }) => {
     reorderPresets(ids)
+  })
+  handle('scenePresets:setDefaultResolution', ({ id, width, height }) => {
+    setPresetDefaultResolution(id, width, height)
   })
   handle('scenes:openFolder', ({ sceneId }) => {
     const scene = getScene(sceneId)
@@ -276,7 +281,12 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   })
   handle('scenes:bulkClearImages', ({ ids }) => ({ deleted: bulkClearImages(ids) }))
   handle('scenes:bulkExportZip', async ({ ids }) => ({ count: await bulkExportZip(ids) }))
-  handle('scenes:images', ({ sceneId, limit, offset }) => sceneImages(sceneId, limit, offset))
+  handle('scenes:images', ({ sceneId, limit, offset, favoritesOnly }) =>
+    sceneImages(sceneId, limit, offset, favoritesOnly)
+  )
+  handle('scenes:deleteNonFavorites', ({ sceneId }) => ({
+    deleted: deleteNonFavorites(sceneId)
+  }))
   handle('images:setFavorite', ({ id, favorite }) => {
     setImageFavorite(id, favorite)
   })

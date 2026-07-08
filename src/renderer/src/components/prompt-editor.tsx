@@ -247,7 +247,13 @@ export function PromptEditor({
             setSuggestions([])
           }
         }}
-        onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+        onBlur={() => {
+          // 포커스가 떠나면 추천 닫기. seq를 올려 in-flight 검색 결과가 뒤늦게 패널을
+          // 되열지 못하게 한다 (B7). 150ms 지연은 추천 클릭이 blur보다 먼저 처리되도록.
+          clearTimeout(debounceRef.current)
+          searchSeqRef.current++
+          setTimeout(() => setSuggestions([]), 150)
+        }}
       />
 
       {tokens !== null && (

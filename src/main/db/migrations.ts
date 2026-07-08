@@ -259,5 +259,13 @@ export const migrations: ((db: Database.Database) => void)[] = [
   // v10: 프롬프트 프리셋에 생성 파라미터도 저장 — NAIS2처럼 프리셋 전환 시 스텝·CFG 등 복원
   (db) => {
     db.exec(`ALTER TABLE prompt_presets ADD COLUMN params_json TEXT;`)
+  },
+
+  // v11: 씬 프리셋별 기본 해상도 — 새 씬 생성 시 적용 (null = 832×1216)
+  (db) => {
+    db.exec(`
+      ALTER TABLE scene_presets ADD COLUMN default_width INTEGER;
+      ALTER TABLE scene_presets ADD COLUMN default_height INTEGER;
+    `)
   }
 ]

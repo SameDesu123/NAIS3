@@ -22,6 +22,8 @@ interface ScenesState {
   images: SceneImage[]
   imagesTotal: number
   imagesLoading: boolean
+  /** 씬 상세 "즐겨찾기만 보기" 필터 (N4) */
+  favoritesOnly: boolean
 
   loadPresets: () => Promise<void>
   setActivePreset: (id: number) => Promise<void>
@@ -46,6 +48,8 @@ interface ScenesState {
   duplicate: (id: number) => Promise<void>
   remove: (id: number) => Promise<void>
   reorder: (ids: number[]) => Promise<void>
+  /** 프리셋의 새 씬 기본 해상도 설정 (N3) */
+  setPresetDefaultResolution: (id: number, width: number, height: number) => Promise<void>
 
   // 예약
   adjustReserve: (id: number, delta: number) => Promise<void>
@@ -65,6 +69,10 @@ interface ScenesState {
   loadImages: (sceneId: number, reset: boolean) => Promise<void>
   toggleFavorite: (imageId: number) => Promise<void>
   deleteImage: (imageId: number) => Promise<void>
+  /** 즐겨찾기만 보기 토글 (N4) */
+  setFavoritesOnly: (v: boolean) => void
+  /** 즐겨찾기 제외 전체 삭제 (N5) */
+  deleteNonFavorites: (sceneId: number) => Promise<number>
 
   /** 예약된 씬들을 예약 수만큼 큐에 넣는다 (메인 생성 버튼이 씬 모드에서 호출) */
   generateReserved: () => Promise<void>
@@ -127,6 +135,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
   images: [],
   imagesTotal: 0,
   imagesLoading: false,
+  favoritesOnly: false,
 
   loadPresets: async () => {
     const { items } = await window.nais.invoke('scenePresets:list', undefined)
@@ -158,6 +167,14 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     set({ presets: ids.map((pid) => byId.get(pid)!).filter(Boolean) })
     await window.nais.invoke('scenePresets:reorder', { ids })
   },
+  setPresetDefaultResolution: async (id, width, height) => {
+    set({
+      presets: get().presets.map((p) =>
+        p.id === id ? { ...p, defaultWidth: width, defaultHeight: height } : p
+      )
+    })
+    await window.nais.invoke('scenePresets:setDefaultResolution', { id, width, height })
+  },
 
   load: async () => {
     // 시퀀스 가드: 생성 중 scenes:changed가 연달아 오면 응답이 뒤섞여 옛 썸네일이 남을 수 있음
@@ -169,7 +186,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
   },
   select: (selectedId) => {
     if (selectedId !== get().selectedId) recordNav() // 마우스 뒤로/앞으로용 히스토리
-    set({ selectedId, images: [], imagesTotal: 0 })
+    set({ selectedId, images: [], imagesTotal: 0, favoritesOnly: false })
     if (selectedId != null) void get().loadImages(selectedId, true)
   },
   setEditMode: (editMode) => set({ editMode, selection: new Set() }),
@@ -292,7 +309,8 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     const { items, total } = await window.nais.invoke('scenes:images', {
       sceneId,
       limit: PAGE,
-      offset
+      offset,
+      favoritesOnly: get().favoritesOnly
     })
     if (seq !== imagesSeq || get().selectedId !== sceneId) return // 더 최신 로드가 있으면 폐기
     set((s) => ({
@@ -309,12 +327,32 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     await window.nais.invoke('images:setFavorite', { id: imageId, favorite })
   },
   deleteImage: async (imageId) => {
+    const target = get().images.find((i) => i.id === imageId)
     set({
       images: get().images.filter((i) => i.id !== imageId),
       imagesTotal: Math.max(0, get().imagesTotal - 1)
     })
+    // 메인 프리뷰가 이 파일을 보고 있으면 정리 — 삭제 후 깨진(NULL) 이미지 방지 (B8)
+    const gen = useGenerationStore.getState()
+    if (target && gen.viewingFilePath === target.filePath) gen.view(null)
     // 씬 상세의 명시적 삭제 — 파일까지 삭제 (히스토리 삭제와 달리)
     await window.nais.invoke('images:delete', { id: imageId, deleteFile: true })
+    void gen.refreshHistory()
+  },
+  setFavoritesOnly: (v) => {
+    if (v === get().favoritesOnly) return
+    set({ favoritesOnly: v, images: [], imagesTotal: 0 })
+    const id = get().selectedId
+    if (id != null) void get().loadImages(id, true)
+  },
+  deleteNonFavorites: async (sceneId) => {
+    const { deleted } = await window.nais.invoke('scenes:deleteNonFavorites', { sceneId })
+    if (deleted > 0) {
+      await get().loadImages(sceneId, true)
+      void get().load() // 카드 썸네일/카운트 갱신
+      void useGenerationStore.getState().refreshHistory()
+    }
+    return deleted
   },
 
   generateReserved: async () => {
