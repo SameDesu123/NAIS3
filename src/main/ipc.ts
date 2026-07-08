@@ -179,8 +179,8 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('frags:duplicate', ({ id }) => ({ id: duplicateFragment(id) }))
 
   handle('promptPresets:list', () => ({ items: listPromptPresets() }))
-  handle('promptPresets:create', ({ name, prompt, negativePrompt }) => ({
-    id: createPromptPreset(name, prompt, negativePrompt)
+  handle('promptPresets:create', ({ name, prompt, negativePrompt, params }) => ({
+    id: createPromptPreset(name, prompt, negativePrompt, params)
   }))
   handle('promptPresets:update', ({ id, patch }) => {
     updatePromptPreset(id, patch)
@@ -280,8 +280,8 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('images:setFavorite', ({ id, favorite }) => {
     setImageFavorite(id, favorite)
   })
-  handle('images:delete', ({ id }) => {
-    deleteImage(id)
+  handle('images:delete', ({ id, deleteFile }) => {
+    deleteImage(id, deleteFile === true)
   })
   handle('images:clearAll', () => ({ count: clearAllImages() }))
   handle('scenes:exportJson', async ({ presetId }) => ({ saved: await exportScenesJson(presetId) }))

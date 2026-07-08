@@ -1,9 +1,10 @@
 import { BrowserWindow, dialog } from 'electron'
 import { readFileSync, unlinkSync, writeFileSync } from 'fs'
-import { basename } from 'path'
+import { basename, extname, isAbsolute, relative } from 'path'
 import JSZip from 'jszip'
 import type { Scene, SceneImage, ScenePreset } from '../../shared/types'
 import { getDb } from '../db'
+import { libraryRoot } from '../images/storage'
 
 interface Row {
   id: number
@@ -278,32 +279,46 @@ export function setImageFavorite(id: number, favorite: boolean): void {
 }
 
 /** 히스토리 전체 비우기 — 모든 이미지 레코드+원본 파일 삭제 (씬 이미지 포함) */
+/** 앱 내부 라이브러리(자동 저장 OFF 보관소) 파일만 실제 삭제 — 유저 저장 폴더 파일은 보존 */
+function unlinkIfInternal(filePath: string): void {
+  const rel = relative(libraryRoot(), filePath)
+  if (rel.startsWith('..') || isAbsolute(rel)) return // 저장 폴더 파일 → 보존
+  try {
+    unlinkSync(filePath)
+  } catch {
+    // 무시
+  }
+}
+
+/** 히스토리 전체 비우기 — 기록만 삭제, 파일 보존 (내부 라이브러리 파일은 정리) */
 export function clearAllImages(): number {
   const db = getDb()
   const rows = db.prepare('SELECT file_path FROM images').all() as { file_path: string }[]
   db.prepare('DELETE FROM images').run()
-  for (const r of rows) {
-    try {
-      unlinkSync(r.file_path)
-    } catch {
-      // 무시 (이미 없는 파일 등)
-    }
-  }
+  for (const r of rows) unlinkIfInternal(r.file_path)
   return rows.length
 }
 
-export function deleteImage(id: number): void {
+/**
+ * 이미지 삭제.
+ * - deleteFile=true: 파일까지 삭제 (씬 상세의 명시적 삭제)
+ * - deleteFile=false: 기록만 삭제, 파일 보존 (히스토리 삭제 — 내부 라이브러리 파일만 정리)
+ */
+export function deleteImage(id: number, deleteFile: boolean): void {
   const db = getDb()
   const r = db.prepare('SELECT file_path FROM images WHERE id = ?').get(id) as
     | { file_path: string }
     | undefined
   db.prepare('DELETE FROM images WHERE id = ?').run(id)
-  if (r) {
+  if (!r) return
+  if (deleteFile) {
     try {
       unlinkSync(r.file_path)
     } catch {
       // 무시
     }
+  } else {
+    unlinkIfInternal(r.file_path)
   }
 }
 
@@ -376,7 +391,9 @@ export async function importScenesJson(presetId: number): Promise<number> {
   return scenes.length
 }
 
-async function zipFiles(rows: { file_path: string }[], defaultName: string): Promise<number> {
+type ZipRow = { file_path: string; scene_name: string | null }
+
+async function zipFiles(rows: ZipRow[], defaultName: string): Promise<number> {
   if (rows.length === 0) return 0
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showSaveDialog(win, {
@@ -387,9 +404,19 @@ async function zipFiles(rows: { file_path: string }[], defaultName: string): Pro
   if (result.canceled || !result.filePath) return 0
   const zip = new JSZip()
   const used = new Set<string>()
+  const counters = new Map<string, number>() // 씬별 연번
   for (const r of rows) {
     try {
-      let name = basename(r.file_path)
+      // 씬 이미지는 씬 이름_N 으로 (NAIS2 방식), 씬 없는 이미지는 원본 파일명
+      let name: string
+      if (r.scene_name) {
+        const safe = r.scene_name.replace(/[/\\:*?"<>|]/g, '_').trim() || '씬'
+        const n = (counters.get(safe) ?? 0) + 1
+        counters.set(safe, n)
+        name = `${safe}_${n}${extname(r.file_path) || '.png'}`
+      } else {
+        name = basename(r.file_path)
+      }
       while (used.has(name)) name = `_${name}`
       used.add(name)
       zip.file(name, readFileSync(r.file_path))
@@ -406,15 +433,20 @@ export async function exportZip(mode: 'favorites' | 'sceneTop'): Promise<number>
   const db = getDb()
   const rows =
     mode === 'favorites'
-      ? (db.prepare('SELECT file_path FROM images WHERE favorite = 1 ORDER BY id DESC').all() as {
-          file_path: string
-        }[])
+      ? (db
+          .prepare(
+            `SELECT i.file_path, s.name AS scene_name FROM images i
+             LEFT JOIN gen_scenes s ON s.id = i.scene_id
+             WHERE i.favorite = 1 ORDER BY i.id DESC`
+          )
+          .all() as ZipRow[])
       : (db
           .prepare(
-            `SELECT file_path FROM images WHERE id IN
-             (SELECT MAX(id) FROM images WHERE scene_id IS NOT NULL GROUP BY scene_id)`
+            `SELECT i.file_path, s.name AS scene_name FROM images i
+             LEFT JOIN gen_scenes s ON s.id = i.scene_id
+             WHERE i.id IN (SELECT MAX(id) FROM images WHERE scene_id IS NOT NULL GROUP BY scene_id)`
           )
-          .all() as { file_path: string }[])
+          .all() as ZipRow[])
   return zipFiles(rows, mode === 'favorites' ? 'nais3-favorites.zip' : 'nais3-scenes.zip')
 }
 
@@ -423,8 +455,10 @@ export async function bulkExportZip(ids: number[]): Promise<number> {
   if (ids.length === 0) return 0
   const rows = getDb()
     .prepare(
-      `SELECT file_path FROM images WHERE scene_id IN (${placeholders(ids.length)}) ORDER BY id DESC`
+      `SELECT i.file_path, s.name AS scene_name FROM images i
+       LEFT JOIN gen_scenes s ON s.id = i.scene_id
+       WHERE i.scene_id IN (${placeholders(ids.length)}) ORDER BY i.id DESC`
     )
-    .all(...ids) as { file_path: string }[]
+    .all(...ids) as ZipRow[]
   return zipFiles(rows, 'nais3-scenes-selected.zip')
 }

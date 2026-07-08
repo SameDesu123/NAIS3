@@ -223,12 +223,32 @@ export interface ScenePreset {
   name: string
 }
 
-/** 프롬프트 프리셋 (기본 프롬프트+네거티브 저장) */
+/** 프리셋에 함께 저장되는 생성 파라미터 (시드·캐릭터는 제외) */
+export type PresetParams = Partial<
+  Pick<
+    GenerationRequest,
+    | 'model'
+    | 'width'
+    | 'height'
+    | 'steps'
+    | 'cfgScale'
+    | 'cfgRescale'
+    | 'sampler'
+    | 'noiseSchedule'
+    | 'variety'
+    | 'qualityToggle'
+    | 'ucPreset'
+  >
+>
+
+/** 프롬프트 프리셋 (기본 프롬프트+네거티브+파라미터 저장) */
 export interface PromptPreset {
   id: number
   name: string
   prompt: string
   negativePrompt: string
+  /** 스텝·CFG 등 — 프리셋 전환 시 함께 복원 (구버전 프리셋은 null) */
+  params: PresetParams | null
 }
 
 /** 씬 (미리 저장한 프롬프트+해상도. 예약 수만큼 생성) */
@@ -360,11 +380,14 @@ export interface IpcInvokeMap {
   'promptPresets:reorder': { req: { ids: number[] }; res: void }
   'promptPresets:list': { req: void; res: { items: PromptPreset[] } }
   'promptPresets:create': {
-    req: { name: string; prompt: string; negativePrompt: string }
+    req: { name: string; prompt: string; negativePrompt: string; params?: PresetParams }
     res: { id: number }
   }
   'promptPresets:update': {
-    req: { id: number; patch: Partial<Pick<PromptPreset, 'name' | 'prompt' | 'negativePrompt'>> }
+    req: {
+      id: number
+      patch: Partial<Pick<PromptPreset, 'name' | 'prompt' | 'negativePrompt' | 'params'>>
+    }
     res: void
   }
   'promptPresets:delete': { req: { id: number }; res: void }
@@ -413,7 +436,8 @@ export interface IpcInvokeMap {
     res: { items: SceneImage[]; total: number }
   }
   'images:setFavorite': { req: { id: number; favorite: boolean }; res: void }
-  'images:delete': { req: { id: number }; res: void }
+  /** 이미지 삭제 — deleteFile=true면 파일까지(씬 상세), 아니면 기록만(히스토리, 파일 보존) */
+  'images:delete': { req: { id: number; deleteFile?: boolean }; res: void }
   /** 히스토리 전체 비우기 (레코드+파일, 씬 이미지 포함) */
   'images:clearAll': { req: void; res: { count: number } }
   /** 씬 이미지 폴더 열기 (NAIS3_scene/<프리셋>/<씬>) */

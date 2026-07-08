@@ -23,15 +23,15 @@ export function HistoryPanel(): React.JSX.Element {
 
   const clearAll = async (): Promise<void> => {
     const ok = await askConfirm('히스토리 전체 비우기', {
-      message: `생성 기록과 원본 이미지 파일 ${historyTotal.toLocaleString()}개가 모두 삭제됩니다 (씬 이미지 포함). 되돌릴 수 없습니다.`,
-      confirmLabel: '전체 삭제',
+      message: `생성 기록 ${historyTotal.toLocaleString()}개를 비웁니다 (씬 갤러리 포함). 저장 폴더의 이미지 파일은 삭제되지 않습니다.`,
+      confirmLabel: '전체 비우기',
       danger: true
     })
     if (!ok) return
     const { count } = await window.nais.invoke('images:clearAll', undefined)
     view(null)
     void refreshHistory()
-    toast(`이미지 ${count.toLocaleString()}개 삭제됨`, 'success')
+    toast(`기록 ${count.toLocaleString()}개 비움 (파일은 보존)`, 'success')
   }
 
   return (
@@ -65,7 +65,7 @@ export function HistoryPanel(): React.JSX.Element {
               >
                 <button
                   className={cn(
-                    'relative aspect-square overflow-hidden rounded-md border border-line bg-paper transition-all',
+                    'group relative aspect-square overflow-hidden rounded-md border border-line bg-paper transition-all',
                     viewingFilePath === item.filePath && 'ring-2 ring-accent'
                   )}
                   title={`seed ${item.seed ?? '?'}`}
@@ -88,6 +88,18 @@ export function HistoryPanel(): React.JSX.Element {
                     />
                   )}
                   <KindBadge kind={item.kind} />
+                  {/* 호버 삭제 — 기록만 삭제 (파일 보존) */}
+                  <span
+                    role="button"
+                    className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/45 text-white opacity-0 backdrop-blur transition hover:bg-danger group-hover:opacity-100"
+                    title="기록에서 삭제 (파일은 보존)"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void deleteOne(item.id, item.filePath)
+                    }}
+                  >
+                    <Trash2 size={12} />
+                  </span>
                 </button>
               </ImageContextMenu>
             ))}

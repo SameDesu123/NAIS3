@@ -313,7 +313,8 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
       images: get().images.filter((i) => i.id !== imageId),
       imagesTotal: Math.max(0, get().imagesTotal - 1)
     })
-    await window.nais.invoke('images:delete', { id: imageId })
+    // 씬 상세의 명시적 삭제 — 파일까지 삭제 (히스토리 삭제와 달리)
+    await window.nais.invoke('images:delete', { id: imageId, deleteFile: true })
   },
 
   generateReserved: async () => {

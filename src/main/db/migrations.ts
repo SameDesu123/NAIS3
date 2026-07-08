@@ -254,5 +254,10 @@ export const migrations: ((db: Database.Database) => void)[] = [
         sort_order INTEGER NOT NULL DEFAULT 0
       );
     `)
+  },
+
+  // v10: 프롬프트 프리셋에 생성 파라미터도 저장 — NAIS2처럼 프리셋 전환 시 스텝·CFG 등 복원
+  (db) => {
+    db.exec(`ALTER TABLE prompt_presets ADD COLUMN params_json TEXT;`)
   }
 ]

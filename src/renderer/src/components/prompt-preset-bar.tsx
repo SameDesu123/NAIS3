@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react'
-import { usePromptPresetsStore } from '../stores/prompt-presets-store'
+import { pickPresetParams, usePromptPresetsStore } from '../stores/prompt-presets-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { askConfirm, askText } from '../stores/dialog-store'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -22,8 +22,9 @@ export function PromptPresetBar(): React.JSX.Element {
   const update = usePromptPresetsStore((s) => s.update)
   const remove = usePromptPresetsStore((s) => s.remove)
   const reorder = usePromptPresetsStore((s) => s.reorder)
-  const currentPrompt = useGenerationStore((s) => s.request.prompt)
-  const currentNegative = useGenerationStore((s) => s.request.negativePrompt)
+  const request = useGenerationStore((s) => s.request)
+  const currentPrompt = request.prompt
+  const currentNegative = request.negativePrompt
   const patch = useGenerationStore((s) => s.patchRequest)
   const [open, setOpen] = useState(false)
 
@@ -31,26 +32,34 @@ export function PromptPresetBar(): React.JSX.Element {
     if (!loaded) void load()
   }, [loaded, load])
 
-  // 활성 프리셋에 편집 자동 저장 (디바운스). 프리셋 적용 직후엔 같은 값이라 no-op
+  // 활성 프리셋에 편집 자동 저장 (디바운스) — 프롬프트 + 파라미터(스텝·CFG 등).
+  // 프리셋 적용 직후엔 같은 값이라 no-op
   const syncTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => {
     if (!loaded || activeId == null) return
     clearTimeout(syncTimer.current)
     syncTimer.current = setTimeout(() => {
       const p = usePromptPresetsStore.getState().presets.find((x) => x.id === activeId)
-      if (p && (p.prompt !== currentPrompt || p.negativePrompt !== currentNegative)) {
-        void update(activeId, { prompt: currentPrompt, negativePrompt: currentNegative })
+      if (!p) return
+      const params = pickPresetParams(useGenerationStore.getState().request)
+      if (
+        p.prompt !== currentPrompt ||
+        p.negativePrompt !== currentNegative ||
+        JSON.stringify(p.params) !== JSON.stringify(params)
+      ) {
+        void update(activeId, { prompt: currentPrompt, negativePrompt: currentNegative, params })
       }
     }, 500)
     return () => clearTimeout(syncTimer.current)
-  }, [currentPrompt, currentNegative, activeId, loaded, update])
+  }, [request, currentPrompt, currentNegative, activeId, loaded, update])
 
   const active = presets.find((p) => p.id === activeId)
 
   const apply = (id: number): void => {
     const p = presets.find((x) => x.id === id)
     if (!p) return
-    patch({ prompt: p.prompt, negativePrompt: p.negativePrompt })
+    // 파라미터도 함께 복원 (구버전 프리셋은 params 없음 — 프롬프트만)
+    patch({ prompt: p.prompt, negativePrompt: p.negativePrompt, ...(p.params ?? {}) })
     setActive(id)
     setOpen(false)
   }
@@ -114,7 +123,12 @@ export function PromptPresetBar(): React.JSX.Element {
           onClick={async () => {
             const name = await askText('새 프리셋 이름', '새 프리셋')
             if (!name?.trim()) return
-            const id = await create(name.trim(), '', '')
+            const id = await create(
+              name.trim(),
+              '',
+              '',
+              pickPresetParams(useGenerationStore.getState().request)
+            )
             // 빈 칸으로 시작 — 이후 편집이 이 프리셋에 자동 저장
             patch({ prompt: '', negativePrompt: '' })
             setActive(id)
