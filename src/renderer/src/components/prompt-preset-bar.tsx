@@ -82,16 +82,15 @@ export function PromptPresetBar(): React.JSX.Element {
             // 드래그로 순서 변경
             <SortableList ids={presets.map((p) => p.id)} onReorder={(ids) => void reorder(ids)}>
               {presets.map((p) => (
-                <SortableRow key={p.id} id={p.id} className="group gap-1">
-                  <button
-                    onClick={() => apply(p.id)}
+                <SortableRow key={p.id} id={p.id} className="group gap-1" onTap={() => apply(p.id)}>
+                  <div
                     className={cn(
-                      'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-surface-2',
+                      'flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px]',
                       p.id === activeId && 'font-semibold text-accent'
                     )}
                   >
                     <span className="truncate">{p.name}</span>
-                  </button>
+                  </div>
                   <button
                     className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-ink group-hover:opacity-100"
                     onClick={async () => {

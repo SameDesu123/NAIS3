@@ -89,19 +89,23 @@ function PresetDropdown(): React.JSX.Element {
           {/* 드래그로 순서 변경 */}
           <SortableList ids={presets.map((p) => p.id)} onReorder={(ids) => void reorderPresets(ids)}>
             {presets.map((p) => (
-              <SortableRow key={p.id} id={p.id} className="group gap-1">
-                <button
-                  onClick={() => {
-                    void setActivePreset(p.id)
-                    setOpen(false) // 선택했으면 닫기 (B9)
-                  }}
+              <SortableRow
+                key={p.id}
+                id={p.id}
+                className="group gap-1"
+                onTap={() => {
+                  void setActivePreset(p.id)
+                  setOpen(false) // 선택했으면 닫기 (B9)
+                }}
+              >
+                <div
                   className={cn(
-                    'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-surface-2',
+                    'flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px]',
                     p.id === activePresetId && 'font-semibold text-accent'
                   )}
                 >
                   <span className="truncate">{p.name}</span>
-                </button>
+                </div>
                 <button
                   className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-fg group-hover:opacity-100"
                   onClick={async () => {
