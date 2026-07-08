@@ -1,4 +1,4 @@
-import { Copy, Download, FileDown, FileUp, FolderPlus, Pencil, Plus, Puzzle, Search, Trash2, X } from 'lucide-react'
+import { Copy, Download, FileDown, FileUp, FolderPlus, Pencil, Plus, Puzzle, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { Fragment } from '@shared/types'
 import { cn } from '../lib/utils'
@@ -36,6 +36,7 @@ export function FragmentOverlay(): React.JSX.Element {
   const exportTxt = useFragmentsStore((s) => s.exportTxt)
   const exportAll = useFragmentsStore((s) => s.exportAll)
   const duplicate = useFragmentsStore((s) => s.duplicate)
+  const resetSequential = useFragmentsStore((s) => s.resetSequential)
 
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -129,6 +130,18 @@ export function FragmentOverlay(): React.JSX.Element {
         </Button>
         <span className="text-[13px] font-medium">조각 프롬프트</span>
         <span className="font-mono text-[10.5px] text-faint">{items.length}</span>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          title="순차 선택 카운터 리셋 (<*이름>을 다시 첫 줄부터)"
+          onClick={async () => {
+            await resetSequential()
+            toast('순차 카운터를 리셋했습니다', 'success')
+          }}
+        >
+          <RotateCcw size={14} />
+        </Button>
         <div className="flex-1" />
         <Button
           size="sm"

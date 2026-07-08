@@ -10,7 +10,7 @@ import { getSetting } from './db/settings'
 import { processWildcards } from './fragments/processor'
 import { removeComments } from '../shared/nai-presets'
 import { fragmentSource } from './fragments/repo'
-import { isUnderImagesRoot, libraryRoot, saveGeneratedImage } from './images/storage'
+import { isUnderImagesRoot, saveGeneratedImage } from './images/storage'
 import { broadcast, registerIpcHandlers } from './ipc'
 import { setupUpdater } from './updater'
 import { logBalance } from './nai/anlas-log'
@@ -180,10 +180,9 @@ app.whenReady().then(() => {
           })
         })
 
-    // 자동 저장 off여도 히스토리엔 남긴다 — 다만 저장 폴더 대신 앱 내부 라이브러리에 저장
-    // (씬은 항상 저장 폴더). 클릭 시 원본 보기·다른 이름으로 저장 모두 정상 동작.
-    const autoSave = getSetting('auto_save') !== '0'
-    // 씬 생성은 저장폴더/씬/<프리셋>/<씬 이름>/에 모아 저장 (NAIS2와 동일 계층)
+    // 자동 저장 off여도 히스토리엔 남긴다 — 저장 폴더 대신 앱 내부 라이브러리로 가는 판정은
+    // saveGeneratedImage가 auto_save 설정을 읽어 처리한다 (씬 포함).
+    // 씬 생성은 씬루트/<프리셋>/<씬 이름>/에 모아 저장 (NAIS2와 동일 계층)
     const scene = request.sceneId ? getScene(request.sceneId) : null
     const saved = await saveGeneratedImage({
       png,
@@ -192,7 +191,6 @@ app.whenReady().then(() => {
       kind: request.sceneId ? 'scene' : source ? (source.maskBase64 ? 'inpaint' : 'i2i') : 't2i',
       sceneId: request.sceneId,
       format: imageFormat,
-      baseDir: !autoSave && !request.sceneId ? libraryRoot() : undefined,
       sceneName: scene?.name,
       scenePresetName: scene ? (getPresetName(scene.presetId) ?? undefined) : undefined
     })

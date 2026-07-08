@@ -81,24 +81,24 @@ export async function saveGeneratedImage(input: {
   sceneId?: number
   /** 저장 파일 확장자 (NAI가 반환한 실제 포맷). 기본 png */
   format?: 'png' | 'webp'
-  /** 저장 루트 (자동 저장 OFF면 libraryRoot). 기본 imagesRoot */
-  baseDir?: string
-  /** 씬 생성이면 씬 이름 — 저장폴더/씬/<프리셋>/<씬 이름>/ 아래에 저장 (NAIS2 구조와 동일 계층) */
+  /** 씬 생성이면 씬 이름 — 씬루트/<프리셋>/<씬 이름>/ 아래에 저장 (NAIS2 구조와 동일 계층) */
   sceneName?: string
   /** 씬이 속한 프리셋 이름 (프리셋 간 동명 씬 충돌 방지) */
   scenePresetName?: string
 }): Promise<SavedImage> {
   const now = new Date()
+  // 자동 저장 OFF면 저장 폴더 대신 앱 내부 라이브러리에 보관 (히스토리엔 남지만
+  // 유저가 지정한 저장 폴더/NAIS3_output에는 안 감). 씬·일반·디렉터·업스케일 모두 여기서 판정.
+  const autoSave = getSetting('auto_save') !== '0'
   // 구조: 메인 = 메인폴더/[YYYY-MM/] (날짜 폴더는 설정으로 on/off),
   //       씬 = 씬루트/<프리셋>/<씬 이름>/
-  // baseDir(자동 저장 OFF → 앱 내부 라이브러리)이 오면 둘 다 그 아래로.
   let monthDir: string
   if (input.sceneName) {
-    monthDir = input.baseDir
-      ? join(input.baseDir, 'scene')
-      : sceneDir(input.scenePresetName ?? null, input.sceneName, input.sceneId)
+    monthDir = autoSave
+      ? sceneDir(input.scenePresetName ?? null, input.sceneName, input.sceneId)
+      : join(libraryRoot(), 'scene')
   } else {
-    const out = input.baseDir ?? imagesRoot()
+    const out = autoSave ? imagesRoot() : libraryRoot()
     monthDir =
       getSetting('date_folders') !== '0'
         ? join(out, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)

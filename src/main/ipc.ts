@@ -32,6 +32,7 @@ import {
   setFragmentFolderColor,
   updateFragment
 } from './fragments/repo'
+import { resetSequentialCounters } from './fragments/processor'
 import {
   deleteNaiToken,
   getNaiToken,
@@ -342,6 +343,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('frags:importTxt', async () => ({ count: await importTxtFragments() }))
   handle('frags:exportTxt', async ({ id }) => ({ saved: await exportTxtFragment(id) }))
   handle('frags:exportAll', async () => ({ count: await exportAllFragmentsZip() }))
+  handle('frags:resetSequential', () => {
+    resetSequentialCounters()
+  })
   handle('frags:reorder', ({ order }) => {
     reorderFragments(order)
   })

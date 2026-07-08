@@ -331,6 +331,8 @@ export interface IpcInvokeMap {
   'frags:exportTxt': { req: { id: number }; res: { saved: boolean } }
   /** 조각 전체를 ZIP으로 내보내기 (공유/백업) */
   'frags:exportAll': { req: void; res: { count: number } }
+  /** 순차 선택(<*이름>) 카운터 전체 리셋 — 다시 처음 줄부터 (NAIS2 기능) */
+  'frags:resetSequential': { req: void; res: void }
   'frags:reorder': { req: { order: CharacterOrderEntry[] }; res: void }
   'frags:folderCreate': { req: { name: string }; res: { id: number } }
   'frags:folderRename': { req: { id: number; name: string }; res: void }
