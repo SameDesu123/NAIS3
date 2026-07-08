@@ -93,13 +93,27 @@ export function weightBackground(weight: number): string | null {
 /** 조각 구문 <...> 하이라이트 (NAIS2의 녹색 계승) */
 const FRAGMENT_BG = 'rgba(92, 190, 125, 0.3)'
 
+/** 주석 줄(#로 시작) — 전송에서 제외됨을 회색 배경으로 표시 */
+const COMMENT_BG = 'rgba(128, 128, 136, 0.28)'
+
+/** #로 시작하는 줄들의 [시작, 끝) 구간 (removeComments와 동일 규칙) */
+function commentSpans(text: string): { start: number; end: number }[] {
+  const spans: { start: number; end: number }[] = []
+  let offset = 0
+  for (const line of text.split('\n')) {
+    if (line.trimStart().startsWith('#')) spans.push({ start: offset, end: offset + line.length })
+    offset += line.length + 1 // '\n'
+  }
+  return spans
+}
+
 export interface HighlightRange {
   start: number
   end: number
   bg: string | null
 }
 
-/** 가중치 + 조각 구문을 합친 최종 하이라이트 구간. 조각이 가중치보다 우선한다 */
+/** 가중치 + 조각 + 주석을 합친 최종 하이라이트 구간. 주석 > 조각 > 가중치 순으로 우선 */
 export function highlightRanges(text: string): HighlightRange[] {
   const fragments = [...text.matchAll(/<[^<>\n]+>/g)].map((m) => ({
     start: m.index,
@@ -108,7 +122,11 @@ export function highlightRanges(text: string): HighlightRange[] {
   const inFragment = (pos: number): boolean =>
     fragments.some((f) => f.start <= pos && pos < f.end)
 
-  // 경계점: 가중치 세그먼트 + 조각 경계
+  const comments = commentSpans(text)
+  const inComment = (pos: number): boolean =>
+    comments.some((c) => c.start <= pos && pos < c.end)
+
+  // 경계점: 가중치 세그먼트 + 조각 + 주석 경계
   const bounds = new Set<number>([0, text.length])
   const weights = parseWeights(text)
   for (const s of weights) {
@@ -119,15 +137,21 @@ export function highlightRanges(text: string): HighlightRange[] {
     bounds.add(f.start)
     bounds.add(f.end)
   }
+  for (const c of comments) {
+    bounds.add(c.start)
+    bounds.add(c.end)
+  }
   const sorted = [...bounds].sort((a, b) => a - b)
 
   const ranges: HighlightRange[] = []
   for (let i = 0; i < sorted.length - 1; i++) {
     const start = sorted[i]
     const end = sorted[i + 1]
-    const bg = inFragment(start)
-      ? FRAGMENT_BG
-      : weightBackground(weights.find((s) => s.start <= start && start < s.end)?.weight ?? 1)
+    const bg = inComment(start)
+      ? COMMENT_BG
+      : inFragment(start)
+        ? FRAGMENT_BG
+        : weightBackground(weights.find((s) => s.start <= start && start < s.end)?.weight ?? 1)
     // 같은 배경이면 직전 구간에 병합
     const prev = ranges[ranges.length - 1]
     if (prev && prev.bg === bg) prev.end = end
