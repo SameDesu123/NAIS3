@@ -6,6 +6,7 @@ import {
   useSensors,
   type DragEndEvent
 } from '@dnd-kit/core'
+import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import {
   arrayMove,
   SortableContext,
@@ -35,7 +36,13 @@ export function SortableList({
     onReorder(arrayMove(ids, from, to))
   }
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      // 목록 밖으로 못 끌고 나가게 — 세로만, 컨테이너 안에서만
+      modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+      onDragEnd={onDragEnd}
+    >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         {children}
       </SortableContext>
