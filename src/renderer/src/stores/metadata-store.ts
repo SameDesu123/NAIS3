@@ -3,14 +3,16 @@ import type { ImageMetadata, UcPresetIndex } from '@shared/types'
 import { QUALITY_TAGS_SUFFIX, UC_PRESETS_V45_FULL } from '@shared/nai-presets'
 import { imageUrl } from '../lib/constants'
 import { useCharactersStore } from './characters-store'
-import { useGenerationStore } from './generation-store'
+import { mergePromptParts, useGenerationStore } from './generation-store'
 import { useLayoutStore } from './layout-store'
 import { usePromptPresetsStore } from './prompt-presets-store'
 import { toast } from './toast-store'
 
 /** 병합된 프롬프트/네거티브에서 프리셋을 벗겨 원본(raw)만 남긴다 → 재병합으로 동일 재현 */
 function stripQuality(prompt: string): string {
-  return prompt.endsWith(QUALITY_TAGS_SUFFIX) ? prompt.slice(0, -QUALITY_TAGS_SUFFIX.length) : prompt
+  return prompt.endsWith(QUALITY_TAGS_SUFFIX)
+    ? prompt.slice(0, -QUALITY_TAGS_SUFFIX.length)
+    : prompt
 }
 function stripUcPreset(uc: string, idx: number): string {
   const preset = UC_PRESETS_V45_FULL[idx as keyof typeof UC_PRESETS_V45_FULL]
@@ -66,7 +68,23 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     // 퀄리티 태그: 체크 시 원본 프롬프트+토글로(재병합), 미체크 시 병합본 그대로+토글 off
     const q = sel.quality ? !!m.qualityToggle : false
     if (sel.prompt) {
-      patch.prompt = q ? stripQuality(m.prompt) : m.prompt
+      if (m.promptParts) {
+        const promptParts = {
+          base: m.promptParts.base,
+          additional: m.promptParts.additional,
+          detail: m.promptParts.detail
+        }
+        patch.prompt = mergePromptParts(promptParts)
+        if (gen.promptSplitEnabled) patch.promptParts = promptParts
+      } else {
+        const prompt = q ? stripQuality(m.prompt) : m.prompt
+        if (gen.promptSplitEnabled) {
+          patch.promptParts = { base: prompt, additional: '', detail: '' }
+          patch.prompt = mergePromptParts(patch.promptParts)
+        } else {
+          patch.prompt = prompt
+        }
+      }
       patch.qualityToggle = q
     } else if (sel.quality && m.qualityToggle != null) {
       patch.qualityToggle = q
@@ -75,7 +93,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     // UC 프리셋: 체크 시 원본 네거티브+프리셋으로(재병합), 미체크 시 병합본 그대로+None
     const uc = (sel.ucPreset && m.ucPreset != null ? m.ucPreset : 0) as UcPresetIndex
     if (sel.negativePrompt) {
-      patch.negativePrompt = uc ? stripUcPreset(m.negativePrompt, uc) : m.negativePrompt
+      const rawNegative = m.promptParts?.negative ?? m.negativePrompt
+      patch.negativePrompt =
+        m.ucPreset != null ? stripUcPreset(rawNegative, m.ucPreset) : rawNegative
       patch.ucPreset = uc
     } else if (sel.ucPreset && m.ucPreset != null) {
       patch.ucPreset = uc

@@ -5,6 +5,7 @@ import { QUALITY_TAGS_SUFFIX, UC_PRESETS_V45_FULL } from '../../shared/nai-prese
 
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const STEALTH_MAGIC = 'stealth_pngcomp'
+const LOCAL_PARAM_KEYS = ['nais3-params', 'nais2-params']
 
 /** PNG tEXt/zTXt/iTXt 청크에서 keyword→text 추출 */
 function parsePngTextChunks(buf: Buffer): Record<string, string> {
@@ -41,7 +42,8 @@ function parsePngTextChunks(buf: Buffer): Record<string, string> {
           const transEnd = data.indexOf(0, p)
           p = transEnd + 1
           const textBuf = data.subarray(p)
-          out[key] = compFlag === 1 ? inflateSync(textBuf).toString('utf8') : textBuf.toString('utf8')
+          out[key] =
+            compFlag === 1 ? inflateSync(textBuf).toString('utf8') : textBuf.toString('utf8')
         }
       } else if (type === 'IEND') {
         break
@@ -57,7 +59,10 @@ function parsePngTextChunks(buf: Buffer): Record<string, string> {
 /** stealth 메타데이터 (알파 채널 LSB, column-major, magic + gzip JSON) */
 async function extractStealthComment(buf: Buffer): Promise<Record<string, unknown> | null> {
   try {
-    const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    const { data, info } = await sharp(buf)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
     const { width, height, channels } = info
     const total = width * height
     const bytes = new Uint8Array(Math.ceil(total / 8))
@@ -73,7 +78,8 @@ async function extractStealthComment(buf: Buffer): Promise<Record<string, unknow
     const magic = Buffer.from(STEALTH_MAGIC, 'ascii')
     for (let i = 0; i < magic.length; i++) if (bytes[i] !== magic[i]) return null
     let off = magic.length
-    const lengthBits = (bytes[off] << 24) | (bytes[off + 1] << 16) | (bytes[off + 2] << 8) | bytes[off + 3]
+    const lengthBits =
+      (bytes[off] << 24) | (bytes[off + 1] << 16) | (bytes[off + 2] << 8) | bytes[off + 3]
     off += 4
     const lengthBytes = Math.ceil(lengthBits / 8)
     const compressed = Buffer.from(bytes.slice(off, off + lengthBytes))
@@ -106,6 +112,27 @@ interface Params {
   v4_negative_prompt?: { caption?: { char_captions?: { char_caption?: string }[] } }
 }
 
+interface LocalParams {
+  promptParts?: ImageMetadata['promptParts']
+}
+
+function parseLocalParams(text: Record<string, string>): LocalParams | undefined {
+  for (const key of LOCAL_PARAM_KEYS) {
+    const raw = text[key]
+    if (!raw) continue
+    try {
+      return JSON.parse(Buffer.from(raw, 'base64').toString('utf8')) as LocalParams
+    } catch {
+      try {
+        return JSON.parse(raw) as LocalParams
+      } catch {
+        // 다음 후보 확인
+      }
+    }
+  }
+  return undefined
+}
+
 /** 병합된 네거티브에서 UC 프리셋 인덱스 역추적 (프리셋 텍스트가 접두인 것 중 가장 긴 것) */
 function inferUcPreset(uc: string): number | undefined {
   let best: number | undefined
@@ -123,7 +150,7 @@ function inferUcPreset(uc: string): number | undefined {
 /** 파라미터 객체 + 프롬프트/모델 → 정규화 메타 */
 function normalize(
   params: Params,
-  extra: { prompt: string; uc: string; model?: string; software?: string }
+  extra: { prompt: string; uc: string; model?: string; software?: string; local?: LocalParams }
 ): ImageMetadata {
   const posChars = params.v4_prompt?.caption?.char_captions ?? []
   const negChars = params.v4_negative_prompt?.caption?.char_captions ?? []
@@ -134,6 +161,7 @@ function normalize(
   }))
   return {
     prompt: extra.prompt,
+    promptParts: extra.local?.promptParts,
     negativePrompt: extra.uc,
     seed: params.seed,
     steps: params.steps,
@@ -157,13 +185,19 @@ function normalize(
 /** 우리 payload_json({input, model, parameters}) → 정규화 메타 */
 export function metadataFromPayloadJson(json: string): ImageMetadata | null {
   try {
-    const p = JSON.parse(json) as { input?: string; model?: string; parameters?: Params }
+    const p = JSON.parse(json) as {
+      input?: string
+      model?: string
+      parameters?: Params
+      nais3?: LocalParams
+    }
     if (!p.parameters) return null
     return normalize(p.parameters, {
       prompt: p.input ?? '',
       uc: p.parameters.negative_prompt ?? '',
       model: p.model,
-      software: 'NAIS3'
+      software: 'NAIS3',
+      local: p.nais3
     })
   } catch {
     return null
@@ -173,6 +207,7 @@ export function metadataFromPayloadJson(json: string): ImageMetadata | null {
 /** PNG 버퍼 → 정규화 메타 (tEXt Comment → stealth 폴백). 없으면 null */
 export async function metadataFromPng(buf: Buffer): Promise<ImageMetadata | null> {
   const text = parsePngTextChunks(buf)
+  const local = parseLocalParams(text)
   let comment: Params | null = null
   let extra = {
     software: text.Software,
@@ -200,6 +235,7 @@ export async function metadataFromPng(buf: Buffer): Promise<ImageMetadata | null
     prompt: c.prompt ?? extra.description ?? '',
     uc: c.uc ?? '',
     model: extra.model,
-    software: extra.software
+    software: extra.software,
+    local
   })
 }

@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs'
 import { isAbsolute, join, relative } from 'path'
 import sharp from 'sharp'
-import type { DirectorMethod } from '../../shared/types'
+import type { DirectorMethod, ImageMetadata } from '../../shared/types'
 import { getDb } from '../db'
 import { getSetting } from '../db/settings'
 
@@ -44,11 +44,7 @@ export function libraryRoot(): string {
 }
 
 /** 씬 이미지 폴더 경로 — 씬루트/<프리셋>/<씬 이름>/ (저장·폴더 열기 공용) */
-export function sceneDir(
-  presetName: string | null,
-  sceneName: string,
-  sceneId?: number
-): string {
+export function sceneDir(presetName: string | null, sceneName: string, sceneId?: number): string {
   const safe = (s: string): string => s.replace(/[/\\:*?"<>|]/g, '_').trim()
   return join(scenesRoot(), safe(presetName ?? '') || '기본', safe(sceneName) || `씬-${sceneId}`)
 }
@@ -85,6 +81,8 @@ export async function saveGeneratedImage(input: {
   sceneName?: string
   /** 씬이 속한 프리셋 이름 (프리셋 간 동명 씬 충돌 방지) */
   scenePresetName?: string
+  /** 전송 payload에는 없는 NAIS3 전용 왕복 메타데이터 */
+  localMetadata?: Pick<ImageMetadata, 'promptParts'>
 }): Promise<SavedImage> {
   const now = new Date()
   // 자동 저장 OFF면 저장 폴더 대신 앱 내부 라이브러리에 보관 (히스토리엔 남지만
@@ -110,8 +108,7 @@ export async function saveGeneratedImage(input: {
   let filePath: string
   if (input.sceneName) {
     // 씬 이미지는 씬 이름_N (폴더 내 기존 연번에 이어서 — ZIP 내보내기와 동일 형식)
-    const safeName =
-      input.sceneName.replace(/[/\\:*?"<>|]/g, '_').trim() || `씬-${input.sceneId}`
+    const safeName = input.sceneName.replace(/[/\\:*?"<>|]/g, '_').trim() || `씬-${input.sceneId}`
     let max = 0
     for (const f of readdirSync(monthDir)) {
       const m = new RegExp(`^${safeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_(\\d+)\\.`).exec(f)
@@ -123,7 +120,11 @@ export async function saveGeneratedImage(input: {
     const stamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
     filePath = join(monthDir, `NAIS3_${stamp}_${input.seed}.${ext}`)
   }
-  writeFileSync(filePath, input.png)
+  const fileBuffer =
+    ext === 'png' && input.localMetadata
+      ? injectNais3Params(input.png, input.localMetadata)
+      : input.png
+  writeFileSync(filePath, fileBuffer)
 
   // 썸네일: 카드가 커질 수 있어 640px로 (화질 열화 방지). webp q90
   const thumbnail = await sharp(input.png)
@@ -135,9 +136,69 @@ export async function saveGeneratedImage(input: {
     .prepare(
       'INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id) VALUES (?, ?, ?, ?, ?, ?)'
     )
-    .run(filePath, thumbnail, input.kind, input.seed, input.sentPayload, input.sceneId ?? null)
+    .run(
+      filePath,
+      thumbnail,
+      input.kind,
+      input.seed,
+      payloadWithLocalMetadata(input.sentPayload, input.localMetadata),
+      input.sceneId ?? null
+    )
 
   return { id: Number(result.lastInsertRowid), filePath }
+}
+
+function payloadWithLocalMetadata(
+  sentPayload: string,
+  localMetadata?: Pick<ImageMetadata, 'promptParts'>
+): string {
+  if (!localMetadata) return sentPayload
+  try {
+    return JSON.stringify({ ...JSON.parse(sentPayload), nais3: localMetadata })
+  } catch {
+    return sentPayload
+  }
+}
+
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+const NAIS3_KEYWORD = 'nais3-params'
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256)
+  for (let n = 0; n < 256; n++) {
+    let c = n
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    t[n] = c >>> 0
+  }
+  return t
+})()
+
+function crc32(bytes: Buffer): number {
+  let c = 0xffffffff
+  for (const b of bytes) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8)
+  return (c ^ 0xffffffff) >>> 0
+}
+
+function textChunk(keyword: string, value: string): Buffer {
+  const data = Buffer.concat([
+    Buffer.from(keyword, 'latin1'),
+    Buffer.from([0]),
+    Buffer.from(value, 'latin1')
+  ])
+  const type = Buffer.from('tEXt', 'ascii')
+  const out = Buffer.alloc(4 + 4 + data.length + 4)
+  out.writeUInt32BE(data.length, 0)
+  type.copy(out, 4)
+  data.copy(out, 8)
+  out.writeUInt32BE(crc32(Buffer.concat([type, data])), 8 + data.length)
+  return out
+}
+
+function injectNais3Params(png: Buffer, meta: Pick<ImageMetadata, 'promptParts'>): Buffer {
+  if (png.length < 33 || !png.subarray(0, 8).equals(PNG_SIG)) return png
+  const value = Buffer.from(JSON.stringify({ version: 1, ...meta }), 'utf8').toString('base64')
+  const chunk = textChunk(NAIS3_KEYWORD, value)
+  const ihdrEnd = 33
+  return Buffer.concat([png.subarray(0, ihdrEnd), chunk, png.subarray(ihdrEnd)])
 }
 
 export interface HistoryItem {
@@ -182,7 +243,6 @@ export function listImages(limit: number, offset: number): { items: HistoryItem[
 
 export function getImagePayload(id: number): string | null {
   const row = getDb().prepare('SELECT payload_json FROM images WHERE id = ?').get(id) as
-    | { payload_json: string }
-    | undefined
+    { payload_json: string } | undefined
   return row?.payload_json ?? null
 }

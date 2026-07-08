@@ -71,14 +71,16 @@ export async function generateImageStream(
   token: string,
   request: GenerationRequest,
   buildOpts: Omit<BuildOptions, 'stream'> = {},
-  onProgress?: (stepIx: number, previewPng?: Buffer) => void
+  onProgress?: (stepIx: number, previewPng?: Buffer) => void,
+  signal?: AbortSignal
 ): Promise<{ png: Buffer; sentPayload: string }> {
   const payload = buildGenerateImagePayload(request, { ...buildOpts, stream: 'msgpack' })
   const sentPayload = JSON.stringify(payload)
   const res = await fetch(ENDPOINTS.generateImageStream, {
     method: 'POST',
     headers: { ...headers(token), Accept: 'application/x-msgpack' },
-    body: sentPayload
+    body: sentPayload,
+    signal
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -86,7 +88,7 @@ export async function generateImageStream(
   }
   if (!res.body) throw new Error('스트리밍 응답 없음')
 
-  const png = await readImageStream(res.body as ReadableStream<Uint8Array>, { onProgress })
+  const png = await readImageStream(res.body as ReadableStream<Uint8Array>, { onProgress, signal })
   return { png, sentPayload }
 }
 
@@ -166,14 +168,16 @@ export async function upscaleImage(
 export async function generateImageZip(
   token: string,
   request: GenerationRequest,
-  buildOpts: Omit<BuildOptions, 'stream'> = {}
+  buildOpts: Omit<BuildOptions, 'stream'> = {},
+  signal?: AbortSignal
 ): Promise<{ png: Buffer; sentPayload: string }> {
   const payload = buildGenerateImagePayload(request, buildOpts)
   const sentPayload = JSON.stringify(payload)
   const res = await fetch(ENDPOINTS.generateImage, {
     method: 'POST',
     headers: headers(token),
-    body: sentPayload
+    body: sentPayload,
+    signal
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')

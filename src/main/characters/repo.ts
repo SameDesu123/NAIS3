@@ -57,14 +57,14 @@ export function listCharacters(): { folders: CharacterFolder[]; items: Character
 
 export function createCharacter(name: string, folderId: number | null): number {
   const db = getDb()
-  const max = db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM character_prompts').get() as {
+  const max = db
+    .prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM character_prompts')
+    .get() as {
     m: number
   }
   return Number(
     db
-      .prepare(
-        'INSERT INTO character_prompts (name, folder_id, sort_order) VALUES (?, ?, ?)'
-      )
+      .prepare('INSERT INTO character_prompts (name, folder_id, sort_order) VALUES (?, ?, ?)')
       .run(name, folderId, max.m + 1).lastInsertRowid
   )
 }
@@ -147,12 +147,15 @@ export function reorderCharacters(order: CharacterOrderEntry[]): void {
 
 export function createFolder(name: string): number {
   const db = getDb()
-  const max = db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM character_folders').get() as {
+  const max = db
+    .prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM character_folders')
+    .get() as {
     m: number
   }
   return Number(
-    db.prepare('INSERT INTO character_folders (name, sort_order) VALUES (?, ?)').run(name, max.m + 1)
-      .lastInsertRowid
+    db
+      .prepare('INSERT INTO character_folders (name, sort_order) VALUES (?, ?)')
+      .run(name, max.m + 1).lastInsertRowid
   )
 }
 
@@ -194,7 +197,18 @@ export async function pickCharacterThumbnail(id: number): Promise<string | null>
     .toBuffer()
 
   getDb()
-    .prepare(`UPDATE character_prompts SET thumbnail = ?, updated_at = datetime('now') WHERE id = ?`)
+    .prepare(
+      `UPDATE character_prompts SET thumbnail = ?, updated_at = datetime('now') WHERE id = ?`
+    )
     .run(thumbnail, id)
   return thumbnail.toString('base64')
+}
+
+/** 캐릭터 썸네일 제거 (F12) */
+export function clearCharacterThumbnail(id: number): void {
+  getDb()
+    .prepare(
+      `UPDATE character_prompts SET thumbnail = NULL, updated_at = datetime('now') WHERE id = ?`
+    )
+    .run(id)
 }

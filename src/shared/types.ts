@@ -54,6 +54,8 @@ export interface CharRefItem {
 
 export interface GenerationRequest {
   prompt: string
+  /** Optional NAIS2-style split prompt parts. prompt is still the merged send text. */
+  promptParts?: PromptParts
   negativePrompt: string
   model: string
   width: number
@@ -76,6 +78,12 @@ export interface GenerationRequest {
   source?: SourceImage
   /** 씬 생성이면 씬 id (저장 시 images.scene_id 연결) */
   sceneId?: number
+}
+
+export interface PromptParts {
+  base: string
+  additional: string
+  detail: string
 }
 
 export type QueueItemState = 'pending' | 'generating' | 'done' | 'failed' | 'cancelled'
@@ -197,6 +205,7 @@ export const EMOTIONS = [
 /** NAI PNG에서 읽은 이미지 메타데이터 (정규화) */
 export interface ImageMetadata {
   prompt: string
+  promptParts?: PromptParts & { negative?: string; inpainting?: string }
   negativePrompt: string
   seed?: number
   steps?: number
@@ -287,8 +296,14 @@ export interface IpcInvokeMap {
   'db:status': { req: void; res: { version: number; path: string } }
   /** 앱 버전 */
   'app:version': { req: void; res: { version: string } }
-  'nai:verifyToken': { req: { token: string }; res: { valid: boolean; subscription?: SubscriptionInfo; error?: string } }
-  'nai:setToken': { req: { token: string }; res: { valid: boolean; subscription?: SubscriptionInfo; error?: string } }
+  'nai:verifyToken': {
+    req: { token: string }
+    res: { valid: boolean; subscription?: SubscriptionInfo; error?: string }
+  }
+  'nai:setToken': {
+    req: { token: string }
+    res: { valid: boolean; subscription?: SubscriptionInfo; error?: string }
+  }
   'nai:tokenStatus': { req: void; res: { hasToken: boolean; prefix: string; length: number } }
   'nai:revealToken': { req: void; res: { token: string | null } }
   'nai:deleteToken': { req: void; res: void }
@@ -298,7 +313,10 @@ export interface IpcInvokeMap {
   'queue:enqueue': { req: { request: GenerationRequest; count: number }; res: { ids: string[] } }
   'queue:cancel': { req: { ids: string[] }; res: void }
   'queue:status': { req: void; res: QueueStatus }
-  'images:list': { req: { limit: number; offset: number }; res: { items: HistoryItem[]; total: number } }
+  'images:list': {
+    req: { limit: number; offset: number }
+    res: { items: HistoryItem[]; total: number }
+  }
   'images:payload': { req: { id: number }; res: { payloadJson: string | null } }
   'settings:get': { req: { key: string }; res: { value: string | null } }
   'settings:set': { req: { key: string; value: string }; res: void }
@@ -312,6 +330,7 @@ export interface IpcInvokeMap {
   'chars:duplicate': { req: { id: number }; res: { id: number } }
   /** 네이티브 파일 선택 → sharp 리사이즈 → BLOB 저장. 취소 시 thumbnail null */
   'chars:pickThumbnail': { req: { id: number }; res: { thumbnail: string | null } }
+  'chars:clearThumbnail': { req: { id: number }; res: void }
   'chars:reorder': { req: { order: CharacterOrderEntry[] }; res: void }
   'chars:folderCreate': { req: { name: string }; res: { id: number } }
   'chars:folderRename': { req: { id: number; name: string }; res: void }
@@ -412,10 +431,7 @@ export interface IpcInvokeMap {
   /** JSON 가져오기 (열기 다이얼로그). NAIS3/NAIS2 포맷 자동 감지. summary=사람이 읽는 결과 */
   'backup:import': {
     req: void
-    res:
-      | { summary: string; needsPromptReload: boolean }
-      | { error: string }
-      | { canceled: true }
+    res: { summary: string; needsPromptReload: boolean } | { error: string } | { canceled: true }
   }
   /** 특정 프리셋의 씬 목록 */
   'scenes:list': { req: { presetId: number }; res: { items: Scene[] } }

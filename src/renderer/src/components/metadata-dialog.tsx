@@ -1,5 +1,6 @@
-import { Check, ImageOff, Loader2 } from 'lucide-react'
+import { Check, Copy, ImageOff, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import type { ImageMetadata } from '@shared/types'
 import { useMetadataStore } from '../stores/metadata-store'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
@@ -21,21 +22,24 @@ export function MetadataDialog(): React.JSX.Element {
   const [sel, setSel] = useState<Record<string, boolean>>({})
   useEffect(() => {
     if (!meta) return
-    setSel({
-      prompt: true,
-      negativePrompt: true,
-      characters: true,
-      quality: true,
-      ucPreset: true,
-      seed: false,
-      steps: true,
-      cfgScale: true,
-      cfgRescale: true,
-      sampler: true,
-      noiseSchedule: true,
-      resolution: true,
-      variety: true
+    const timer = setTimeout(() => {
+      setSel({
+        prompt: true,
+        negativePrompt: true,
+        characters: true,
+        quality: true,
+        ucPreset: true,
+        seed: false,
+        steps: true,
+        cfgScale: true,
+        cfgRescale: true,
+        sampler: true,
+        noiseSchedule: true,
+        resolution: true,
+        variety: true
+      })
     })
+    return () => clearTimeout(timer)
   }, [meta])
   const toggle = (k: string): void => setSel((s) => ({ ...s, [k]: !s[k] }))
 
@@ -44,7 +48,8 @@ export function MetadataDialog(): React.JSX.Element {
       {/* max-h + 내부 스크롤 — 작은 창에서 다이얼로그가 화면을 넘어 버튼이 가려지는 것 방지 */}
       <DialogContent className="flex max-h-[85vh] max-w-[760px] flex-col p-0">
         <DialogTitle className="border-b border-line px-5 py-3.5 text-[15px]">
-          이미지 메타데이터 <span className="text-[12px] font-normal text-faint">— 체크한 항목만 적용</span>
+          이미지 메타데이터{' '}
+          <span className="text-[12px] font-normal text-faint">— 체크한 항목만 적용</span>
         </DialogTitle>
 
         {loading ? (
@@ -73,9 +78,21 @@ export function MetadataDialog(): React.JSX.Element {
                 <Stat k="seed" label="시드" value={meta.seed} sel={sel} toggle={toggle} />
                 <Stat k="steps" label="스텝" value={meta.steps} sel={sel} toggle={toggle} />
                 <Stat k="cfgScale" label="CFG" value={meta.cfgScale} sel={sel} toggle={toggle} />
-                <Stat k="cfgRescale" label="CFG Rescale" value={meta.cfgRescale} sel={sel} toggle={toggle} />
+                <Stat
+                  k="cfgRescale"
+                  label="CFG Rescale"
+                  value={meta.cfgRescale}
+                  sel={sel}
+                  toggle={toggle}
+                />
                 <Stat k="sampler" label="샘플러" value={meta.sampler} sel={sel} toggle={toggle} />
-                <Stat k="noiseSchedule" label="스케줄" value={meta.noiseSchedule} sel={sel} toggle={toggle} />
+                <Stat
+                  k="noiseSchedule"
+                  label="스케줄"
+                  value={meta.noiseSchedule}
+                  sel={sel}
+                  toggle={toggle}
+                />
                 <Stat
                   k="resolution"
                   label="해상도"
@@ -83,18 +100,30 @@ export function MetadataDialog(): React.JSX.Element {
                   sel={sel}
                   toggle={toggle}
                 />
-                <Stat k="variety" label="Variety+" value={meta.variety ? 'ON' : undefined} sel={sel} toggle={toggle} />
+                <Stat
+                  k="variety"
+                  label="Variety+"
+                  value={meta.variety ? 'ON' : undefined}
+                  sel={sel}
+                  toggle={toggle}
+                />
                 <Stat
                   k="quality"
                   label="퀄리티 태그"
-                  value={meta.qualityToggle ? 'ON' : meta.qualityToggle === false ? 'OFF' : undefined}
+                  value={
+                    meta.qualityToggle ? 'ON' : meta.qualityToggle === false ? 'OFF' : undefined
+                  }
                   sel={sel}
                   toggle={toggle}
                 />
                 <Stat
                   k="ucPreset"
                   label="UC 프리셋"
-                  value={meta.ucPreset != null ? (UC_LABELS[meta.ucPreset] ?? `#${meta.ucPreset}`) : undefined}
+                  value={
+                    meta.ucPreset != null
+                      ? (UC_LABELS[meta.ucPreset] ?? `#${meta.ucPreset}`)
+                      : undefined
+                  }
                   sel={sel}
                   toggle={toggle}
                 />
@@ -110,8 +139,25 @@ export function MetadataDialog(): React.JSX.Element {
 
             {/* 우: 프롬프트 */}
             <div className="flex min-w-0 flex-1 flex-col gap-3 self-stretch">
-              <Field k="prompt" label="프롬프트" value={meta.prompt} sel={sel} toggle={toggle} grow />
-              <Field k="negativePrompt" label="네거티브" value={meta.negativePrompt} sel={sel} toggle={toggle} />
+              {meta.promptParts ? (
+                <SplitPreview meta={meta} sel={sel} toggle={toggle} />
+              ) : (
+                <Field
+                  k="prompt"
+                  label="프롬프트"
+                  value={meta.prompt}
+                  sel={sel}
+                  toggle={toggle}
+                  grow
+                />
+              )}
+              <Field
+                k="negativePrompt"
+                label="네거티브"
+                value={meta.negativePrompt}
+                sel={sel}
+                toggle={toggle}
+              />
               {meta.characterPrompts && meta.characterPrompts.length > 0 && (
                 <div>
                   <CheckLabel
@@ -119,12 +165,19 @@ export function MetadataDialog(): React.JSX.Element {
                     onClick={() => toggle('characters')}
                     label={`캐릭터 ${meta.characterPrompts.length}`}
                   />
-                  <div className={cn('mt-1.5 max-h-36 space-y-1.5 overflow-y-auto', !sel.characters && 'opacity-40')}>
+                  <div
+                    className={cn(
+                      'mt-1.5 max-h-36 space-y-1.5 overflow-y-auto',
+                      !sel.characters && 'opacity-40'
+                    )}
+                  >
                     {meta.characterPrompts.map((c, i) => (
                       <div key={i} className="rounded-md border border-line bg-surface-2/40 p-2">
                         <p className="break-words font-mono text-[11.5px] text-ink">{c.prompt}</p>
                         {c.negativePrompt && (
-                          <p className="mt-1 break-words font-mono text-[11px] text-faint">uc: {c.negativePrompt}</p>
+                          <p className="mt-1 break-words font-mono text-[11px] text-faint">
+                            uc: {c.negativePrompt}
+                          </p>
                         )}
                       </div>
                     ))}
@@ -148,6 +201,42 @@ export function MetadataDialog(): React.JSX.Element {
   )
 }
 
+function SplitPreview({
+  meta,
+  sel,
+  toggle
+}: {
+  meta: ImageMetadata
+  sel: Record<string, boolean>
+  toggle: (k: string) => void
+}): React.JSX.Element {
+  const parts = meta.promptParts
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-1">
+        <CheckLabel checked={sel.prompt} onClick={() => toggle('prompt')} label="프롬프트 3분할" />
+      </div>
+      <div className={cn('flex min-h-0 flex-1 flex-col gap-1.5', !sel.prompt && 'opacity-40')}>
+        <Part label="고정" value={parts?.base ?? ''} />
+        <Part label="가변" value={parts?.additional ?? ''} />
+        <Part label="디테일" value={parts?.detail ?? ''} />
+      </div>
+    </div>
+  )
+}
+
+function Part({ label, value }: { label: string; value: string }): React.JSX.Element {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col rounded-md border border-line bg-surface-2/40 p-2">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <p className="text-[10.5px] font-medium text-faint">{label}</p>
+        <CopyButton value={value} label={`${label} 복사`} />
+      </div>
+      <ReadonlyPrompt value={value} className="min-h-24 flex-1 text-[12px]" />
+    </div>
+  )
+}
+
 /** 체크 표시 + 라벨 (클릭 토글) */
 function CheckLabel({
   checked,
@@ -159,7 +248,10 @@ function CheckLabel({
   label: string
 }): React.JSX.Element {
   return (
-    <button onClick={onClick} className="flex items-center gap-1.5 text-[12px] font-medium text-muted hover:text-ink">
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 text-[12px] font-medium text-muted hover:text-ink"
+    >
       <span
         className={cn(
           'grid size-4 place-items-center rounded border transition-colors',
@@ -189,20 +281,58 @@ function Field({
   grow?: boolean
 }): React.JSX.Element {
   return (
-    <div className={grow ? 'flex min-h-0 flex-1 flex-col' : ''}>
+    <div className={grow ? 'flex min-h-0 flex-1 flex-col' : 'flex flex-none flex-col'}>
       <div className="mb-1">
-        <CheckLabel checked={sel[k]} onClick={() => toggle(k)} label={label} />
+        <div className="flex items-center justify-between gap-2">
+          <CheckLabel checked={sel[k]} onClick={() => toggle(k)} label={label} />
+          <CopyButton value={value} label={`${label} 복사`} />
+        </div>
       </div>
-      <p
+      <ReadonlyPrompt
+        value={value}
         className={cn(
-          'overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-line bg-surface-2/40 p-2 font-mono text-[12.5px] text-ink',
-          grow ? 'min-h-[80px] flex-1' : 'max-h-28',
+          'rounded-md border border-line bg-surface-2/40 p-2 text-[12.5px]',
+          grow ? 'min-h-[180px] flex-1' : 'h-36',
           !sel[k] && 'opacity-40'
         )}
-      >
-        {value || <span className="font-sans text-faint">(없음)</span>}
-      </p>
+      />
     </div>
+  )
+}
+
+function ReadonlyPrompt({
+  value,
+  className
+}: {
+  value: string
+  className?: string
+}): React.JSX.Element {
+  return (
+    <textarea
+      readOnly
+      value={value}
+      placeholder="(없음)"
+      className={cn(
+        'block w-full resize-none overflow-y-auto whitespace-pre-wrap break-words bg-transparent font-mono leading-relaxed text-ink outline-none placeholder:font-sans placeholder:text-faint',
+        'cursor-text select-text',
+        className
+      )}
+    />
+  )
+}
+
+function CopyButton({ value, label }: { value: string; label: string }): React.JSX.Element {
+  return (
+    <button
+      className="grid size-6 shrink-0 place-items-center rounded-md text-faint transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-35"
+      title={label}
+      disabled={!value}
+      onClick={() => {
+        if (value) void navigator.clipboard.writeText(value)
+      }}
+    >
+      <Copy size={13} />
+    </button>
   )
 }
 

@@ -107,6 +107,9 @@ function buildSceneRequest(scene: Scene): GenerationRequest {
   return {
     ...base,
     prompt: appendPrompt(base.prompt, scene.prompt),
+    promptParts: base.promptParts
+      ? { ...base.promptParts, detail: appendPrompt(base.promptParts.detail, scene.prompt) }
+      : undefined,
     negativePrompt: appendPrompt(base.negativePrompt, scene.negativePrompt),
     width: src ? src.width : scene.width,
     height: src ? src.height : scene.height,
@@ -131,7 +134,8 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
   editMode: false,
   selection: new Set(),
   columns: Number(localStorage.getItem('scene_columns')) || 3,
-  cardOrientation: (localStorage.getItem('scene_orientation') as 'portrait' | 'landscape') || 'portrait',
+  cardOrientation:
+    (localStorage.getItem('scene_orientation') as 'portrait' | 'landscape') || 'portrait',
   images: [],
   imagesTotal: 0,
   imagesLoading: false,

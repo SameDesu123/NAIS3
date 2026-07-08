@@ -12,7 +12,7 @@ import {
   UsersRound
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { estimateAnlas } from '@shared/anlas'
 import { useCharactersStore } from '../stores/characters-store'
 import { useFragmentsStore } from '../stores/fragments-store'
@@ -30,9 +30,13 @@ import { SOURCE_BANNER_HEIGHT, SourceBanner } from './source-banner'
 import { Button } from './ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
+const TOKEN_LIMIT = 512
+
 export function PromptPanel(): React.JSX.Element {
   const request = useGenerationStore((s) => s.request)
   const patch = useGenerationStore((s) => s.patchRequest)
+  const patchPromptParts = useGenerationStore((s) => s.patchPromptParts)
+  const promptSplitEnabled = useGenerationStore((s) => s.promptSplitEnabled)
   const queue = useGenerationStore((s) => s.queue)
   const batchCount = useGenerationStore((s) => s.batchCount)
   const setBatchCount = useGenerationStore((s) => s.setBatchCount)
@@ -51,6 +55,12 @@ export function PromptPanel(): React.JSX.Element {
   const enabledCrefs = useCharRefsStore((s) => s.items.filter((c) => c.enabled).length)
   const source = useGenerationStore((s) => s.source)
   const [paramsOpen, setParamsOpen] = useState(false)
+
+  useEffect(() => {
+    const openParams = (): void => setParamsOpen((v) => !v)
+    window.addEventListener('shortcut:openParams', openParams)
+    return () => window.removeEventListener('shortcut:openParams', openParams)
+  }, [])
 
   // 씬 모드: 생성은 예약된 씬들을 예약 수만큼 큐에 넣는다. 예약 0이면 생성 버튼 비활성.
   const centerMode = useLayoutStore((s) => s.centerMode)
@@ -85,7 +95,9 @@ export function PromptPanel(): React.JSX.Element {
     window.addEventListener('mouseup', onUp)
   }
   const posRatioRef = useRef(posRatio)
-  posRatioRef.current = posRatio
+  useEffect(() => {
+    posRatioRef.current = posRatio
+  }, [posRatio])
 
   const subscriptionTier = useGenerationStore((s) => s.subscriptionTier)
   const queueCount =
@@ -208,23 +220,40 @@ export function PromptPanel(): React.JSX.Element {
         <PromptPresetBar />
         <div
           className={'flex min-h-0 flex-col gap-1 ' + (posCollapsed ? 'flex-none' : 'min-h-9')}
-          style={bothOpen ? { flexGrow: posRatio, flexBasis: 0 } : !posCollapsed ? { flexGrow: 1 } : undefined}
+          style={
+            bothOpen
+              ? { flexGrow: posRatio, flexBasis: 0 }
+              : !posCollapsed
+                ? { flexGrow: 1 }
+                : undefined
+          }
         >
           <CollapseHeader
             label="프롬프트"
             collapsed={posCollapsed}
             onToggle={() => setPosCollapsed((v) => !v)}
-            action={<SyntaxHelp />}
+            action={
+              <div className="flex items-center gap-1">
+                {promptSplitEnabled && <TokenBadge tokens={tokenTotals.pos} />}
+                <SyntaxHelp />
+              </div>
+            }
           />
-          {!posCollapsed && (
-            <PromptEditor
-              className="min-h-0 flex-1"
-              value={request.prompt}
-              tokensOverride={tokenTotals.pos}
-              placeholder="1girl, ...  (태그 자동완성 · <조각>)"
-              onValueChange={(v) => patch({ prompt: v })}
-            />
-          )}
+          {!posCollapsed &&
+            (promptSplitEnabled ? (
+              <SplitPromptFields
+                parts={request.promptParts ?? { base: request.prompt, additional: '', detail: '' }}
+                onChange={patchPromptParts}
+              />
+            ) : (
+              <PromptEditor
+                className="min-h-0 flex-1"
+                value={request.prompt}
+                tokensOverride={tokenTotals.pos}
+                placeholder="1girl, ...  (태그 자동완성 · <조각>)"
+                onValueChange={(v) => patch({ prompt: v })}
+              />
+            ))}
         </div>
         {/* 세로 비율 조절 스플리터 (둘 다 펼쳐졌을 때만) */}
         {bothOpen && (
@@ -237,7 +266,13 @@ export function PromptPanel(): React.JSX.Element {
         )}
         <div
           className={'flex min-h-0 flex-col gap-1 ' + (negCollapsed ? 'flex-none' : 'min-h-9')}
-          style={bothOpen ? { flexGrow: 1 - posRatio, flexBasis: 0 } : !negCollapsed ? { flexGrow: 1 } : undefined}
+          style={
+            bothOpen
+              ? { flexGrow: 1 - posRatio, flexBasis: 0 }
+              : !negCollapsed
+                ? { flexGrow: 1 }
+                : undefined
+          }
         >
           <CollapseHeader
             label="네거티브"
@@ -397,6 +432,202 @@ function CollapseHeader({
         {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
       </button>
       {action}
+    </div>
+  )
+}
+
+function TokenBadge({ tokens }: { tokens: number | null }): React.JSX.Element | null {
+  if (tokens === null) return null
+  const over = tokens > TOKEN_LIMIT
+  return (
+    <span
+      className={
+        'rounded bg-paper px-1.5 py-0.5 font-mono text-[10.5px] ' +
+        (over ? 'text-danger' : 'text-faint')
+      }
+      title={
+        over
+          ? `한도 초과 — ${tokens}/${TOKEN_LIMIT} 토큰. 초과분은 잘려서 반영되지 않습니다`
+          : `최종 프롬프트 ${tokens}/${TOKEN_LIMIT} 토큰`
+      }
+    >
+      {tokens}/{TOKEN_LIMIT}
+    </span>
+  )
+}
+
+type SplitPartKey = 'base' | 'additional' | 'detail'
+type SplitPromptParts = Record<SplitPartKey, string>
+
+const SPLIT_PARTS: { key: SplitPartKey; label: string; placeholder: string }[] = [
+  { key: 'base', label: '고정', placeholder: '항상 유지할 기본 프롬프트' },
+  { key: 'additional', label: '가변', placeholder: '매번 지우고 바꿀 프롬프트' },
+  { key: 'detail', label: '디테일', placeholder: '품질, 구도, 세부 묘사' }
+]
+
+const SPLIT_COLLAPSED_KEY = 'prompt_split_collapsed'
+const SPLIT_SIZES_KEY = 'prompt_split_sizes'
+
+function loadSplitCollapsed(): Record<SplitPartKey, boolean> {
+  const fallback = { base: false, additional: false, detail: false }
+  try {
+    const raw = JSON.parse(localStorage.getItem(SPLIT_COLLAPSED_KEY) ?? '{}') as Partial<
+      Record<SplitPartKey, boolean>
+    >
+    return {
+      base: raw.base === true,
+      additional: raw.additional === true,
+      detail: raw.detail === true
+    }
+  } catch {
+    return fallback
+  }
+}
+
+function loadSplitSizes(): Record<SplitPartKey, number> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SPLIT_SIZES_KEY) ?? '{}') as Partial<
+      Record<SplitPartKey, number>
+    >
+    const base = typeof raw.base === 'number' ? raw.base : 0.34
+    const additional = typeof raw.additional === 'number' ? raw.additional : 0.33
+    const detail = typeof raw.detail === 'number' ? raw.detail : 0.33
+    return { base, additional, detail }
+  } catch {
+    return { base: 0.34, additional: 0.33, detail: 0.33 }
+  }
+}
+
+function SplitPromptFields({
+  parts,
+  onChange
+}: {
+  parts: SplitPromptParts
+  onChange: (patch: Partial<SplitPromptParts>) => void
+}): React.JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [collapsed, setCollapsed] = useState(loadSplitCollapsed)
+  const [sizes, setSizes] = useState(loadSplitSizes)
+  const sizesRef = useRef(sizes)
+  useEffect(() => {
+    sizesRef.current = sizes
+  }, [sizes])
+
+  const openKeys = SPLIT_PARTS.filter((part) => !collapsed[part.key]).map((part) => part.key)
+
+  const togglePart = (key: SplitPartKey): void => {
+    setCollapsed((current) => {
+      const next = { ...current, [key]: !current[key] }
+      localStorage.setItem(SPLIT_COLLAPSED_KEY, JSON.stringify(next))
+      return next
+    })
+  }
+
+  const startSplitResize = (
+    before: SplitPartKey,
+    after: SplitPartKey,
+    e: React.MouseEvent<HTMLDivElement>
+  ): void => {
+    e.preventDefault()
+    const area = containerRef.current
+    if (!area) return
+    const startY = e.clientY
+    const start = sizesRef.current
+    const beforeStart = start[before]
+    const afterStart = start[after]
+    const pairTotal = beforeStart + afterStart
+    const min = Math.min(0.16, pairTotal / 2)
+
+    const onMove = (ev: MouseEvent): void => {
+      const height = Math.max(1, area.getBoundingClientRect().height)
+      const delta = (ev.clientY - startY) / height
+      const nextBefore = Math.min(pairTotal - min, Math.max(min, beforeStart + delta))
+      const nextAfter = pairTotal - nextBefore
+      setSizes((current) => {
+        const next = { ...current, [before]: nextBefore, [after]: nextAfter }
+        sizesRef.current = next
+        return next
+      })
+    }
+
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      localStorage.setItem(SPLIT_SIZES_KEY, JSON.stringify(sizesRef.current))
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  const nextOpenAfter = (key: SplitPartKey): SplitPartKey | undefined => {
+    const index = openKeys.indexOf(key)
+    return index >= 0 ? openKeys[index + 1] : undefined
+  }
+
+  return (
+    <div ref={containerRef} className="flex min-h-0 flex-1 flex-col gap-1">
+      {SPLIT_PARTS.map((part) => {
+        const isCollapsed = collapsed[part.key]
+        const nextOpen = isCollapsed ? undefined : nextOpenAfter(part.key)
+        return (
+          <Fragment key={part.key}>
+            <SplitField
+              label={part.label}
+              collapsed={isCollapsed}
+              value={parts[part.key]}
+              placeholder={part.placeholder}
+              grow={sizes[part.key]}
+              onToggle={() => togglePart(part.key)}
+              onChange={(value) => onChange({ [part.key]: value })}
+            />
+            {nextOpen && (
+              <div
+                className="group -my-1 flex h-2 shrink-0 cursor-row-resize items-center justify-center"
+                onMouseDown={(e) => startSplitResize(part.key, nextOpen, e)}
+              >
+                <div className="h-0.5 w-8 rounded-full bg-line transition-colors group-hover:bg-accent/50" />
+              </div>
+            )}
+          </Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
+function SplitField({
+  label,
+  collapsed,
+  value,
+  placeholder,
+  grow,
+  onToggle,
+  onChange
+}: {
+  label: string
+  collapsed: boolean
+  value: string
+  placeholder: string
+  grow: number
+  onToggle: () => void
+  onChange: (value: string) => void
+}): React.JSX.Element {
+  return (
+    <div
+      className={'flex min-h-0 flex-col gap-1 ' + (collapsed ? 'flex-none' : 'min-h-9')}
+      style={collapsed ? undefined : { flexGrow: grow, flexBasis: 0 }}
+    >
+      <CollapseHeader label={label} collapsed={collapsed} onToggle={onToggle} />
+      {!collapsed && (
+        <PromptEditor
+          className="min-h-0 flex-1"
+          value={value}
+          tokensOverride={null}
+          placeholder={placeholder}
+          onValueChange={onChange}
+        />
+      )}
     </div>
   )
 }

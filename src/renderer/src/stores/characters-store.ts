@@ -22,6 +22,7 @@ interface CharactersState {
   removeCard: (id: number) => void
   duplicateCard: (id: number) => Promise<void>
   pickThumbnail: (id: number) => Promise<void>
+  clearThumbnail: (id: number) => Promise<void>
   createFolder: (name: string) => Promise<void>
   renameFolder: (id: number, name: string) => void
   toggleCollapse: (id: number) => void
@@ -80,7 +81,8 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
     const enabled = get().items.filter((c) => c.enabled)
     if (!enabled.length) return
     set({ items: get().items.map((c) => (c.enabled ? { ...c, enabled: false } : c)) })
-    for (const c of enabled) void window.nais.invoke('chars:update', { id: c.id, patch: { enabled: false } })
+    for (const c of enabled)
+      void window.nais.invoke('chars:update', { id: c.id, patch: { enabled: false } })
   },
 
   removeCard: (id) => {
@@ -98,6 +100,10 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
     if (thumbnail === null) return
     set({ items: get().items.map((c) => (c.id === id ? { ...c, thumbnail } : c)) })
   },
+  clearThumbnail: async (id) => {
+    set({ items: get().items.map((c) => (c.id === id ? { ...c, thumbnail: '' } : c)) })
+    await window.nais.invoke('chars:clearThumbnail', { id })
+  },
 
   createFolder: async (name) => {
     const { id } = await window.nais.invoke('chars:folderCreate', { name })
@@ -112,7 +118,9 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
   toggleCollapse: (id) => {
     const folder = get().folders.find((f) => f.id === id)
     if (!folder) return
-    set({ folders: get().folders.map((f) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f)) })
+    set({
+      folders: get().folders.map((f) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f))
+    })
     void window.nais.invoke('chars:folderCollapse', { id, collapsed: !folder.collapsed })
   },
 
@@ -135,7 +143,10 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
     // 2) 메타 캐릭터를 새 카드로 생성 (가져온 캐릭터 N)
     for (let i = 0; i < chars.length; i++) {
       const ch = chars[i]
-      const { id } = await window.nais.invoke('chars:create', { name: `가져온 캐릭터 ${i + 1}`, folderId: null })
+      const { id } = await window.nais.invoke('chars:create', {
+        name: `가져온 캐릭터 ${i + 1}`,
+        folderId: null
+      })
       const card: CharacterCard = {
         id,
         name: `가져온 캐릭터 ${i + 1}`,

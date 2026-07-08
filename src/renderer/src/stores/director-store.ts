@@ -70,7 +70,13 @@ export const useDirectorStore = create<DirectorState>((set, get) => ({
     if (s.length > 1) set({ stack: s.slice(0, -1), error: null })
   },
 
-  clear: () => set({ stack: [], error: null })
+  clear: () => {
+    const stack = get().stack
+    const gen = useGenerationStore.getState()
+    if (gen.source && stack.includes(gen.source.imageBase64)) gen.setSource(null)
+    if (gen.inpaintTarget && stack.includes(gen.inpaintTarget.base64)) gen.cancelInpaint()
+    set({ stack: [], error: null })
+  }
 }))
 
 /** 히스토리 등에서 이미지를 디렉터 툴로 열기 (base64 로드 후 페이지 전환) */

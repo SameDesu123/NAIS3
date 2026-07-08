@@ -8,6 +8,7 @@ import {
   deleteFolder,
   listCharacters,
   pickCharacterThumbnail,
+  clearCharacterThumbnail,
   renameFolder,
   reorderCharacters,
   setFolderCollapsed,
@@ -240,7 +241,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
           r.prompt ? '프롬프트' : ''
         ].filter(Boolean)
         return {
-          summary: parts.length ? `NAIS2에서 ${parts.join(' · ')} 가져옴` : '가져올 항목이 없습니다',
+          summary: parts.length
+            ? `NAIS2에서 ${parts.join(' · ')} 가져옴`
+            : '가져올 항목이 없습니다',
           needsPromptReload: r.prompt
         }
       }
@@ -315,6 +318,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('chars:pickThumbnail', async ({ id }) => ({
     thumbnail: await pickCharacterThumbnail(id)
   }))
+  handle('chars:clearThumbnail', ({ id }) => {
+    clearCharacterThumbnail(id)
+  })
   handle('chars:reorder', ({ order }) => {
     reorderCharacters(order)
   })
@@ -391,7 +397,6 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     return { copied: true }
   })
 
-
   const saveDirKey = (target?: 'main' | 'scene'): string =>
     target === 'scene' ? 'scene_save_dir' : 'save_dir'
   const saveDirOf = (target?: 'main' | 'scene'): string =>
@@ -432,18 +437,24 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
       }
       if (filePath) {
         if (!isUnderImagesRoot(filePath)) return { error: '허용되지 않은 경로' }
-        // 1) PNG tEXt 우선
-        const buf = readFileSync(filePath)
-        const fromPng = await metadataFromPng(buf)
-        if (fromPng) return { meta: fromPng }
-        // 2) 폴백: DB payload_json (우리 스트리밍 이미지는 tEXt가 없을 수 있음)
         const row = getDb()
           .prepare('SELECT payload_json FROM images WHERE file_path = ?')
           .get(filePath) as { payload_json: string } | undefined
-        if (row?.payload_json) {
-          const meta = metadataFromPayloadJson(row.payload_json)
-          if (meta) return { meta }
+        const fromDb = row?.payload_json ? metadataFromPayloadJson(row.payload_json) : null
+        // 1) PNG tEXt 우선. 단, 예전 저장본/포맷 변환본처럼 nais3-params 청크가 빠진 경우
+        // DB payload_json의 NAIS3 로컬 메타데이터(promptParts)를 합쳐서 3분할을 복원한다.
+        const buf = readFileSync(filePath)
+        const fromPng = await metadataFromPng(buf)
+        if (fromPng) {
+          return {
+            meta:
+              !fromPng.promptParts && fromDb?.promptParts
+                ? { ...fromPng, promptParts: fromDb.promptParts }
+                : fromPng
+          }
         }
+        // 2) 폴백: DB payload_json (우리 스트리밍 이미지는 tEXt가 없을 수 있음)
+        if (fromDb) return { meta: fromDb }
         return { error: '메타데이터를 찾지 못했습니다' }
       }
       return { error: '입력이 없습니다' }

@@ -1,7 +1,11 @@
 import { create } from 'zustand'
+import { useCharactersStore } from './characters-store'
+import { useFragmentsStore } from './fragments-store'
 import { useGenerationStore } from './generation-store'
 import { useLayoutStore } from './layout-store'
+import { useCharRefsStore, useVibesStore } from './refs-store'
 import { totalReserved, useScenesStore } from './scenes-store'
+import { toast } from './toast-store'
 
 export type ShortcutAction =
   | 'generate'
@@ -10,6 +14,13 @@ export type ShortcutAction =
   | 'openSettings'
   | 'modeMain'
   | 'modeScene'
+  | 'modeDirector'
+  | 'openCharacter'
+  | 'openFragment'
+  | 'openVibe'
+  | 'openCharRef'
+  | 'openParams'
+  | 'resetFragmentCounters'
 
 export const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
   generate: '생성 / 씬 생성',
@@ -17,7 +28,14 @@ export const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
   toggleRight: '히스토리 패널 토글',
   openSettings: '설정 열기',
   modeMain: '메인 모드',
-  modeScene: '씬 모드'
+  modeScene: '씬 모드',
+  modeDirector: '디렉터 모드',
+  openCharacter: '캐릭터 열기',
+  openFragment: '조각 열기',
+  openVibe: '바이브 열기',
+  openCharRef: '레퍼런스 열기',
+  openParams: '생성 파라미터 열기',
+  resetFragmentCounters: '조각 순차 카운터 리셋'
 }
 
 const DEFAULTS: Record<ShortcutAction, string> = {
@@ -26,7 +44,14 @@ const DEFAULTS: Record<ShortcutAction, string> = {
   toggleRight: 'Mod+]',
   openSettings: 'Mod+,',
   modeMain: 'Mod+1',
-  modeScene: 'Mod+2'
+  modeScene: 'Mod+2',
+  modeDirector: 'Mod+3',
+  openCharacter: 'Mod+D',
+  openFragment: 'Mod+F',
+  openVibe: 'Mod+I',
+  openCharRef: 'Mod+Shift+I',
+  openParams: 'Mod+P',
+  resetFragmentCounters: 'Mod+Shift+R'
 }
 
 const isMac = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac')
@@ -90,7 +115,56 @@ function runAction(action: ShortcutAction): void {
     case 'modeScene':
       layout.setCenterMode('scene')
       break
+    case 'modeDirector':
+      layout.setCenterMode('director')
+      break
+    case 'openCharacter':
+      toggleOverlay('char')
+      break
+    case 'openFragment':
+      toggleOverlay('frag')
+      break
+    case 'openVibe':
+      toggleOverlay('vibe')
+      break
+    case 'openCharRef':
+      toggleOverlay('cref')
+      break
+    case 'openParams':
+      window.dispatchEvent(new CustomEvent('shortcut:openParams'))
+      break
+    case 'resetFragmentCounters':
+      void useFragmentsStore
+        .getState()
+        .resetSequential()
+        .then(() => toast('조각 순차 카운터를 리셋했습니다', 'success'))
+      break
   }
+}
+
+function toggleOverlay(target: 'char' | 'frag' | 'vibe' | 'cref'): void {
+  const layout = useLayoutStore.getState()
+  if (!layout.leftOpen) layout.toggleLeft()
+  const chars = useCharactersStore.getState()
+  const frags = useFragmentsStore.getState()
+  const vibes = useVibesStore.getState()
+  const crefs = useCharRefsStore.getState()
+  const open = {
+    char: chars.overlayOpen,
+    frag: frags.overlayOpen,
+    vibe: vibes.overlayOpen,
+    cref: crefs.overlayOpen
+  }
+  const willOpen = !open[target]
+  chars.setOverlayOpen(false)
+  frags.setOverlayOpen(false)
+  vibes.setOverlayOpen(false)
+  crefs.setOverlayOpen(false)
+  if (!willOpen) return
+  if (target === 'char') chars.setOverlayOpen(true)
+  else if (target === 'frag') frags.setOverlayOpen(true)
+  else if (target === 'vibe') vibes.setOverlayOpen(true)
+  else crefs.setOverlayOpen(true)
 }
 
 export const useShortcutsStore = create<ShortcutsState>((set, get) => ({

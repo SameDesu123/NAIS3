@@ -100,7 +100,7 @@ app.whenReady().then(() => {
   }
 
   // 생성 파이프라인: 큐 → 조각/와일드카드 치환 → 바이브/캐릭레퍼 준비 → 스트리밍 생성 → 저장
-  const queue = new GenerationQueue(async (rawRequest, id) => {
+  const queue = new GenerationQueue(async (rawRequest, id, signal) => {
     const token = getNaiToken()
     if (!token) throw new Error('NAI 토큰이 설정되지 않았습니다')
 
@@ -170,15 +170,21 @@ app.whenReady().then(() => {
     const streamingOn = getSetting('gen_streaming') !== '0'
     const useZip = !streamingOn
     const { png, sentPayload } = useZip
-      ? await generateImageZip(token, request, buildOpts)
-      : await generateImageStream(token, request, buildOpts, (stepIx, preview) => {
-          broadcast('generation:progress', {
-            id,
-            stepIx,
-            totalSteps: request.steps,
-            previewPng: preview?.toString('base64')
-          })
-        })
+      ? await generateImageZip(token, request, buildOpts, signal)
+      : await generateImageStream(
+          token,
+          request,
+          buildOpts,
+          (stepIx, preview) => {
+            broadcast('generation:progress', {
+              id,
+              stepIx,
+              totalSteps: request.steps,
+              previewPng: preview?.toString('base64')
+            })
+          },
+          signal
+        )
 
     // 자동 저장 off여도 히스토리엔 남긴다 — 저장 폴더 대신 앱 내부 라이브러리로 가는 판정은
     // saveGeneratedImage가 auto_save 설정을 읽어 처리한다 (씬 포함).
@@ -192,11 +198,20 @@ app.whenReady().then(() => {
       sceneId: request.sceneId,
       format: imageFormat,
       sceneName: scene?.name,
-      scenePresetName: scene ? (getPresetName(scene.presetId) ?? undefined) : undefined
+      scenePresetName: scene ? (getPresetName(scene.presetId) ?? undefined) : undefined,
+      localMetadata: request.promptParts
+        ? {
+            promptParts: {
+              ...request.promptParts,
+              negative: request.negativePrompt
+            }
+          }
+        : undefined
     })
 
     // 씬 생성이면 해당 씬 갱신 알림 (목록 썸네일/개수, 상세 이미지 갱신용)
-    if (request.sceneId) broadcast('scenes:changed', { sceneId: request.sceneId, filePath: saved.filePath })
+    if (request.sceneId)
+      broadcast('scenes:changed', { sceneId: request.sceneId, filePath: saved.filePath })
 
     // 생성 후 잔액 갱신 (실사용량 추적의 진실 공급원) — 실패해도 생성 흐름엔 영향 없음
     void fetchAnlasBalance(token).then(({ anlas }) => {
@@ -300,4 +315,3 @@ async function normalizeInpaintMask(
 function stripDataUrl(base64: string): string {
   return base64.replace(/^data:[^,]+,/, '')
 }
-

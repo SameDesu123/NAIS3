@@ -11,11 +11,16 @@ import type { GenerationRequest, QueueItem, QueueStatus } from '../../shared/typ
  */
 export class GenerationQueue extends EventEmitter {
   private items = new Map<string, QueueItem>()
+  private controllers = new Map<string, AbortController>()
   private running = false
   private delayMs = 600
 
   constructor(
-    private readonly generate: (request: GenerationRequest, id: string) => Promise<string>
+    private readonly generate: (
+      request: GenerationRequest,
+      id: string,
+      signal: AbortSignal
+    ) => Promise<string>
   ) {
     super()
   }
@@ -37,9 +42,10 @@ export class GenerationQueue extends EventEmitter {
   cancel(ids: string[]): void {
     for (const id of ids) {
       const item = this.items.get(id)
-      // 생성 중인 항목은 완료를 기다린다. pending만 즉시 취소.
       if (item && item.state === 'pending') {
         item.state = 'cancelled'
+      } else if (item && item.state === 'generating') {
+        this.controllers.get(id)?.abort()
       }
     }
     this.emitChanged()
@@ -60,13 +66,21 @@ export class GenerationQueue extends EventEmitter {
       let next: QueueItem | undefined
       while ((next = this.nextPending())) {
         next.state = 'generating'
+        const controller = new AbortController()
+        this.controllers.set(next.id, controller)
         this.emitChanged()
         try {
-          next.filePath = await this.generate(next.request, next.id)
+          next.filePath = await this.generate(next.request, next.id, controller.signal)
           next.state = 'done'
         } catch (e) {
-          next.state = 'failed'
-          next.error = e instanceof Error ? e.message : String(e)
+          if (controller.signal.aborted || isAbortError(e)) {
+            next.state = 'cancelled'
+          } else {
+            next.state = 'failed'
+            next.error = e instanceof Error ? e.message : String(e)
+          }
+        } finally {
+          this.controllers.delete(next.id)
         }
         this.emitChanged()
         if (this.nextPending()) {
@@ -93,4 +107,10 @@ export class GenerationQueue extends EventEmitter {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isAbortError(e: unknown): boolean {
+  return (
+    e instanceof Error && (e.name === 'AbortError' || e.message.toLowerCase().includes('abort'))
+  )
 }

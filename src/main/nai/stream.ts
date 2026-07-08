@@ -8,6 +8,7 @@ import { decode as msgpackDecode } from '@msgpack/msgpack'
  */
 export interface StreamHandlers {
   onProgress?: (stepIx: number, previewPng?: Buffer) => void
+  signal?: AbortSignal
 }
 
 export async function readImageStream(
@@ -21,6 +22,10 @@ export async function readImageStream(
 
   try {
     while (true) {
+      if (handlers.signal?.aborted) {
+        await reader.cancel()
+        throw new DOMException('Aborted', 'AbortError')
+      }
       const { done, value } = await reader.read()
       if (value) {
         const merged = new Uint8Array(buffer.length + value.length)

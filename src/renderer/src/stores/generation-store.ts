@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GenerationRequest, HistoryItem, QueueStatus } from '@shared/types'
+import type { GenerationRequest, HistoryItem, PromptParts, QueueStatus } from '@shared/types'
 import { enabledCharacters } from './characters-store'
 import { useVibesStore } from './refs-store'
 import { toast } from './toast-store'
@@ -29,10 +29,21 @@ export const DEFAULT_REQUEST: GenerationRequest = {
   useCoords: false
 }
 
+export function mergePromptParts(parts: PromptParts): string {
+  return [parts.base, parts.additional, parts.detail].filter((p) => p.trim()).join(', ')
+}
+
+function withoutTransientSource(request: GenerationRequest): GenerationRequest {
+  const rest = { ...request }
+  delete rest.source
+  return rest
+}
+
 interface GenerationState {
   request: GenerationRequest
   seedLocked: boolean
   batchCount: number
+  promptSplitEnabled: boolean
   /** paper | tablet | scroll | opus — Anlas 추정용 */
   subscriptionTier: string | null
   setSubscriptionTier: (tier: string) => void
@@ -56,6 +67,8 @@ interface GenerationState {
   patchRequest: (patch: Partial<GenerationRequest>) => void
   setSeedLocked: (locked: boolean) => void
   setBatchCount: (count: number) => void
+  setPromptSplitEnabled: (enabled: boolean) => void
+  patchPromptParts: (patch: Partial<PromptParts>) => void
   hydrate: () => Promise<void>
   generate: () => Promise<void>
   cancelAll: () => Promise<void>
@@ -79,6 +92,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   request: DEFAULT_REQUEST,
   seedLocked: localStorage.getItem('seed_locked') === '1',
   batchCount: Number(localStorage.getItem('batch_count')) || 1,
+  promptSplitEnabled: false,
   subscriptionTier: null,
   setSubscriptionTier: (tier) => {
     set({ subscriptionTier: tier })
@@ -105,7 +119,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   historyTotal: 0,
 
   patchRequest: (patch) => {
-    const request = { ...get().request, ...patch }
+    const request = withoutTransientSource({ ...get().request, ...patch })
     set({ request })
     // 편집도 즉시 영속(디바운스) — 생성 안 하고 재시작해도 롤백되지 않게
     persistParams(request)
@@ -123,14 +137,39 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     set({ batchCount: clamped })
     localStorage.setItem('batch_count', String(clamped))
   },
+  setPromptSplitEnabled: (promptSplitEnabled) => {
+    const request = get().request
+    const promptParts =
+      request.promptParts ??
+      ({ base: request.prompt, additional: '', detail: '' } satisfies PromptParts)
+    set({ promptSplitEnabled, request: { ...request, promptParts } })
+    void window.nais.invoke('settings:set', {
+      key: 'prompt_split_enabled',
+      value: promptSplitEnabled ? '1' : '0'
+    })
+    persistParams({ ...request, promptParts })
+  },
+  patchPromptParts: (patch) => {
+    const prev = get().request.promptParts ?? {
+      base: get().request.prompt,
+      additional: '',
+      detail: ''
+    }
+    const promptParts = { ...prev, ...patch }
+    get().patchRequest({ promptParts, prompt: mergePromptParts(promptParts) })
+  },
 
   hydrate: async () => {
     const { value: tier } = await window.nais.invoke('settings:get', { key: 'nai_tier' })
     if (tier) set({ subscriptionTier: tier })
+    const { value: split } = await window.nais.invoke('settings:get', {
+      key: 'prompt_split_enabled'
+    })
+    set({ promptSplitEnabled: split === '1' })
     const { value } = await window.nais.invoke('settings:get', { key: 'main_params' })
     if (value) {
       try {
-        set({ request: { ...DEFAULT_REQUEST, ...JSON.parse(value) } })
+        set({ request: withoutTransientSource({ ...DEFAULT_REQUEST, ...JSON.parse(value) }) })
       } catch {
         // 손상된 저장값은 기본값으로
       }
@@ -144,6 +183,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   generate: async () => {
     const { request, seedLocked, batchCount } = get()
     const seed = seedLocked && request.seed >= 0 ? request.seed : randomSeed()
+    const baseRequest = withoutTransientSource({ ...request, seed })
     // 캐릭터는 라이브러리의 enabled 카드에서 구성 (리스트 순서 = v4 use_order 순서)
     const characterPrompts = enabledCharacters().map((c) => ({
       prompt: c.prompt,
@@ -153,8 +193,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     }))
     const src = get().source
     const finalRequest = {
-      ...request,
-      seed,
+      ...baseRequest,
       characterPrompts,
       source: src
         ? {
@@ -168,11 +207,11 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       // i2i는 소스 이미지 해상도를 따른다
       ...(src ? { width: src.width, height: src.height } : {})
     }
-    if (!seedLocked) set({ request: finalRequest })
+    if (!seedLocked) set({ request: baseRequest })
 
     void window.nais.invoke('settings:set', {
       key: 'main_params',
-      value: JSON.stringify(finalRequest)
+      value: JSON.stringify(baseRequest)
     })
     set({ previewPng: null, progress: null, viewingFilePath: null })
     await window.nais.invoke('queue:enqueue', {
@@ -184,8 +223,10 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   cancelAll: async () => {
     const queue = get().queue
     if (!queue) return
-    const pendingIds = queue.items.filter((i) => i.state === 'pending').map((i) => i.id)
-    await window.nais.invoke('queue:cancel', { ids: pendingIds })
+    const ids = queue.items
+      .filter((i) => i.state === 'pending' || i.state === 'generating')
+      .map((i) => i.id)
+    await window.nais.invoke('queue:cancel', { ids })
   },
 
   refreshHistory: async () => {
@@ -200,7 +241,12 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     set({ viewingFilePath, viewPinned: viewingFilePath != null && active })
   },
   source: null,
-  setSource: (source) => set({ source }),
+  setSource: (source) =>
+    set({
+      source,
+      inpaintTarget: null,
+      request: withoutTransientSource(get().request)
+    }),
   inpaintTarget: null,
   startInpaintFromPath: async (filePath) => {
     const res = await window.nais.invoke('images:readForSource', { filePath })
@@ -210,7 +256,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     }
     set({ inpaintTarget: { base64: res.base64, width: res.width, height: res.height } })
   },
-  startInpaintFromImage: (base64, width, height) => set({ inpaintTarget: { base64, width, height } }),
+  startInpaintFromImage: (base64, width, height) =>
+    set({ inpaintTarget: { base64, width, height } }),
   confirmInpaint: (maskBase64) => {
     const t = get().inpaintTarget
     if (!t) return
@@ -247,7 +294,10 @@ let persistTimer: ReturnType<typeof setTimeout> | undefined
 function persistParams(request: GenerationRequest): void {
   clearTimeout(persistTimer)
   persistTimer = setTimeout(() => {
-    void window.nais.invoke('settings:set', { key: 'main_params', value: JSON.stringify(request) })
+    void window.nais.invoke('settings:set', {
+      key: 'main_params',
+      value: JSON.stringify(withoutTransientSource(request))
+    })
   }, 400)
 }
 
