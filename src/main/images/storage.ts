@@ -33,6 +33,21 @@ export function libraryRoot(): string {
   return join(app.getPath('userData'), 'library')
 }
 
+/** 씬 이미지 폴더 경로 — 저장폴더/NAIS3_scene/<프리셋>/<씬 이름>/ (저장·폴더 열기 공용) */
+export function sceneDir(
+  presetName: string | null,
+  sceneName: string,
+  sceneId?: number
+): string {
+  const safe = (s: string): string => s.replace(/[/\\:*?"<>|]/g, '_').trim()
+  return join(
+    imagesRoot(),
+    'NAIS3_scene',
+    safe(presetName ?? '') || '기본',
+    safe(sceneName) || `씬-${sceneId}`
+  )
+}
+
 /**
  * 프로토콜/파일 접근 허용 판정. 저장 폴더를 바꿔도 예전 이미지가 계속 보이도록
  * 현재/기본 저장 폴더와 내부 라이브러리 폴더를 모두 허용한다.
@@ -67,19 +82,13 @@ export async function saveGeneratedImage(input: {
   /** 씬이 속한 프리셋 이름 (프리셋 간 동명 씬 충돌 방지) */
   scenePresetName?: string
 }): Promise<SavedImage> {
-  const safe = (s: string): string => s.replace(/[/\\:*?"<>|]/g, '_').trim()
   const now = new Date()
   const root = input.baseDir ?? imagesRoot()
   // 구조: 일반 = NAIS3_output/[YYYY-MM/] (날짜 폴더는 설정으로 on/off),
   //       씬 = NAIS3_scene/<프리셋>/<씬 이름>/
   let monthDir: string
   if (input.sceneName) {
-    monthDir = join(
-      root,
-      'NAIS3_scene',
-      safe(input.scenePresetName ?? '') || '기본',
-      safe(input.sceneName) || `씬-${input.sceneId}`
-    )
+    monthDir = sceneDir(input.scenePresetName ?? null, input.sceneName, input.sceneId)
   } else {
     const out = join(root, 'NAIS3_output')
     monthDir =

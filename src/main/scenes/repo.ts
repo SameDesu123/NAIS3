@@ -82,6 +82,15 @@ export function listScenes(presetId: number): Scene[] {
   return rows.map(toScene)
 }
 
+/** 씬 프리셋 순서 변경 */
+export function reorderPresets(ids: number[]): void {
+  const db = getDb()
+  const stmt = db.prepare('UPDATE scene_presets SET sort_order = ? WHERE id = ?')
+  db.transaction(() => {
+    ids.forEach((id, i) => stmt.run(i, id))
+  })()
+}
+
 /** 씬 저장 폴더 계층용 프리셋 이름 */
 export function getPresetName(id: number): string | null {
   const r = getDb().prepare('SELECT name FROM scene_presets WHERE id = ?').get(id) as

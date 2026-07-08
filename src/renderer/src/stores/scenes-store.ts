@@ -28,6 +28,8 @@ interface ScenesState {
   createPreset: (name: string) => Promise<void>
   renamePreset: (id: number, name: string) => Promise<void>
   deletePreset: (id: number) => Promise<void>
+  /** 프리셋 순서 이동 (dir: -1 위 / +1 아래) */
+  movePreset: (id: number, dir: -1 | 1) => Promise<void>
 
   load: () => Promise<void>
   select: (id: number | null) => void
@@ -150,6 +152,15 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     await window.nais.invoke('scenePresets:delete', { id })
     await get().loadPresets()
   },
+  movePreset: async (id, dir) => {
+    const ids = get().presets.map((p) => p.id)
+    const i = ids.indexOf(id)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= ids.length) return
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    set({ presets: ids.map((pid) => get().presets.find((p) => p.id === pid)!) })
+    await window.nais.invoke('scenePresets:reorder', { ids })
+  },
 
   load: async () => {
     // 시퀀스 가드: 생성 중 scenes:changed가 연달아 오면 응답이 뒤섞여 옛 썸네일이 남을 수 있음
@@ -216,15 +227,21 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
   adjustReserve: async (id, delta) => {
     const scene = get().scenes.find((s) => s.id === id)
     if (!scene) return
-    const reserveCount = Math.max(0, scene.reserveCount + delta)
+    // 예약은 배치 생성 개수 단위로 (배치 3이면 +3/-3 — NAIS2 워크플로)
+    const step = delta * (useGenerationStore.getState().batchCount || 1)
+    const reserveCount = Math.max(0, scene.reserveCount + step)
     set({ scenes: get().scenes.map((s) => (s.id === id ? { ...s, reserveCount } : s)) })
     await window.nais.invoke('scenes:update', { id, patch: { reserveCount } })
   },
   adjustReserveAll: async (delta) => {
+    const step = delta * (useGenerationStore.getState().batchCount || 1)
     set({
-      scenes: get().scenes.map((s) => ({ ...s, reserveCount: Math.max(0, s.reserveCount + delta) }))
+      scenes: get().scenes.map((s) => ({ ...s, reserveCount: Math.max(0, s.reserveCount + step) }))
     })
-    await window.nais.invoke('scenes:adjustReserveAll', { presetId: get().activePresetId, delta })
+    await window.nais.invoke('scenes:adjustReserveAll', {
+      presetId: get().activePresetId,
+      delta: step
+    })
   },
   clearReserveAll: async () => {
     set({ scenes: get().scenes.map((s) => ({ ...s, reserveCount: 0 })) })

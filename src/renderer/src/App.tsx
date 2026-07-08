@@ -72,12 +72,21 @@ export default function App(): React.JSX.Element {
     const unbindKeys = bindShortcuts()
     const unbindUpdate = bindUpdateEvents()
     const unbindNav = bindNavMouse() // 마우스 4/5번 버튼 뒤로/앞으로
+    // F5 새로고침 (프로덕션에서도)
+    const onF5 = (e: KeyboardEvent): void => {
+      if (e.key === 'F5') {
+        e.preventDefault()
+        window.location.reload()
+      }
+    }
+    window.addEventListener('keydown', onF5)
     return () => {
       unbindGen()
       unbindScene()
       unbindKeys()
       unbindUpdate()
       unbindNav()
+      window.removeEventListener('keydown', onF5)
     }
   }, [])
 

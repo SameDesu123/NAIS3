@@ -1,12 +1,14 @@
-import { Download, FileDown, FileUp, FolderPlus, Plus, Puzzle, Search, Trash2, X } from 'lucide-react'
+import { Copy, Download, FileDown, FileUp, FolderPlus, Pencil, Plus, Puzzle, Search, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { Fragment } from '@shared/types'
 import { cn } from '../lib/utils'
 import { buildDisplayRows } from '../lib/folder-list'
 import { useFragmentsStore } from '../stores/fragments-store'
 import { toast } from '../stores/toast-store'
+import { askText } from '../stores/dialog-store'
 import { FolderListView } from './folder-list-view'
 import { Button } from './ui/button'
+import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Input, Textarea } from './ui/input'
 
 function lineCount(content: string): number {
@@ -29,6 +31,7 @@ export function FragmentOverlay(): React.JSX.Element {
   const importTxt = useFragmentsStore((s) => s.importTxt)
   const exportTxt = useFragmentsStore((s) => s.exportTxt)
   const exportAll = useFragmentsStore((s) => s.exportAll)
+  const duplicate = useFragmentsStore((s) => s.duplicate)
 
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -181,6 +184,25 @@ export function FragmentOverlay(): React.JSX.Element {
           onMove={move}
           renderHeader={renderHeader}
           renderExpanded={renderExpanded}
+          itemContextMenu={(fragment) => (
+            <>
+              <ContextMenuItem
+                onSelect={async () => {
+                  const name = await askText('이름 변경', fragment.name)
+                  if (name != null) update(fragment.id, { name })
+                }}
+              >
+                <Pencil size={13} /> 이름 변경
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => void duplicate(fragment.id)}>
+                <Copy size={13} /> 복제
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem danger onSelect={() => remove(fragment.id)}>
+                <Trash2 size={13} /> 삭제
+              </ContextMenuItem>
+            </>
+          )}
           emptyText={items.length === 0 ? '조각을 추가하거나 TXT를 가져오세요' : '검색 결과 없음'}
         />
       </div>

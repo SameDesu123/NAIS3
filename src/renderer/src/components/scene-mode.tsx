@@ -2,10 +2,13 @@ import {
   CalendarPlus,
   CalendarX,
   ChevronDown,
+  ChevronDown as ChevronDownIcon,
+  ChevronUp,
   Copy,
   FileDown,
   FileUp,
   FolderArchive,
+  FolderOpen,
   ImageOff,
   Loader2,
   Minus,
@@ -40,6 +43,7 @@ import { toast } from '../stores/toast-store'
 import { cn } from '../lib/utils'
 import { SceneDetail } from './scene-detail'
 import { Button } from './ui/button'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
@@ -66,6 +70,7 @@ function PresetDropdown(): React.JSX.Element {
   const createPreset = useScenesStore((s) => s.createPreset)
   const renamePreset = useScenesStore((s) => s.renamePreset)
   const deletePreset = useScenesStore((s) => s.deletePreset)
+  const movePreset = useScenesStore((s) => s.movePreset)
 
   const active = presets.find((p) => p.id === activePresetId)
 
@@ -89,6 +94,21 @@ function PresetDropdown(): React.JSX.Element {
                 )}
               >
                 <span className="truncate">{p.name}</span>
+              </button>
+              {/* 순서 이동 ↑↓ */}
+              <button
+                className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-ink group-hover:opacity-100"
+                onClick={() => void movePreset(p.id, -1)}
+                title="위로"
+              >
+                <ChevronUp size={12} />
+              </button>
+              <button
+                className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-ink group-hover:opacity-100"
+                onClick={() => void movePreset(p.id, 1)}
+                title="아래로"
+              >
+                <ChevronDownIcon size={12} />
               </button>
               <button
                 className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-fg group-hover:opacity-100"
@@ -548,7 +568,29 @@ const SceneCard = memo(function SceneCard({
         ? imageUrl(scene.thumbnailPath)
         : null
 
+  // 우클릭 메뉴/3-dot 공용 액션
+  const renameScene = async (): Promise<void> => {
+    const name = await askText('씬 이름', scene.name)
+    if (name) void update(scene.id, { name })
+  }
+  const openFolder = async (): Promise<void> => {
+    const { ok } = await window.nais.invoke('scenes:openFolder', { sceneId: scene.id })
+    if (!ok) toast('아직 생성된 이미지 폴더가 없습니다', 'info')
+  }
+  const removeScene = async (): Promise<void> => {
+    if (
+      await askConfirm('씬 삭제', {
+        message: `"${scene.name}" 씬을 삭제합니다.`,
+        confirmLabel: '삭제',
+        danger: true
+      })
+    )
+      void remove(scene.id)
+  }
+
   return (
+    <ContextMenu>
+    <ContextMenuTrigger asChild>
     <div
       ref={sortable.setNodeRef}
       {...sortable.attributes}
@@ -606,30 +648,10 @@ const SceneCard = memo(function SceneCard({
             </button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-40 p-1" onClick={(e) => e.stopPropagation()}>
-            <MenuItem
-              icon={<Pencil size={13} />}
-              label="이름 변경"
-              onClick={async () => {
-                const name = await askText('씬 이름', scene.name)
-                if (name) void update(scene.id, { name })
-              }}
-            />
+            <MenuItem icon={<Pencil size={13} />} label="이름 변경" onClick={() => void renameScene()} />
             <MenuItem icon={<Copy size={13} />} label="복제" onClick={() => void duplicate(scene.id)} />
-            <MenuItem
-              icon={<Trash2 size={13} />}
-              label="삭제"
-              danger
-              onClick={async () => {
-                if (
-                  await askConfirm('씬 삭제', {
-                    message: `"${scene.name}" 씬을 삭제합니다.`,
-                    confirmLabel: '삭제',
-                    danger: true
-                  })
-                )
-                  void remove(scene.id)
-              }}
-            />
+            <MenuItem icon={<FolderOpen size={13} />} label="폴더 열기" onClick={() => void openFolder()} />
+            <MenuItem icon={<Trash2 size={13} />} label="삭제" danger onClick={() => void removeScene()} />
           </PopoverContent>
         </Popover>
       )}
@@ -676,6 +698,23 @@ const SceneCard = memo(function SceneCard({
         </div>
       </div>
     </div>
+    </ContextMenuTrigger>
+    <ContextMenuContent>
+      <ContextMenuItem onSelect={() => void renameScene()}>
+        <Pencil size={13} /> 이름 변경
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={() => void duplicate(scene.id)}>
+        <Copy size={13} /> 복제
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={() => void openFolder()}>
+        <FolderOpen size={13} className="text-amber-400" /> 폴더 열기
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem danger onSelect={() => void removeScene()}>
+        <Trash2 size={13} /> 삭제
+      </ContextMenuItem>
+    </ContextMenuContent>
+    </ContextMenu>
   )
 })
 

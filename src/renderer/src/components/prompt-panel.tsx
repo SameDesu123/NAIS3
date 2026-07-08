@@ -277,7 +277,17 @@ export function PromptPanel(): React.JSX.Element {
           >
             <Minus size={13} />
           </Button>
-          <span className="w-8 text-center font-mono text-[13px]">{batchCount}</span>
+          {/* 숫자 직접 입력 가능 */}
+          <input
+            className="w-8 bg-transparent text-center font-mono text-[13px] text-ink outline-none"
+            value={batchCount}
+            inputMode="numeric"
+            onChange={(e) => {
+              const n = parseInt(e.target.value.replace(/[^0-9]/g, ''), 10)
+              if (!Number.isNaN(n)) setBatchCount(n)
+            }}
+            onFocus={(e) => e.target.select()}
+          />
           <Button
             size="icon"
             variant="ghost"

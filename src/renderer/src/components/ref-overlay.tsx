@@ -1,12 +1,14 @@
-import { FolderPlus, ImagePlus, Search, Trash2, X } from 'lucide-react'
+import { FolderPlus, ImagePlus, Pencil, Search, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CharRefItem, CharRefType, VibeItem } from '@shared/types'
 import { cn } from '../lib/utils'
 import { buildDisplayRows } from '../lib/folder-list'
 import { CHARREF_TYPES, refsStoreFor } from '../stores/refs-store'
+import { askText } from '../stores/dialog-store'
 import { FolderListView } from './folder-list-view'
 import { Button } from './ui/button'
+import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Input } from './ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Slider } from './ui/slider'
@@ -177,6 +179,22 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
           onMove={move}
           renderHeader={renderHeader}
           renderExpanded={renderExpanded}
+          itemContextMenu={(row) => (
+            <>
+              <ContextMenuItem
+                onSelect={async () => {
+                  const name = await askText('이름 변경', byId.get(row.id)?.name ?? '')
+                  if (name != null) update(row.id, { name })
+                }}
+              >
+                <Pencil size={13} /> 이름 변경
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem danger onSelect={() => remove(row.id)}>
+                <Trash2 size={13} /> 삭제
+              </ContextMenuItem>
+            </>
+          )}
           emptyText={items.length === 0 ? '이미지를 추가해보세요' : '검색 결과 없음'}
         />
       </div>

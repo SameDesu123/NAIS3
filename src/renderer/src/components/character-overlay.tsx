@@ -1,4 +1,4 @@
-import { Crosshair, FolderPlus, ImagePlus, Plus, Search, Trash2, UserRound, X } from 'lucide-react'
+import { Copy, Crosshair, FolderPlus, ImagePlus, Pencil, Plus, Search, Trash2, UserRound, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CharacterCard } from '@shared/types'
@@ -6,8 +6,10 @@ import { cn } from '../lib/utils'
 import { buildDisplayRows } from '../lib/folder-list'
 import { useCharactersStore, MAX_CHARACTERS } from '../stores/characters-store'
 import { useGenerationStore } from '../stores/generation-store'
+import { askText } from '../stores/dialog-store'
 import { FolderListView } from './folder-list-view'
 import { PromptEditor } from './prompt-editor'
+import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -50,6 +52,7 @@ export function CharacterOverlay(): React.JSX.Element {
   const updateCard = useCharactersStore((s) => s.updateCard)
   const disableAll = useCharactersStore((s) => s.disableAll)
   const removeCard = useCharactersStore((s) => s.removeCard)
+  const duplicateCard = useCharactersStore((s) => s.duplicateCard)
   const pickThumbnail = useCharactersStore((s) => s.pickThumbnail)
   const createFolder = useCharactersStore((s) => s.createFolder)
   const renameFolder = useCharactersStore((s) => s.renameFolder)
@@ -285,6 +288,25 @@ export function CharacterOverlay(): React.JSX.Element {
           onMove={move}
           renderHeader={renderHeader}
           renderExpanded={renderExpanded}
+          itemContextMenu={(char) => (
+            <>
+              <ContextMenuItem
+                onSelect={async () => {
+                  const name = await askText('이름 변경', char.name)
+                  if (name != null) updateCard(char.id, { name })
+                }}
+              >
+                <Pencil size={13} /> 이름 변경
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => void duplicateCard(char.id)}>
+                <Copy size={13} /> 복제
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem danger onSelect={() => removeCard(char.id)}>
+                <Trash2 size={13} /> 삭제
+              </ContextMenuItem>
+            </>
+          )}
           emptyText={items.length === 0 ? '캐릭터를 추가해보세요' : '검색 결과 없음'}
         />
       </div>

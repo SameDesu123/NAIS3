@@ -20,6 +20,7 @@ import { useState, type CSSProperties } from 'react'
 import { FOLDER_COLORS, type ListFolder } from '@shared/types'
 import { cn } from '../lib/utils'
 import { DIVIDER_KEY, rowKey, type DisplayRow, type FolderListItem } from '../lib/folder-list'
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from './ui/context-menu'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -260,6 +261,7 @@ export function FolderListView<T extends FolderListItem>({
   onMove,
   renderHeader,
   renderExpanded,
+  itemContextMenu,
   renderTile,
   columns,
   emptyText
@@ -271,6 +273,8 @@ export function FolderListView<T extends FolderListItem>({
   onMove: (activeKey: string, overKey: string) => void
   renderHeader?: (item: T) => React.ReactNode
   renderExpanded?: (item: T) => React.ReactNode
+  /** 카드 우클릭 메뉴 내용 (ContextMenuItem들) — 지정 시 카드 전체가 트리거 */
+  itemContextMenu?: (item: T) => React.ReactNode
   /** 그리드 모드 — 지정 시 columns 그리드로 타일 렌더 (이미지 중심 레퍼런스용) */
   renderTile?: (item: T) => React.ReactNode
   columns?: number
@@ -355,23 +359,34 @@ export function FolderListView<T extends FolderListItem>({
                 disabled={searching || expandedId === row.item.id}
                 indent={!searching && row.item.folderId != null}
               >
-                {/* 카드 = paper(다크=블랙/라이트=화이트), 내부 박스는 surface-2(회색)로 한 단계 대비 */}
-                <div className="rounded-lg border border-line bg-paper">
-                  {renderHeader?.(row.item)}
-                  <AnimatePresence initial={false}>
-                    {expandedId === row.item.id && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.18, ease: EASE }}
-                        className="overflow-hidden"
-                      >
-                        {renderExpanded?.(row.item)}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                {(() => {
+                  {/* 카드 = paper, 내부 박스는 surface-2로 한 단계 대비 */}
+                  const card = (
+                    <div className="rounded-lg border border-line bg-paper">
+                      {renderHeader?.(row.item)}
+                      <AnimatePresence initial={false}>
+                        {expandedId === row.item.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.18, ease: EASE }}
+                            className="overflow-hidden"
+                          >
+                            {renderExpanded?.(row.item)}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )
+                  if (!itemContextMenu) return card
+                  return (
+                    <ContextMenu>
+                      <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
+                      <ContextMenuContent>{itemContextMenu(row.item)}</ContextMenuContent>
+                    </ContextMenu>
+                  )
+                })()}
               </ItemRow>
             )
           )}

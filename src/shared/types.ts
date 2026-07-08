@@ -286,6 +286,7 @@ export interface IpcInvokeMap {
   'chars:create': { req: { name: string; folderId: number | null }; res: { id: number } }
   'chars:update': { req: { id: number; patch: CharacterCardPatch }; res: void }
   'chars:delete': { req: { id: number }; res: void }
+  'chars:duplicate': { req: { id: number }; res: { id: number } }
   /** 네이티브 파일 선택 → sharp 리사이즈 → BLOB 저장. 취소 시 thumbnail null */
   'chars:pickThumbnail': { req: { id: number }; res: { thumbnail: string | null } }
   'chars:reorder': { req: { order: CharacterOrderEntry[] }; res: void }
@@ -302,6 +303,7 @@ export interface IpcInvokeMap {
     res: void
   }
   'frags:delete': { req: { id: number }; res: void }
+  'frags:duplicate': { req: { id: number }; res: { id: number | null } }
   'frags:importTxt': { req: void; res: { count: number } }
   'frags:exportTxt': { req: { id: number }; res: { saved: boolean } }
   /** 조각 전체를 ZIP으로 내보내기 (공유/백업) */
@@ -354,6 +356,7 @@ export interface IpcInvokeMap {
   'scenePresets:create': { req: { name: string }; res: { id: number } }
   'scenePresets:rename': { req: { id: number; name: string }; res: void }
   'scenePresets:delete': { req: { id: number }; res: void }
+  'scenePresets:reorder': { req: { ids: number[] }; res: void }
   'promptPresets:list': { req: void; res: { items: PromptPreset[] } }
   'promptPresets:create': {
     req: { name: string; prompt: string; negativePrompt: string }
@@ -412,6 +415,8 @@ export interface IpcInvokeMap {
   'images:delete': { req: { id: number }; res: void }
   /** 히스토리 전체 비우기 (레코드+파일, 씬 이미지 포함) */
   'images:clearAll': { req: void; res: { count: number } }
+  /** 씬 이미지 폴더 열기 (NAIS3_scene/<프리셋>/<씬>) */
+  'scenes:openFolder': { req: { sceneId: number }; res: { ok: boolean } }
   /** 씬 JSON 내보내기/불러오기 (파일 다이얼로그, 활성 프리셋 기준) */
   'scenes:exportJson': { req: { presetId: number }; res: { saved: boolean } }
   'scenes:importJson': { req: { presetId: number }; res: { count: number } }

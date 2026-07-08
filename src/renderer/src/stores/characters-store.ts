@@ -20,6 +20,7 @@ interface CharactersState {
   /** 활성 캐릭터 전체 해제 */
   disableAll: () => void
   removeCard: (id: number) => void
+  duplicateCard: (id: number) => Promise<void>
   pickThumbnail: (id: number) => Promise<void>
   createFolder: (name: string) => Promise<void>
   renameFolder: (id: number, name: string) => void
@@ -85,6 +86,11 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
   removeCard: (id) => {
     set({ items: get().items.filter((c) => c.id !== id) })
     void window.nais.invoke('chars:delete', { id })
+  },
+
+  duplicateCard: async (id) => {
+    await window.nais.invoke('chars:duplicate', { id })
+    await get().load()
   },
 
   pickThumbnail: async (id) => {

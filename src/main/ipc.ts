@@ -4,6 +4,7 @@ import {
   createCharacter,
   createFolder,
   deleteCharacter,
+  duplicateCharacter,
   deleteFolder,
   listCharacters,
   pickCharacterThumbnail,
@@ -19,6 +20,7 @@ import {
   createFragment,
   createFragmentFolder,
   deleteFragment,
+  duplicateFragment,
   deleteFragmentFolder,
   exportTxtFragment,
   exportAllFragmentsZip,
@@ -47,9 +49,11 @@ import {
   createPreset,
   renamePreset,
   deletePreset,
+  reorderPresets,
   listScenes,
   createScene,
   getScene,
+  getPresetName,
   updateScene,
   duplicateScene,
   deleteScene,
@@ -94,8 +98,8 @@ import {
   updateRefImage
 } from './refs/repo'
 import { searchTags } from './tags'
-import { imagesRoot, isUnderImagesRoot, defaultImagesRoot } from './images/storage'
-import { copyFileSync, readFileSync, writeFileSync } from 'fs'
+import { imagesRoot, isUnderImagesRoot, defaultImagesRoot, sceneDir } from './images/storage'
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'fs'
 import { basename } from 'path'
 import sharp from 'sharp'
 import { verifyToken } from './nai/client'
@@ -159,6 +163,19 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('scenePresets:delete', ({ id }) => {
     deletePreset(id)
   })
+  handle('scenePresets:reorder', ({ ids }) => {
+    reorderPresets(ids)
+  })
+  handle('scenes:openFolder', ({ sceneId }) => {
+    const scene = getScene(sceneId)
+    if (!scene) return { ok: false }
+    const dir = sceneDir(getPresetName(scene.presetId), scene.name, scene.id)
+    if (!existsSync(dir)) return { ok: false }
+    void shell.openPath(dir)
+    return { ok: true }
+  })
+  handle('chars:duplicate', ({ id }) => ({ id: duplicateCharacter(id) }))
+  handle('frags:duplicate', ({ id }) => ({ id: duplicateFragment(id) }))
 
   handle('promptPresets:list', () => ({ items: listPromptPresets() }))
   handle('promptPresets:create', ({ name, prompt, negativePrompt }) => ({

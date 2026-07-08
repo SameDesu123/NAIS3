@@ -21,6 +21,7 @@ interface FragmentsState {
   importTxt: () => Promise<number>
   exportTxt: (id: number) => Promise<void>
   exportAll: () => Promise<number>
+  duplicate: (id: number) => Promise<void>
 }
 
 export const useFragmentsStore = create<FragmentsState>((set, get) => ({
@@ -101,6 +102,11 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   exportAll: async () => {
     const { count } = await window.nais.invoke('frags:exportAll', undefined)
     return count
+  },
+
+  duplicate: async (id) => {
+    await window.nais.invoke('frags:duplicate', { id })
+    await get().load()
   }
 }))
 

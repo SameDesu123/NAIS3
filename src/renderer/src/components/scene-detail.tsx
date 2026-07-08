@@ -28,6 +28,17 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
   const [cols, setCols] = useState(3)
   const [lightboxIdx, setLightboxIdx] = useState(-1)
 
+  // ESC로 씬 목록으로 (라이트박스가 열려 있으면 라이트박스만 닫힘)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (lightboxIdx >= 0) return
+      select(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightboxIdx, select])
+
   // 무한 스크롤 — 바닥 근처 도달 시 다음 페이지 (전부 로드하지 않음)
   useEffect(() => {
     const el = sentinelRef.current
