@@ -314,6 +314,26 @@ export function bindGenerationEvents(): () => void {
   let batchBaseDone = 0
   let batchBaseFailed = 0
 
+  // 실패 토스트 합치기 — 배치가 통째로 막히면(예: rate-limit) 장마다 토스트가 쏟아지므로
+  // 짧은 창으로 모아 한 번만 알린다. 동일 사유면 개수만, 사유가 여러 개면 종류 수를 표기.
+  const failBuffer: string[] = []
+  let failTimer: ReturnType<typeof setTimeout> | undefined
+  const flushFailures = (): void => {
+    const errs = failBuffer.splice(0)
+    if (errs.length === 0) return
+    const uniq = [...new Set(errs)]
+    if (errs.length === 1) toast(errs[0], 'error')
+    else if (uniq.length === 1) toast(`${errs.length}장 생성 실패 — ${uniq[0]}`, 'error')
+    else toast(`${errs.length}장 생성 실패 (사유 ${uniq.length}종)`, 'error')
+  }
+  const reportFailure = (msg: string): void => {
+    failBuffer.push(msg)
+    clearTimeout(failTimer)
+    failTimer = setTimeout(flushFailures, 500)
+  }
+  // 전이성 오류로 자동 재시도가 시작되면 배치당 한 번만 안내
+  let retryNoticeShown = false
+
   const offQueue = window.nais.on('queue:changed', (queue) => {
     const prev = useGenerationStore.getState().queue
     const prevStates = new Map(prev?.items.map((i) => [i.id, i.state]))
@@ -345,12 +365,17 @@ export function bindGenerationEvents(): () => void {
     }
 
     useGenerationStore.setState({ queue, genStartAt, avgDurationMs: avg })
-    // 새로 실패한 항목은 토스트로 알림 (배지 대신 통합 처리)
+    // 새로 실패한 항목은 토스트로 알림 (여러 장 동시 실패는 합쳐서 한 번만)
     const prevFailed = new Set(prev?.items.filter((i) => i.state === 'failed').map((i) => i.id))
     for (const item of queue.items) {
       if (item.state === 'failed' && !prevFailed.has(item.id)) {
-        toast(item.error ?? '생성 실패', 'error')
+        reportFailure(item.error ?? '생성 실패')
       }
+    }
+    // 전이성 오류로 자동 재시도 중이면 배치당 한 번만 안내 (에러 토스트 대신)
+    if (queue.items.some((i) => i.retrying) && !retryNoticeShown) {
+      retryNoticeShown = true
+      toast('요청이 몰려 잠시 후 자동으로 재시도합니다', 'info')
     }
     // 방금 완료된 항목이 있으면 히스토리 갱신 + 중앙에 표시 (고정 보기 중엔 보기 유지)
     const prevDone = new Set(prev?.items.filter((i) => i.state === 'done').map((i) => i.id))
@@ -375,6 +400,7 @@ export function bindGenerationEvents(): () => void {
     if (!prevActive && stillActive) {
       batchBaseDone = queue.items.filter((i) => i.state === 'done').length
       batchBaseFailed = queue.items.filter((i) => i.state === 'failed').length
+      retryNoticeShown = false // 새 배치 — 재시도 안내 다시 허용
     } else if (prevActive && !stillActive) {
       const done = queue.items.filter((i) => i.state === 'done').length - batchBaseDone
       const failed = queue.items.filter((i) => i.state === 'failed').length - batchBaseFailed

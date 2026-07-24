@@ -99,6 +99,8 @@ export interface QueueItem {
   error?: string
   /** 생성 완료 시 저장된 이미지 파일 경로 */
   filePath?: string
+  /** 전이성 오류(429/5xx 등)로 백오프 대기 중 — state는 'generating' 유지, UI 안내용 */
+  retrying?: boolean
 }
 
 export interface QueueStatus {

@@ -9,6 +9,32 @@ import { readImageStream } from './stream'
  * 응답 zip 해제·파일 저장은 큐 쪽 책임 — 여기는 순수 API 호출만.
  */
 
+/**
+ * NAI가 non-OK 응답을 준 경우. status를 담아 큐가 재시도 여부를 판단하게 한다
+ * (429/5xx = 전이성 → 재시도, 4xx = 영구 → 실패). status는 응답 헤더 도착 시점이라
+ * 여기서 throw되면 생성이 서버에서 시작되지 않았음이 보장된다 (재시도해도 이중 과금 없음).
+ */
+export class NaiHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly retryAfterMs?: number
+  ) {
+    super(message)
+    this.name = 'NaiHttpError'
+  }
+}
+
+/** Retry-After 헤더(초 또는 HTTP-date) → ms. 없으면 undefined */
+function parseRetryAfterMs(res: Response): number | undefined {
+  const h = res.headers.get('retry-after')
+  if (!h) return undefined
+  const secs = Number(h)
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1000)
+  const at = Date.parse(h)
+  return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now())
+}
+
 function headers(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token.trim()}`,
@@ -84,7 +110,11 @@ export async function generateImageStream(
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`생성 실패 ${res.status}: ${text.slice(0, 300)}`)
+    throw new NaiHttpError(
+      `생성 실패 ${res.status}: ${text.slice(0, 300)}`,
+      res.status,
+      parseRetryAfterMs(res)
+    )
   }
   if (!res.body) throw new Error('스트리밍 응답 없음')
 
@@ -123,7 +153,11 @@ export async function augmentImage(
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`디렉터 툴 실패 ${res.status}: ${text.slice(0, 300)}`)
+    throw new NaiHttpError(
+      `디렉터 툴 실패 ${res.status}: ${text.slice(0, 300)}`,
+      res.status,
+      parseRetryAfterMs(res)
+    )
   }
   const zip = await JSZip.loadAsync(await res.arrayBuffer())
   const names = Object.keys(zip.files)
@@ -151,7 +185,11 @@ export async function upscaleImage(
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`업스케일 실패 ${res.status}: ${text.slice(0, 300)}`)
+    throw new NaiHttpError(
+      `업스케일 실패 ${res.status}: ${text.slice(0, 300)}`,
+      res.status,
+      parseRetryAfterMs(res)
+    )
   }
   const zip = await JSZip.loadAsync(await res.arrayBuffer())
   const names = Object.keys(zip.files)
@@ -181,7 +219,11 @@ export async function generateImageZip(
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`생성 실패 ${res.status}: ${text.slice(0, 300)}`)
+    throw new NaiHttpError(
+      `생성 실패 ${res.status}: ${text.slice(0, 300)}`,
+      res.status,
+      parseRetryAfterMs(res)
+    )
   }
   const zip = await JSZip.loadAsync(await res.arrayBuffer())
   const entryName = Object.keys(zip.files)[0]
