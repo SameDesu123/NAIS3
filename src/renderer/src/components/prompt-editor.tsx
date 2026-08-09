@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronUp, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '../lib/utils'
@@ -23,8 +24,7 @@ const TYPO =
   'whitespace-pre-wrap break-words p-2.5 font-mono text-[length:var(--prompt-size,15px)] leading-relaxed [scrollbar-gutter:stable]'
 
 type Suggestion =
-  | { kind: 'frag'; path: string }
-  | { kind: 'tag'; tag: string; count: number; type: string }
+  { kind: 'frag'; path: string } | { kind: 'tag'; tag: string; count: number; type: string }
 
 const TAG_TOKEN_SEPARATORS = /[,\n{}[\]|<>:/]/
 
@@ -96,8 +96,9 @@ export function PromptEditor({
   // 콘텐츠 폭이 항상 동일. 수동 right 보정을 더하면 이중 인셋으로 줄바꿈이 어긋난다(배경 오정렬).
   const syncScroll = (): void => {
     const ta = textareaRef.current
-    const mirror = mirrorRef.current
-    if (ta && mirror) {
+    if (!ta) return
+    for (const mirror of [mirrorRef.current, findMirrorRef.current]) {
+      if (!mirror) continue
       mirror.scrollTop = ta.scrollTop
       mirror.scrollLeft = ta.scrollLeft
     }
@@ -111,6 +112,71 @@ export function PromptEditor({
     return () => observer.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 찾기 (Ctrl/Cmd+F) — 대소문자 무시, 일치 전부 하이라이트 + Enter로 순회
+  const findMirrorRef = useRef<HTMLDivElement>(null)
+  const findInputRef = useRef<HTMLInputElement>(null)
+  const [findOpen, setFindOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [hit, setHit] = useState(0)
+  const hits = useMemo(() => {
+    if (!findOpen || !query) return []
+    const needle = query.toLowerCase()
+    const hay = value.toLowerCase()
+    const out: number[] = []
+    for (let i = hay.indexOf(needle); i !== -1; i = hay.indexOf(needle, i + needle.length)) {
+      out.push(i)
+    }
+    return out
+  }, [findOpen, query, value])
+  // 글자를 지워 일치 수가 줄면 현재 위치가 범위를 벗어난다
+  const current = hits.length === 0 ? -1 : Math.min(hit, hits.length - 1)
+
+  /** 현재 일치가 화면 밖이면 그 줄이 보이도록 스크롤 */
+  function revealHit(index: number): void {
+    const ta = textareaRef.current
+    if (!ta || index < 0 || hits[index] == null) return // 0번째 글자 일치도 유효 (falsy 주의)
+    const { top, height } = caretCoords(ta, hits[index])
+    if (top < ta.scrollTop || top + height > ta.scrollTop + ta.clientHeight) {
+      ta.scrollTop = Math.max(0, top - ta.clientHeight / 2)
+      syncScroll()
+    }
+  }
+
+  function step(delta: number): void {
+    if (hits.length === 0) return
+    const next = (current + delta + hits.length) % hits.length
+    setHit(next)
+    requestAnimationFrame(() => revealHit(next))
+  }
+
+  function openFind(): void {
+    const ta = textareaRef.current
+    // 드래그해 둔 글자가 있으면 그걸 찾는 말로 (에디터 공통 관례)
+    const selected = ta ? value.slice(ta.selectionStart, ta.selectionEnd) : ''
+    if (selected && !selected.includes('\n')) setQuery(selected)
+    setHit(0)
+    setFindOpen(true)
+    setSuggestions([])
+    requestAnimationFrame(() => findInputRef.current?.select())
+  }
+
+  function closeFind(): void {
+    setFindOpen(false)
+    const ta = textareaRef.current
+    // 찾던 자리에 커서를 두고 닫는다 — 바로 이어서 고칠 수 있게
+    if (ta && current >= 0) {
+      const start = hits[current]
+      ta.focus()
+      ta.setSelectionRange(start, start + query.length)
+    }
+  }
+
+  // 일치 위치가 바뀌면(입력·타이핑) 현재 항목이 보이게
+  useEffect(() => {
+    if (findOpen && current >= 0) revealHit(current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [findOpen, current, query])
 
   /** 커서 아래 팝업 좌표 (뷰포트 기준, 화면 밖으로 나가지 않게 클램프) */
   function placePopup(itemCount: number): void {
@@ -166,12 +232,14 @@ export function PromptEditor({
     }
     setTokenStart(start)
     debounceRef.current = setTimeout(() => {
-      void window.nais.invoke('tags:search', { query: token.trim(), limit: 8 }).then(({ items }) => {
-        if (searchSeqRef.current !== seq) return // 스테일 — 그 사이 입력이 바뀜
-        setSuggestions(items.map((t) => ({ kind: 'tag' as const, ...t })))
-        setSelected(0)
-        if (items.length > 0) placePopup(items.length)
-      })
+      void window.nais
+        .invoke('tags:search', { query: token.trim(), limit: 8 })
+        .then(({ items }) => {
+          if (searchSeqRef.current !== seq) return // 스테일 — 그 사이 입력이 바뀜
+          setSuggestions(items.map((t) => ({ kind: 'tag' as const, ...t })))
+          setSelected(0)
+          if (items.length > 0) placePopup(items.length)
+        })
     }, 90)
   }
 
@@ -203,7 +271,10 @@ export function PromptEditor({
       <div
         ref={mirrorRef}
         aria-hidden
-        className={cn(TYPO, 'pointer-events-none absolute inset-0 overflow-hidden text-transparent')}
+        className={cn(
+          TYPO,
+          'pointer-events-none absolute inset-0 overflow-hidden text-transparent'
+        )}
       >
         {ranges.map((r) =>
           r.bg ? (
@@ -216,6 +287,33 @@ export function PromptEditor({
         )}
         {value.endsWith('\n') && '​'}
       </div>
+
+      {/* 찾기 하이라이트 — 가중치 미러 위에 한 겹 더 (글자는 투명, 배경만) */}
+      {findOpen && hits.length > 0 && (
+        <div
+          ref={findMirrorRef}
+          aria-hidden
+          className={cn(
+            TYPO,
+            'pointer-events-none absolute inset-0 overflow-hidden text-transparent'
+          )}
+        >
+          {hits.map((start, i) => (
+            <span key={start}>
+              {value.slice(i === 0 ? 0 : hits[i - 1] + query.length, start)}
+              <span
+                style={{
+                  background: i === current ? 'rgba(233,150,50,0.85)' : 'rgba(233,200,50,0.4)',
+                  borderRadius: 3
+                }}
+              >
+                {value.slice(start, start + query.length)}
+              </span>
+            </span>
+          ))}
+          {value.slice(hits[hits.length - 1] + query.length)}
+        </div>
+      )}
 
       <textarea
         ref={textareaRef}
@@ -233,6 +331,11 @@ export function PromptEditor({
         }}
         onScroll={syncScroll}
         onKeyDown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+            e.preventDefault()
+            openFind()
+            return
+          }
           if (suggestions.length === 0) return
           if (e.key === 'ArrowDown') {
             e.preventDefault()
@@ -255,6 +358,61 @@ export function PromptEditor({
           setTimeout(() => setSuggestions([]), 150)
         }}
       />
+
+      {/* 찾기 바 — 우상단. Enter=다음, Shift+Enter=이전, Esc=닫기(그 자리에 커서) */}
+      {findOpen && (
+        <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md border border-line bg-paper/95 p-1 shadow-lg backdrop-blur-sm">
+          <Search size={12} className="ml-0.5 shrink-0 text-faint" />
+          <input
+            ref={findInputRef}
+            className="w-28 bg-transparent font-mono text-[12px] text-ink outline-none placeholder:font-sans placeholder:text-faint"
+            placeholder="찾기"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setHit(0)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                step(e.shiftKey ? -1 : 1)
+              } else if (e.key === 'Escape') {
+                e.preventDefault()
+                closeFind()
+              } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+                e.preventDefault()
+                findInputRef.current?.select()
+              }
+            }}
+          />
+          <span className="shrink-0 font-mono text-[10.5px] text-faint">
+            {query ? `${hits.length === 0 ? 0 : current + 1}/${hits.length}` : ''}
+          </span>
+          <button
+            className="grid size-5 shrink-0 place-items-center rounded text-faint hover:bg-surface-2 hover:text-ink disabled:opacity-30"
+            title="이전 (Shift+Enter)"
+            disabled={hits.length === 0}
+            onClick={() => step(-1)}
+          >
+            <ChevronUp size={13} />
+          </button>
+          <button
+            className="grid size-5 shrink-0 place-items-center rounded text-faint hover:bg-surface-2 hover:text-ink disabled:opacity-30"
+            title="다음 (Enter)"
+            disabled={hits.length === 0}
+            onClick={() => step(1)}
+          >
+            <ChevronDown size={13} />
+          </button>
+          <button
+            className="grid size-5 shrink-0 place-items-center rounded text-faint hover:bg-surface-2 hover:text-ink"
+            title="닫기 (Esc)"
+            onClick={closeFind}
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
       {tokens !== null && (
         <span
@@ -295,8 +453,12 @@ export function PromptEditor({
                   <span className="truncate text-[#5cbe7d]">{`<${s.path}>`}</span>
                 ) : (
                   <>
-                    <span className={cn('min-w-0 flex-1 truncate', TYPE_COLORS[s.type])}>{s.tag}</span>
-                    <span className="shrink-0 text-[10.5px] text-faint">{formatCount(s.count)}</span>
+                    <span className={cn('min-w-0 flex-1 truncate', TYPE_COLORS[s.type])}>
+                      {s.tag}
+                    </span>
+                    <span className="shrink-0 text-[10.5px] text-faint">
+                      {formatCount(s.count)}
+                    </span>
                   </>
                 )}
               </button>

@@ -68,6 +68,8 @@ interface ScenesState {
   reservedTotal: number
   refreshReservedTotal: () => Promise<void>
   adjustReserve: (id: number, delta: number) => Promise<void>
+  /** 예약 수 직접 지정 — 배지 숫자를 클릭해 입력 (배치 단위 증감과 달리 입력값 그대로) */
+  setReserve: (id: number, count: number) => Promise<void>
   adjustReserveAll: (delta: number) => Promise<void>
   clearReserveAll: () => Promise<void>
 
@@ -308,6 +310,22 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     const step = delta * (useGenerationStore.getState().batchCount || 1)
     const reserves = { ...scene.reserves }
     const next = Math.max(0, (reserves[castId] ?? 0) + step)
+    if (next > 0) reserves[castId] = next
+    else delete reserves[castId]
+    const reserveCount = Object.values(reserves).reduce((a, b) => a + b, 0)
+    set({
+      scenes: get().scenes.map((s) => (s.id === id ? { ...s, reserves, reserveCount } : s))
+    })
+    await window.nais.invoke('scenes:setReserves', { id, reserves })
+    void get().refreshReservedTotal()
+  },
+  setReserve: async (id, count) => {
+    const scene = get().scenes.find((s) => s.id === id)
+    if (!scene) return
+    // 숫자를 직접 입력한 경우 — 배치 단위 증감이 아니라 입력값 그대로 (0이면 예약 해제)
+    const castId = get().activeCastId
+    const reserves = { ...scene.reserves }
+    const next = Math.max(0, Math.min(9999, Math.floor(count)))
     if (next > 0) reserves[castId] = next
     else delete reserves[castId]
     const reserveCount = Object.values(reserves).reduce((a, b) => a + b, 0)

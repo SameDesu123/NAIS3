@@ -1,4 +1,4 @@
-import { Minus, Plus, X } from 'lucide-react'
+import { Minus, Pencil, Plus, X } from 'lucide-react'
 import { kindMeta } from '../lib/kind-icon'
 import { useGenerationStore } from '../stores/generation-store'
 import { Slider } from './ui/slider'
@@ -12,6 +12,7 @@ export const SOURCE_BANNER_HEIGHT = 340
 export function SourceBanner(): React.JSX.Element | null {
   const source = useGenerationStore((s) => s.source)
   const setSource = useGenerationStore((s) => s.setSource)
+  const editSourceMask = useGenerationStore((s) => s.editSourceMask)
   const request = useGenerationStore((s) => s.request)
   const patch = useGenerationStore((s) => s.patchRequest)
   if (!source) return null
@@ -31,6 +32,14 @@ export function SourceBanner(): React.JSX.Element | null {
         <Icon size={15} className={className} />
         <span className="text-[12.5px] font-medium text-ink">{isInpaint ? '인페인트 모드' : 'I2I 모드'}</span>
         <div className="flex-1" />
+        {/* 마스크 재편집 (NAIS2와 동일 위치 — X 왼쪽). 기존에 칠한 영역을 그대로 불러와 다듬는다 */}
+        <button
+          className="grid size-6 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-ink"
+          title={isInpaint ? '마스크 다시 편집' : '마스크를 그려 인페인트로 전환'}
+          onClick={editSourceMask}
+        >
+          <Pencil size={14} />
+        </button>
         <button
           className="grid size-6 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-ink"
           title="소스 해제"

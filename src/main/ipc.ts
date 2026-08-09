@@ -478,6 +478,18 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     return { saved: true }
   })
 
+  handle('images:saveBase64As', async ({ base64, defaultName }) => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    const result = await dialog.showSaveDialog(win, {
+      title: '이미지 저장',
+      defaultPath: defaultName ?? `NAIS3_${Date.now()}.png`,
+      filters: [{ name: 'PNG', extensions: ['png'] }]
+    })
+    if (result.canceled || !result.filePath) return { saved: false }
+    writeFileSync(result.filePath, Buffer.from(base64.replace(/^data:[^,]+,/, ''), 'base64'))
+    return { saved: true }
+  })
+
   handle('images:copy', ({ filePath }) => {
     if (isMemoryPath(filePath)) {
       const buf = getMemoryImage(filePath)

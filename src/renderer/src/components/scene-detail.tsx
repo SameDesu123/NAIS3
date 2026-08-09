@@ -12,12 +12,14 @@ import { cn } from '../lib/utils'
 import { ImageContextMenu } from './image-context-menu'
 import { Lightbox } from './lightbox'
 import { PromptEditor } from './prompt-editor'
+import { ReserveCount } from './reserve-count'
 import { Button } from './ui/button'
 
 export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
   const select = useScenesStore((s) => s.select)
   const update = useScenesStore((s) => s.update)
   const adjustReserve = useScenesStore((s) => s.adjustReserve)
+  const setReserve = useScenesStore((s) => s.setReserve)
   const casts = useScenesStore((s) => s.casts)
   const activeCastId = useScenesStore((s) => s.activeCastId)
   const activeCast = casts.find((c) => c.id === activeCastId) ?? null
@@ -167,7 +169,8 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
           >
             <Minus size={14} />
           </button>
-          <span
+          <ReserveCount
+            value={scene.reserves[activeCastId] ?? 0}
             className={cn(
               'min-w-6 rounded-full px-1 text-center text-[13px] font-semibold',
               !activeCast && (scene.reserves[''] ?? 0) > 0 && 'bg-danger text-white'
@@ -178,9 +181,8 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
                 : undefined
             }
             title={activeCast ? `"${activeCast.name}" 출연 예약` : '사이드바 설정 예약'}
-          >
-            {scene.reserves[activeCastId] ?? 0}
-          </span>
+            onCommit={(n) => void setReserve(scene.id, n)}
+          />
           <button
             className="grid size-6 place-items-center rounded-full text-muted hover:bg-paper"
             onClick={() => void adjustReserve(scene.id, 1)}

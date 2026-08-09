@@ -167,17 +167,29 @@ export function MetadataDialog(): React.JSX.Element {
                   />
                   <div
                     className={cn(
-                      'mt-1.5 max-h-36 space-y-1.5 overflow-y-auto',
+                      'mt-1.5 max-h-48 space-y-1.5 overflow-y-auto',
                       !sel.characters && 'opacity-40'
                     )}
                   >
                     {meta.characterPrompts.map((c, i) => (
                       <div key={i} className="rounded-md border border-line bg-surface-2/40 p-2">
-                        <p className="break-words font-mono text-[11.5px] text-ink">{c.prompt}</p>
+                        <div className="mb-0.5 flex items-center justify-between gap-2">
+                          <p className="text-[10.5px] font-medium text-faint">캐릭터 {i + 1}</p>
+                          <CopyButton value={c.prompt} label={`캐릭터 ${i + 1} 프롬프트 복사`} />
+                        </div>
+                        {/* body의 user-select:none 때문에 <p>는 드래그 선택이 막힌다 — textarea여야 선택·스크롤 가능 */}
+                        <ReadonlyPrompt value={c.prompt} className="h-14 text-[11.5px]" />
                         {c.negativePrompt && (
-                          <p className="mt-1 break-words font-mono text-[11px] text-faint">
-                            uc: {c.negativePrompt}
-                          </p>
+                          <>
+                            <div className="mb-0.5 mt-1 flex items-center justify-between gap-2">
+                              <p className="text-[10.5px] font-medium text-faint">uc</p>
+                              <CopyButton
+                                value={c.negativePrompt}
+                                label={`캐릭터 ${i + 1} 네거티브 복사`}
+                              />
+                            </div>
+                            <ReadonlyPrompt value={c.negativePrompt} className="h-10 text-[11px]" />
+                          </>
                         )}
                       </div>
                     ))}

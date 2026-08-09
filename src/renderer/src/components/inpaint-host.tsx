@@ -12,6 +12,7 @@ export function InpaintHost(): React.JSX.Element | null {
       imageBase64={target.base64}
       width={target.width}
       height={target.height}
+      initialMaskBase64={target.initialMask}
       onCancel={cancel}
       onConfirm={confirm}
     />

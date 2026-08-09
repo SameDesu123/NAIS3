@@ -1,5 +1,5 @@
 import { Eraser, Paintbrush, RotateCcw } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Slider } from './ui/slider'
@@ -13,12 +13,15 @@ export function MaskEditor({
   imageBase64,
   width,
   height,
+  initialMaskBase64,
   onConfirm,
   onCancel
 }: {
   imageBase64: string
   width: number
   height: number
+  /** 이어서 편집할 기존 마스크 (흑백 PNG) — 재편집 진입 시 칠한 영역을 그대로 복원 */
+  initialMaskBase64?: string
   onConfirm: (maskBase64: string) => void
   onCancel: () => void
 }): React.JSX.Element {
@@ -35,6 +38,33 @@ export function MaskEditor({
     const scale = Math.min(1, maxW / width, maxH / height)
     return { dispW: Math.round(width * scale), dispH: Math.round(height * scale) }
   }, [width, height])
+
+  // 기존 마스크 복원 — 흑백 PNG의 흰 픽셀을 칠한 색으로 되살린다 (재편집: 지우개로 다듬거나 덧칠)
+  useEffect(() => {
+    if (!initialMaskBase64) return
+    const img = new Image()
+    img.onload = () => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const off = document.createElement('canvas')
+      off.width = width
+      off.height = height
+      const octx = off.getContext('2d')!
+      octx.drawImage(img, 0, 0, width, height)
+      const src = octx.getImageData(0, 0, width, height)
+      const out = octx.createImageData(width, height)
+      for (let i = 0; i < src.data.length; i += 4) {
+        // 흰색(=재생성 영역)만 칠한 것으로 간주
+        const on = src.data[i] > 127
+        out.data[i] = 233
+        out.data[i + 1] = 94
+        out.data[i + 2] = 80
+        out.data[i + 3] = on ? 255 : 0
+      }
+      canvas.getContext('2d')!.putImageData(out, 0, 0)
+    }
+    img.src = `data:image/png;base64,${initialMaskBase64}`
+  }, [initialMaskBase64, width, height])
 
   /** 화면 좌표 → 캔버스(원본) 좌표 */
   function pos(e: React.PointerEvent): { x: number; y: number } {

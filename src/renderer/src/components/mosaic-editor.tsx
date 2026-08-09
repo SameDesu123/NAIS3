@@ -1,5 +1,6 @@
-import { RotateCcw } from 'lucide-react'
+import { Download, RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from '../stores/toast-store'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Slider } from './ui/slider'
@@ -12,6 +13,9 @@ import { Slider } from './ui/slider'
  * — 색을 항상 원본에서 샘플링하므로 같은 곳을 반복해 칠해도 뭉개지지 않는다.
  * 적용 시 원본 + 오버레이를 오프스크린에서 합성해 반환한다.
  */
+/** 최소 붓 크기 — 얼굴/눈처럼 좁은 영역을 정밀하게 가릴 수 있게 (표시 픽셀 기준) */
+const BRUSH_MIN = 3
+
 export function MosaicEditor({
   imageBase64,
   width,
@@ -61,7 +65,7 @@ export function MosaicEditor({
       if (value) setPixel(Math.min(30, Math.max(5, Number(value))))
     })
     void window.nais.invoke('settings:get', { key: 'mosaic_brush' }).then(({ value }) => {
-      if (value) setBrush(Math.min(150, Math.max(20, Number(value))))
+      if (value) setBrush(Math.min(150, Math.max(BRUSH_MIN, Number(value))))
     })
   }, [])
   function persist(key: string, value: number): void {
@@ -209,9 +213,9 @@ export function MosaicEditor({
             <span className="ml-1 text-[12px] text-muted">붓 {brush}</span>
             <Slider
               className="w-28"
-              min={20}
+              min={BRUSH_MIN}
               max={150}
-              step={5}
+              step={1}
               value={[brush]}
               onValueChange={([v]) => {
                 setBrush(v)
@@ -222,6 +226,24 @@ export function MosaicEditor({
               <RotateCcw size={13} /> 초기화
             </Button>
             <div className="flex-1" />
+            {/* 스택/히스토리를 거치지 않고 이 창에서 바로 파일로 저장 */}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1"
+              title="모자이크 결과를 파일로 바로 저장 (창은 열린 채)"
+              onClick={() => {
+                if (!originalRef.current) return
+                void window.nais
+                  .invoke('images:saveBase64As', {
+                    base64: exportResult(),
+                    defaultName: `mosaic_${width}x${height}.png`
+                  })
+                  .then(({ saved }) => saved && toast('저장 완료', 'success'))
+              }}
+            >
+              <Download size={13} /> 다운로드
+            </Button>
             <Button variant="ghost" onClick={onCancel}>
               취소
             </Button>

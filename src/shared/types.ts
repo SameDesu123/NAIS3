@@ -429,6 +429,8 @@ export interface IpcInvokeMap {
   'images:showInFolder': { req: { filePath: string }; res: void }
   /** 다른 이름으로 저장 — 파일 저장 다이얼로그로 복사 */
   'images:saveAs': { req: { filePath: string }; res: { saved: boolean } }
+  /** 편집기(모자이크 등)의 결과 base64 PNG를 곧바로 원하는 위치에 저장 — 적용/저장 단계 없이 바로 내려받기 */
+  'images:saveBase64As': { req: { base64: string; defaultName?: string }; res: { saved: boolean } }
   /** 이미지를 클립보드로 복사 */
   'images:copy': { req: { filePath: string }; res: { copied: boolean } }
   /** 저장 폴더: 현재 경로 조회 / 폴더 선택 / 기본값으로 초기화 */

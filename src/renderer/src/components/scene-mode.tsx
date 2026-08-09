@@ -41,6 +41,7 @@ import { useResolutionsStore } from '../stores/resolutions-store'
 import { askConfirm, askText } from '../stores/dialog-store'
 import { toast } from '../stores/toast-store'
 import { cn } from '../lib/utils'
+import { ReserveCount } from './reserve-count'
 import { SceneCastDialog } from './scene-cast-dialog'
 import { SceneDetail } from './scene-detail'
 import { SortableList, SortableRow } from './sortable-list'
@@ -733,6 +734,7 @@ const SceneCard = memo(function SceneCard({
   const duplicate = useScenesStore((s) => s.duplicate)
   const remove = useScenesStore((s) => s.remove)
   const adjustReserve = useScenesStore((s) => s.adjustReserve)
+  const setReserve = useScenesStore((s) => s.setReserve)
   const casts = useScenesStore((s) => s.casts)
   const activeCastId = useScenesStore((s) => s.activeCastId)
   const sortable = useSortable({ id: `scene-${scene.id}` })
@@ -926,7 +928,8 @@ const SceneCard = memo(function SceneCard({
                 >
                   <Minus size={13} />
                 </button>
-                <span
+                <ReserveCount
+                  value={ctxCount}
                   className={cn(
                     'min-w-5 rounded-full px-1 text-center text-[12px] font-medium text-white',
                     !activeCast && ctxCount > 0 && 'bg-danger'
@@ -935,9 +938,8 @@ const SceneCard = memo(function SceneCard({
                     activeCast && ctxCount > 0 ? { backgroundColor: activeCast.color } : undefined
                   }
                   title={activeCast ? `"${activeCast.name}" 출연 예약` : '사이드바 설정 예약'}
-                >
-                  {ctxCount}
-                </span>
+                  onCommit={(n) => void setReserve(scene.id, n)}
+                />
                 <button
                   className="grid size-5 place-items-center rounded-full text-white hover:bg-white/20"
                   onClick={() => void adjustReserve(scene.id, 1)}

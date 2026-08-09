@@ -81,10 +81,20 @@ interface GenerationState {
     source: { imageBase64: string; maskBase64?: string; width: number; height: number } | null
   ) => void
   /** 인페인트 마스크 에디터 대상 (전역 — 어디서든 우클릭으로 열 수 있게). null=닫힘 */
-  inpaintTarget: { base64: string; width: number; height: number } | null
+  inpaintTarget: {
+    base64: string
+    width: number
+    height: number
+    /** 이어서 편집할 기존 마스크 (재편집일 때만) */
+    initialMask?: string
+    /** 재편집 — 이미 맞춰둔 strength/noise를 인페인트 기본값으로 덮지 않는다 */
+    keepParams?: boolean
+  } | null
   startInpaintFromPath: (filePath: string) => Promise<void>
   /** base64 이미지로 바로 인페인트 시작 (디렉터 등 파일 경로가 없는 소스용) */
   startInpaintFromImage: (base64: string, width: number, height: number) => void
+  /** 현재 소스의 마스크를 다시 편집 (i2i 소스면 마스크를 새로 그려 인페인트로 전환) */
+  editSourceMask: () => void
   confirmInpaint: (maskBase64: string) => void
   cancelInpaint: () => void
 }
@@ -263,12 +273,27 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
   startInpaintFromImage: (base64, width, height) =>
     set({ inpaintTarget: { base64, width, height } }),
+  editSourceMask: () => {
+    const s = get().source
+    if (!s) return
+    set({
+      inpaintTarget: {
+        base64: s.imageBase64,
+        width: s.width,
+        height: s.height,
+        initialMask: s.maskBase64,
+        // 이미 인페인트면 맞춰둔 strength/noise 유지. i2i→인페인트 전환은 인페인트 기본값(1.0/0)으로
+        keepParams: Boolean(s.maskBase64)
+      }
+    })
+  },
   confirmInpaint: (maskBase64) => {
     const t = get().inpaintTarget
     if (!t) return
-    // 인페인트 기본 strength 1.0 / noise 0 (NAI 웹)
+    // 인페인트 기본 strength 1.0 / noise 0 (NAI 웹). 재편집(keepParams)은 맞춰둔 값 유지
+    const request = t.keepParams ? get().request : { ...get().request, i2iStrength: 1, i2iNoise: 0 }
     set({
-      request: { ...get().request, i2iStrength: 1, i2iNoise: 0 },
+      request,
       source: { imageBase64: t.base64, maskBase64, width: t.width, height: t.height },
       inpaintTarget: null
     })
