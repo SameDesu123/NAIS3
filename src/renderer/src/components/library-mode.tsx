@@ -96,6 +96,7 @@ export function LibraryMode(): React.JSX.Element {
   const deleteStack = useLibraryStore((s) => s.deleteStack)
   const renameStack = useLibraryStore((s) => s.renameStack)
   const exportSelected = useLibraryStore((s) => s.exportSelected)
+  const exportStack = useLibraryStore((s) => s.exportStack)
   const moveToStack = useLibraryStore((s) => s.moveToStack)
   const createStackWith = useLibraryStore((s) => s.createStackWith)
 
@@ -285,6 +286,14 @@ export function LibraryMode(): React.JSX.Element {
             </button>
           ))}
         </div>
+        {/* 스택 안에서는 스택 전체를 "스택이름_001…"로 내보내기 (파일명 충돌 방지) */}
+        {currentStack && (
+          <IconBtn
+            icon={<FileDown size={16} />}
+            tip={`스택 전체 내보내기 (${currentStack.name}_001…)`}
+            onClick={() => void exportStack(currentStack)}
+          />
+        )}
         <IconBtn
           icon={<CheckSquare size={16} />}
           tip="편집 모드 (다중 선택)"
@@ -332,6 +341,7 @@ export function LibraryMode(): React.JSX.Element {
                         const name = await askText('스택 이름', stack.name)
                         if (name) void renameStack(stack.id, name)
                       }}
+                      onExport={() => void exportStack(stack)}
                       onUnstack={async () => {
                         if (
                           await askConfirm('스택 해제', {
@@ -560,12 +570,14 @@ function StackCard({
   orientation,
   onOpen,
   onRename,
+  onExport,
   onUnstack
 }: {
   stack: LibraryStack
   orientation: CardOrientation
   onOpen: () => void
   onRename: () => void
+  onExport: () => void
   onUnstack: () => void
 }): React.JSX.Element {
   // 라이브러리 이미지를 끌어다 놓으면 이 스택으로 이동 (onDragEnd에서 stack- 접두어로 판별)
@@ -616,6 +628,9 @@ function StackCard({
       <ContextMenuContent>
         <ContextMenuItem onSelect={onRename}>
           <Pencil size={13} /> 이름 변경
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={onExport}>
+          <FileDown size={13} /> 내보내기 ({stack.name}_001…)
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem danger onSelect={onUnstack}>

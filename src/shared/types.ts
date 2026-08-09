@@ -622,8 +622,13 @@ export interface IpcInvokeMap {
   'library:stackDelete': { req: { id: number }; res: void }
   /** 이미지들을 스택에 넣기/빼기 (stackId null = 해제) */
   'library:stackSet': { req: { imageIds: number[]; stackId: number | null }; res: void }
-  /** 선택 이미지 일괄 내보내기 — 폴더 선택 후 배치 순서대로 001, 002… 파일명으로 복사 */
-  'library:export': { req: { ids: number[] }; res: { count: number } }
+  /**
+   * 선택 이미지 일괄 내보내기 — 폴더 선택 후 배치 순서대로 001, 002… 파일명으로 복사.
+   * prefix가 있으면 "prefix_001"처럼 머리에 붙는다 (스택 안에서 내보낼 때 = 스택 이름)
+   */
+  'library:export': { req: { ids: number[]; prefix?: string }; res: { count: number } }
+  /** 스택 전체 내보내기 — 파일명 머리에 스택 이름을 붙여 다른 스택과 안 섞이게 */
+  'library:exportStack': { req: { id: number }; res: { count: number } }
 }
 
 /** 메인 → 렌더러 이벤트 채널 */

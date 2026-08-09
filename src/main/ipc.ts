@@ -105,6 +105,7 @@ import {
   deleteImages as deleteLibraryImages,
   deleteStack,
   exportImages as exportLibraryImages,
+  exportStack as exportLibraryStack,
   importBase64 as importLibraryBase64,
   importPaths as importLibraryPaths,
   importViaDialog,
@@ -370,7 +371,10 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('library:stackSet', ({ imageIds, stackId }) => {
     setStack(imageIds, stackId)
   })
-  handle('library:export', async ({ ids }) => ({ count: await exportLibraryImages(ids) }))
+  handle('library:export', async ({ ids, prefix }) => ({
+    count: await exportLibraryImages(ids, prefix)
+  }))
+  handle('library:exportStack', async ({ id }) => ({ count: await exportLibraryStack(id) }))
 
   handle('scenes:exportJson', async ({ presetId }) => ({ saved: await exportScenesJson(presetId) }))
   handle('scenes:importJson', async ({ presetId }) => ({ count: await importScenesJson(presetId) }))

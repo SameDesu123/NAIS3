@@ -200,8 +200,9 @@ export function deleteStack(id: number): void {
 /**
  * 선택 이미지 일괄 내보내기 — 폴더를 고르면 라이브러리 배치 순서대로
  * 001, 002… 연번 파일명으로 복사한다 (연속 장면 연출용).
+ * prefix가 있으면 "스택이름_001"처럼 머리에 붙여 같은 폴더에 여러 스택을 내보내도 섞이지 않는다.
  */
-export async function exportImages(ids: number[]): Promise<number> {
+export async function exportImages(ids: number[], prefix?: string): Promise<number> {
   if (ids.length === 0) return 0
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showOpenDialog(win, {
@@ -218,19 +219,39 @@ export async function exportImages(ids: number[]): Promise<number> {
     )
     .all(...ids) as { file_path: string }[]
 
+  const head = safeFileName(prefix)
   const pad = Math.max(3, String(rows.length).length)
   let count = 0
   for (const r of rows) {
     if (!existsSync(r.file_path)) continue
     const ext = extname(r.file_path) || '.png'
     // 같은 이름이 이미 있으면 -2, -3… (기존 파일을 덮어쓰지 않음)
-    const base = String(count + 1).padStart(pad, '0')
+    const base = `${head ? `${head}_` : ''}${String(count + 1).padStart(pad, '0')}`
     let dest = join(dir, `${base}${ext}`)
     for (let k = 2; existsSync(dest); k++) dest = join(dir, `${base}-${k}${ext}`)
     copyFileSync(r.file_path, dest)
     count++
   }
   return count
+}
+
+/** 스택 전체 내보내기 — 파일명 머리에 스택 이름을 붙인다 (폴더 하나에 여러 스택을 모아도 안 섞임) */
+export async function exportStack(stackId: number): Promise<number> {
+  const db = getDb()
+  const stack = db.prepare('SELECT name FROM library_stacks WHERE id = ?').get(stackId) as
+    { name: string } | undefined
+  if (!stack) return 0
+  const ids = (
+    db
+      .prepare('SELECT id FROM library_images WHERE stack_id = ? ORDER BY sort_order DESC, id DESC')
+      .all(stackId) as { id: number }[]
+  ).map((r) => r.id)
+  return exportImages(ids, stack.name)
+}
+
+/** 파일명으로 못 쓰는 문자 제거 — 비면 접두어 없이 내보낸다 */
+function safeFileName(s: string | undefined): string {
+  return (s ?? '').replace(/[/\\:*?"<>|]/g, '_').trim()
 }
 
 export function setStack(imageIds: number[], stackId: number | null): void {

@@ -41,8 +41,10 @@ interface LibraryState {
   deleteStack: (id: number) => Promise<void>
   renameStack: (id: number, name: string) => Promise<void>
 
-  /** 선택 이미지 일괄 내보내기 — 배치된 순서대로 001, 002… 파일명 */
+  /** 선택 이미지 일괄 내보내기 — 배치된 순서대로 001, 002… 파일명 (스택 안이면 스택 이름이 머리에) */
   exportSelected: () => Promise<void>
+  /** 스택 전체 내보내기 — "스택이름_001…" 파일명 */
+  exportStack: (stack: LibraryStack) => Promise<void>
   /** 이미지들을 스택으로 이동 (드래그/우클릭 공용, stackId null = 빼기) */
   moveToStack: (imageIds: number[], stackId: number | null) => Promise<void>
   /** 임의 이미지들로 새 스택 생성 (우클릭 "새 스택…") */
@@ -196,8 +198,16 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   exportSelected: async () => {
     const ids = [...get().selection]
     if (ids.length === 0) return
-    const { count } = await window.nais.invoke('library:export', { ids })
+    // 스택 안에서 내보내면 스택 이름을 파일명 머리에 (같은 폴더에 여러 스택을 모아도 안 섞임)
+    const { count } = await window.nais.invoke('library:export', {
+      ids,
+      prefix: get().currentStack?.name
+    })
     if (count > 0) toast(`${count}장 내보냄`, 'success')
+  },
+  exportStack: async (stack) => {
+    const { count } = await window.nais.invoke('library:exportStack', { id: stack.id })
+    if (count > 0) toast(`"${stack.name}" ${count}장 내보냄`, 'success')
   },
   moveToStack: async (imageIds, stackId) => {
     if (imageIds.length === 0) return
