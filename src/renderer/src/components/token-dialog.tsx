@@ -1,4 +1,5 @@
 import {
+  BatteryCharging,
   Coins,
   Download,
   Eye,
@@ -13,7 +14,8 @@ import {
   Trash2,
   Upload
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { displayOpusUsagePercent } from '@shared/anlas'
 import discordSvg from '../assets/discord.svg'
 import nais3Logo from '../assets/nais3-logo.svg'
 import { playChime } from '../lib/completion-alert'
@@ -134,7 +136,7 @@ function AppearanceSection(): React.JSX.Element {
           onValueChange={([v]) => setPromptSize(v)}
         />
       </Row>
-      <Row label="표시할 탭" hint="끈 탭은 상단에서 숨김 (메인은 항상 표시)">
+      <Row label="표시할 탭" hint="끈 탭은 상단에서 숨김">
         <PageToggles />
       </Row>
     </div>
@@ -511,13 +513,19 @@ function AccountSection(): React.JSX.Element {
   const [revealed, setRevealed] = useState('')
   const [usage, setUsage] = useState<{ today: number; week: number } | null>(null)
   const anlasBalance = useGenerationStore((s) => s.anlasBalance)
+  const opusUsage = useGenerationStore((s) => s.opusUsage)
+  const subscriptionTier = useGenerationStore((s) => s.subscriptionTier)
   const refreshAnlas = useGenerationStore((s) => s.refreshAnlas)
 
-  const refresh = (): void => {
-    void window.nais.invoke('nai:tokenStatus', undefined).then(setInfo)
-    void window.nais.invoke('nai:anlasUsage', undefined).then(setUsage)
-  }
-  useEffect(refresh, [])
+  const refresh = useCallback(
+    (includeBalance = true): void => {
+      void window.nais.invoke('nai:tokenStatus', undefined).then(setInfo)
+      void window.nais.invoke('nai:anlasUsage', undefined).then(setUsage)
+      if (includeBalance) void refreshAnlas().catch(() => undefined)
+    },
+    [refreshAnlas]
+  )
+  useEffect(() => refresh(), [refresh])
 
   // WHIMS 프로바이더 키 패턴: pst-************** + 눈 아이콘으로 공개 토글
   const masked = info.hasToken
@@ -547,7 +555,6 @@ function AccountSection(): React.JSX.Element {
       setDraft('')
       setRevealed('')
       refresh()
-      void refreshAnlas()
     } else {
       setStatus('fail')
       setMessage(result.error ?? '토큰 검증 실패')
@@ -559,8 +566,12 @@ function AccountSection(): React.JSX.Element {
       setRevealed('')
       setDraft('')
       setStatus('idle')
-      useGenerationStore.setState({ anlasBalance: null })
-      refresh()
+      useGenerationStore.setState({
+        anlasBalance: null,
+        opusUsage: null,
+        subscriptionTier: null
+      })
+      refresh(false)
     })
   }
 
@@ -616,6 +627,39 @@ function AccountSection(): React.JSX.Element {
       {status === 'fail' && <span className="text-[12px] text-danger">{message}</span>}
 
       <div className="flex-1" />
+
+      {subscriptionTier === 'opus' && (
+        <div className="rounded-lg border border-line bg-surface-2/50 p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink">
+              <BatteryCharging
+                size={13}
+                className={opusUsage?.isNegative ? 'text-danger' : 'text-accent'}
+              />
+              V5 사용량
+            </p>
+            <span className="font-mono text-[15px] text-ink">
+              {opusUsage ? `${displayOpusUsagePercent(opusUsage)}%` : '—'}
+            </span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-paper">
+            <div
+              className={cn(
+                'h-full rounded-full transition-[width] duration-300',
+                opusUsage?.isNegative ? 'bg-danger' : 'bg-accent'
+              )}
+              style={{ width: `${opusUsage ? displayOpusUsagePercent(opusUsage) : 0}%` }}
+            />
+          </div>
+          <p className="mt-2 text-[10.5px] text-faint">
+            {opusUsage
+              ? opusUsage.isNegative
+                ? '소진됨 · 충전될 때까지 V5 생성에 Anlas를 사용합니다.'
+                : `다음 1%까지 약 ${Math.max(0, opusUsage.timeUntilNextPercent / 3600).toFixed(1)}시간`
+              : '사용량을 확인하고 있습니다.'}
+          </p>
+        </div>
+      )}
 
       {/* Anlas 사용량 — 잔액 스냅샷 간 감소분 합산 */}
       <div className="rounded-lg border border-line bg-surface-2/50 p-3">

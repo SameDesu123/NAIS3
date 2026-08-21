@@ -182,9 +182,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('nai:balance', async () => {
     const token = getNaiToken()
     if (!token) return { anlas: null, tier: null }
-    const { anlas, tier } = await fetchAnlasBalance(token)
+    const { anlas, tier, usage } = await fetchAnlasBalance(token)
     if (anlas !== null) logBalance(anlas)
-    return { anlas, tier }
+    return { anlas, tier, ...(usage ? { usage } : {}) }
   })
   handle('nai:anlasUsage', () => anlasUsage())
 

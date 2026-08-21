@@ -36,6 +36,8 @@ export interface VibeItem {
   infoExtracted: number
   /** 현재 infoExtracted로 인코딩돼 있는지 (아니면 생성 시 2 Anlas 소모) */
   encodedReady: boolean
+  /** 현재 infoExtracted 값으로 캐시된 모델 목록 */
+  encodedModels?: string[]
   folderId: number | null
 }
 
@@ -68,6 +70,8 @@ export interface GenerationRequest {
   seed: number
   variety: boolean
   qualityToggle: boolean
+  /** V5 native alpha background generation. */
+  transparentBackground?: boolean
   ucPreset: UcPresetIndex
   characterPrompts: CharacterPromptInput[]
   useCoords: boolean
@@ -109,10 +113,20 @@ export interface QueueStatus {
   delayMs: number
 }
 
+export interface OpusUsageStatus {
+  /** Remaining rechargeable allowance, 0-100. */
+  percent: number
+  /** True once the allowance is exhausted and V5 falls back to Anlas. */
+  isNegative: boolean
+  /** Seconds until the server adds the next percentage point. */
+  timeUntilNextPercent: number
+}
+
 export interface SubscriptionInfo {
   tier: 'paper' | 'tablet' | 'scroll' | 'opus'
   anlasFixed: number
   anlasPurchased: number
+  usage?: OpusUsageStatus
 }
 
 /** 캐릭터 카드 (단일 리스트 모델 — 카드가 직접 생성 포함 여부·위치를 가짐) */
@@ -364,7 +378,10 @@ export interface IpcInvokeMap {
   'nai:revealToken': { req: void; res: { token: string | null } }
   'nai:deleteToken': { req: void; res: void }
   /** 잔액 조회 (스냅샷 로그에도 기록) */
-  'nai:balance': { req: void; res: { anlas: number | null; tier: string | null } }
+  'nai:balance': {
+    req: void
+    res: { anlas: number | null; tier: string | null; usage?: OpusUsageStatus }
+  }
   'nai:anlasUsage': { req: void; res: { today: number; week: number } }
   'queue:enqueue': { req: { request: GenerationRequest; count: number }; res: { ids: string[] } }
   'queue:cancel': { req: { ids: string[] }; res: void }
@@ -637,7 +654,7 @@ export interface IpcInvokeMap {
 export interface IpcEventMap {
   'queue:changed': QueueStatus
   /** 생성 완료 등으로 잔액이 갱신될 때 */
-  'anlas:balance': { anlas: number }
+  'anlas:balance': { anlas: number; usage?: OpusUsageStatus }
   'generation:progress': {
     id: string
     stepIx: number
