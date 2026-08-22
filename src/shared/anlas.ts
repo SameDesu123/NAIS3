@@ -27,8 +27,6 @@ export interface AnlasEstimateInput {
   steps: number
   /** i2i/인페인트 강도 (t2i는 1) */
   strength?: number
-  /** Source image is present (i2i/inpainting are not Opus-free). */
-  hasSource?: boolean
   /** 활성 캐릭터 레퍼런스 수 — 장당 CHARREF_COST씩 별도 부과 */
   charRefCount?: number
   isOpus: boolean
@@ -168,7 +166,6 @@ export function estimateAnlas(input: AnlasEstimateInput): AnlasEstimate {
     px <= 1048576 &&
     input.steps <= 28 &&
     input.isOpus &&
-    !input.hasSource &&
     (!isV5 || input.opusUsageExhausted === false)
 
   const generation = freeEligible ? 0 : perImage * input.batchCount

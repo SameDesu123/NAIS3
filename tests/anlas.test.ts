@@ -66,15 +66,34 @@ describe('Anlas 추정 (NAI 웹 공식 이식)', () => {
     expect(r.usesOpusUsage).toBe(true)
   })
 
-  it('i2i는 Opus usage 대상이 아니며 Anlas를 사용한다', () => {
-    const r = estimateAnlas({
+  it('V5 Full i2i·인페인트도 Opus usage 게이지를 사용하고 Anlas는 쓰지 않는다', () => {
+    const i2i = estimateAnlas({
       ...base,
       model: 'nai-diffusion-5-full',
-      hasSource: true,
-      strength: 0.7
+      steps: 23,
+      strength: 0.7,
+      opusUsageExhausted: false
     })
-    expect(r.usesOpusUsage).toBe(false)
-    expect(r.generation).toBeGreaterThan(0)
+    const inpaint = estimateAnlas({
+      ...base,
+      model: 'nai-diffusion-5-full-inpainting',
+      steps: 23,
+      strength: 1,
+      opusUsageExhausted: false
+    })
+    expect(i2i.perImage).toBe(18)
+    expect(inpaint.perImage).toBe(26)
+    expect(i2i.generation).toBe(0)
+    expect(inpaint.generation).toBe(0)
+    expect(i2i.usesOpusUsage).toBe(true)
+    expect(inpaint.usesOpusUsage).toBe(true)
+  })
+
+  it('V4.5 Opus i2i·인페인트도 정상 해상도와 28스텝 이하에서 무료다', () => {
+    const r = estimateAnlas({ ...base, strength: 1 })
+    expect(r.perImage).toBe(20)
+    expect(r.generation).toBe(0)
+    expect(r.free).toBe(true)
   })
 
   it('Opus + 무료 조건이면 배치 전체 무료 (NAIS3는 요청당 1장)', () => {

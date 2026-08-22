@@ -172,7 +172,6 @@ export function PromptPanel(): React.JSX.Element {
           Boolean(source?.maskBase64),
           request.i2iStrength
         ),
-        hasSource: Boolean(source),
         charRefCount: capabilities.characterReferences ? enabledCrefs : 0,
         isOpus: subscriptionTier === 'opus',
         opusUsageExhausted: opusUsage?.isNegative,
