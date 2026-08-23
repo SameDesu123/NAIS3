@@ -1,0 +1,95 @@
+name: Desktop Build
+
+# PR과 수동 실행에서 실제 설치 파일까지 만들되, Release에는 게시하지 않는다.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/build.yml'
+      - 'build/**'
+      - 'resources/**'
+      - 'scripts/**'
+      - 'src/**'
+      - 'electron-builder.yml'
+      - 'electron.vite.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vitest.config.ts'
+  push:
+    paths:
+      - '.github/workflows/build.yml'
+      - 'build/**'
+      - 'resources/**'
+      - 'scripts/**'
+      - 'src/**'
+      - 'electron-builder.yml'
+      - 'electron.vite.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vitest.config.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: build:win
+            arch: x64
+            artifact: windows-x64
+          - os: macos-latest
+            script: build:mac
+            arch: arm64
+            artifact: macos-arm64
+          - os: macos-15-intel
+            script: build:mac
+            arch: x64
+            artifact: macos-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Verify runner architecture
+        run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('runner arch ' + process.arch + ' != expected ${{ matrix.arch }}')"
+      - run: npm ci
+      - name: Build desktop package
+        run: npm run ${{ matrix.script }} -- --publish never
+      - name: Verify macOS native dependencies
+        if: runner.os == 'macOS'
+        run: node scripts/verify-macos-native-deps.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nais3-${{ matrix.artifact }}
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/*.dmg
+            dist/*-mac.zip
+          if-no-files-found: error
+          retention-days: 7
