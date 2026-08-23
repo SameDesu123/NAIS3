@@ -427,7 +427,7 @@ function ToolCard({
   )
 }
 
-/** 업스케일 카드 — 2x/4x 선택 후 클릭 실행 (결과 자동 체이닝) */
+/** V5 Curated 2x 업스케일 카드 (결과 자동 체이닝) */
 function UpscaleCard({
   disabled,
   cost
@@ -436,12 +436,11 @@ function UpscaleCard({
   cost: number | null
 }): React.JSX.Element {
   const upscale = useDirectorStore((s) => s.upscale)
-  const [scale, setScale] = useState(2)
   return (
     <div
       role="button"
       aria-disabled={disabled}
-      onClick={() => !disabled && void upscale(scale)}
+      onClick={() => !disabled && void upscale()}
       className={cn(
         'group rounded-xl border border-line bg-surface-2/40 p-3 transition-colors',
         disabled ? 'opacity-60' : 'cursor-pointer hover:bg-surface-2/70'
@@ -451,25 +450,10 @@ function UpscaleCard({
         <Maximize2 size={18} className="text-cyan-400" />
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-medium text-ink">업스케일</p>
-          <p className="truncate text-[11px] text-faint">해상도를 배수로 키움</p>
+          <p className="truncate text-[11px] text-faint">V5 Curated로 선명하게 2배 확대</p>
         </div>
         <CostChip cost={cost} />
         <ChevronRight size={16} className="shrink-0 text-faint transition-colors group-hover:text-accent" />
-      </div>
-      {/* 배율 선택 — 클릭이 카드 실행으로 전파되지 않게 */}
-      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-        {[2, 4].map((n) => (
-          <button
-            key={n}
-            onClick={() => setScale(n)}
-            className={cn(
-              'flex-1 rounded-md border py-1 text-[12px] font-medium transition-colors',
-              scale === n ? 'border-accent bg-accent/10 text-accent' : 'border-line text-muted hover:text-ink'
-            )}
-          >
-            {n}x
-          </button>
-        ))}
       </div>
     </div>
   )
