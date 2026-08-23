@@ -5,7 +5,8 @@ import {
   displayOpusUsagePercent,
   effectiveGenerationStrength,
   estimateAnlas,
-  formatAnlasEstimate
+  formatAnlasEstimate,
+  opusUsagePercentSegments
 } from '../src/shared/anlas'
 
 const base = {
@@ -19,16 +20,34 @@ const base = {
 }
 
 describe('Anlas 추정 (NAI 웹 공식 이식)', () => {
-  it('V5 Usage 퍼센트는 정상 범위로 고정하고 소진 상태는 0%로 표시한다', () => {
+  it('V5 Usage 퍼센트는 부스트 값을 유지하고 소진 상태만 0%로 표시한다', () => {
     expect(
       displayOpusUsagePercent({ percent: 100, isNegative: false, timeUntilNextPercent: 0 })
     ).toBe(100)
     expect(
       displayOpusUsagePercent({ percent: 120, isNegative: false, timeUntilNextPercent: 0 })
-    ).toBe(100)
+    ).toBe(120)
+    expect(
+      displayOpusUsagePercent({ percent: -30, isNegative: false, timeUntilNextPercent: 0 })
+    ).toBe(0)
     expect(
       displayOpusUsagePercent({ percent: 35, isNegative: true, timeUntilNextPercent: 0 })
     ).toBe(0)
+  })
+
+  it('V5 Usage 막대는 100% 단위 구간으로 나눈다', () => {
+    expect(
+      opusUsagePercentSegments({ percent: 70, isNegative: false, timeUntilNextPercent: 0 })
+    ).toEqual([70])
+    expect(
+      opusUsagePercentSegments({ percent: 130, isNegative: false, timeUntilNextPercent: 0 })
+    ).toEqual([100, 30])
+    expect(
+      opusUsagePercentSegments({ percent: 230, isNegative: false, timeUntilNextPercent: 0 })
+    ).toEqual([100, 100, 30])
+    expect(
+      opusUsagePercentSegments({ percent: 200, isNegative: false, timeUntilNextPercent: 0 })
+    ).toEqual([100, 100])
   })
 
   it('기본 해상도 28스텝 = 장당 20 Anlas (커뮤니티 공지값과 일치)', () => {
