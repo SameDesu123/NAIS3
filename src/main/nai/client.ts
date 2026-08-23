@@ -1,9 +1,5 @@
 import JSZip from 'jszip'
-import type {
-  GenerationRequest,
-  OpusUsageStatus,
-  SubscriptionInfo
-} from '../../shared/types'
+import type { GenerationRequest, OpusUsageStatus, SubscriptionInfo } from '../../shared/types'
 import { ENDPOINTS } from './endpoints'
 import { buildGenerateImagePayload, type BuildOptions } from './payload'
 import { readImageStream } from './stream'
@@ -86,9 +82,11 @@ export async function verifyToken(
 }
 
 /** 현재 Anlas 잔액(fixed + purchased)과 구독 tier. 실패 시 둘 다 null */
-export async function fetchAnlasBalance(
-  token: string
-): Promise<{ anlas: number | null; tier: string | null; usage?: OpusUsageStatus }> {
+export async function fetchAnlasBalance(token: string): Promise<{
+  anlas: number | null
+  tier: SubscriptionInfo['tier'] | null
+  usage?: OpusUsageStatus
+}> {
   try {
     const res = await fetch(ENDPOINTS.subscription, { headers: headers(token) })
     if (!res.ok) return { anlas: null, tier: null }

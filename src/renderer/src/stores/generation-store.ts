@@ -449,17 +449,27 @@ export function bindGenerationEvents(): () => void {
       ...(e.previewPng ? { previewPng: e.previewPng } : {})
     })
   })
-  const offAnlas = window.nais.on('anlas:balance', ({ anlas, usage }) => {
+  const offAnlas = window.nais.on('anlas:balance', ({ anlas, tier, usage }) => {
     useGenerationStore.setState({
       anlasBalance: anlas,
-      opusUsage: usage ?? null
+      opusUsage: usage ?? null,
+      ...(tier ? { subscriptionTier: tier } : {})
     })
+    if (tier) void window.nais.invoke('settings:set', { key: 'nai_tier', value: tier })
+  })
+  const offAccount = window.nais.on('nai:accountChanged', ({ reason, label }) => {
+    if (reason === 'rotation') {
+      toast(`V5 게이지가 소진되어 ${label ?? '다음 계정'}으로 전환했습니다`, 'info')
+    }
   })
   // The server's usage percentage recharges while idle. Refresh periodically so an
   // exhausted allowance does not remain shown as paid until the next generation.
-  const usageRefreshTimer = setInterval(() => {
-    void useGenerationStore.getState().refreshAnlas()
-  }, 5 * 60 * 1000)
+  const usageRefreshTimer = setInterval(
+    () => {
+      void useGenerationStore.getState().refreshAnlas()
+    },
+    5 * 60 * 1000
+  )
   // 바이브 인코딩 완료 시 목록 재로드 → 카드의 인코딩 표시 갱신
   const offVibes = window.nais.on('vibes:encoded', () => {
     void useVibesStore.getState().load()
@@ -468,6 +478,7 @@ export function bindGenerationEvents(): () => void {
     offQueue()
     offProgress()
     offAnlas()
+    offAccount()
     clearInterval(usageRefreshTimer)
     offVibes()
   }

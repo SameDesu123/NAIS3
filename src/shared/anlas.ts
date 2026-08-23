@@ -140,7 +140,10 @@ export function directorAugmentCost(
   return method === 'bg-removal' ? estimate.perImage * 3 + 5 : estimate.generation
 }
 
-function normalizeDirectorDimensions(width: number, height: number): { width: number; height: number } {
+function normalizeDirectorDimensions(
+  width: number,
+  height: number
+): { width: number; height: number } {
   if (width <= 0 || height <= 0) return { width: 0, height: 0 }
 
   let w = width

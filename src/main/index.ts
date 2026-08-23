@@ -5,7 +5,6 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import sharp from 'sharp'
 import icon from '../../resources/icon.png?asset'
 import { closeDb, initDb } from './db'
-import { getNaiToken } from './db/settings'
 import { getSetting } from './db/settings'
 import { processWildcards } from './fragments/processor'
 import { removeComments } from '../shared/nai-presets'
@@ -24,6 +23,7 @@ import { broadcast, registerIpcHandlers } from './ipc'
 import { setupUpdater } from './updater'
 import { logBalance } from './nai/anlas-log'
 import { fetchAnlasBalance, generateImageStream, generateImageZip } from './nai/client'
+import { requestUsesV5Usage, resolveNaiAccountForGeneration } from './nai/account-router'
 import { prepareCharRefs, prepareVibes } from './refs/prepare'
 import { GenerationQueue } from './queue/generation-queue'
 import { getPresetName, getScene } from './scenes/repo'
@@ -111,7 +111,8 @@ app.whenReady().then(() => {
     // 자동저장 OFF 임시 이미지 — 메모리 원본, 만료됐으면 DB 썸네일로 폴백
     if (isMemoryPath(filePath)) {
       const buf = getMemoryImage(filePath)
-      if (buf) return new Response(new Uint8Array(buf), { headers: { 'content-type': 'image/png' } })
+      if (buf)
+        return new Response(new Uint8Array(buf), { headers: { 'content-type': 'image/png' } })
       const thumb = thumbnailByPath(filePath)
       if (thumb)
         return new Response(new Uint8Array(thumb), { headers: { 'content-type': 'image/webp' } })
@@ -135,8 +136,23 @@ app.whenReady().then(() => {
 
   // 생성 파이프라인: 큐 → 조각/와일드카드 치환 → 바이브/캐릭레퍼 준비 → 스트리밍 생성 → 저장
   const queue = new GenerationQueue(async (rawRequest, id, signal) => {
-    const token = getNaiToken()
-    if (!token) throw new Error('NAI 토큰이 설정되지 않았습니다')
+    const selection = await resolveNaiAccountForGeneration(requestUsesV5Usage(rawRequest))
+    if (!selection) throw new Error('NAI 토큰이 설정되지 않았습니다')
+    const token = selection.account.token
+    if (selection.rotated) {
+      broadcast('nai:accountChanged', {
+        accountId: selection.account.id,
+        reason: 'rotation',
+        label: selection.account.label
+      })
+      if (selection.balance?.anlas !== null && selection.balance?.anlas !== undefined) {
+        broadcast('anlas:balance', {
+          anlas: selection.balance.anlas,
+          tier: selection.balance.tier,
+          ...(selection.balance.usage ? { usage: selection.balance.usage } : {})
+        })
+      }
+    }
 
     // 배치 항목마다 여기서 치환 — 매 장 다른 와일드카드 결과가 나온다.
     // 주석 제거가 반드시 먼저 — 주석 줄이 조각을 소모하거나(순차 카운터),
@@ -267,7 +283,13 @@ app.whenReady().then(() => {
           png,
           sentPayload,
           seed: request.seed,
-          kind: request.sceneId ? 'scene' : source ? (source.maskBase64 ? 'inpaint' : 'i2i') : 't2i',
+          kind: request.sceneId
+            ? 'scene'
+            : source
+              ? source.maskBase64
+                ? 'inpaint'
+                : 'i2i'
+              : 't2i',
           sceneId: request.sceneId,
           format: imageFormat,
           sceneName: scene?.name,
@@ -280,10 +302,10 @@ app.whenReady().then(() => {
       broadcast('scenes:changed', { sceneId: request.sceneId, filePath: saved.filePath })
 
     // 생성 후 잔액 갱신 (실사용량 추적의 진실 공급원) — 실패해도 생성 흐름엔 영향 없음
-    void fetchAnlasBalance(token).then(({ anlas, usage }) => {
+    void fetchAnlasBalance(token).then(({ anlas, tier, usage }) => {
       if (anlas !== null) {
         logBalance(anlas)
-        broadcast('anlas:balance', { anlas, ...(usage ? { usage } : {}) })
+        broadcast('anlas:balance', { anlas, tier, ...(usage ? { usage } : {}) })
       }
     })
 
