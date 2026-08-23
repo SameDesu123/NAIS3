@@ -614,6 +614,7 @@ function AccountSection(): React.JSX.Element {
   }
 
   const activeAccount = accounts.find((account) => account.active)
+  const opusUsageSegments = opusUsage ? opusUsagePercentSegments(opusUsage) : [0]
 
   return (
     <div className="flex min-h-full min-w-0 flex-col gap-3 overflow-x-hidden">
@@ -739,9 +740,12 @@ function AccountSection(): React.JSX.Element {
               {opusUsage ? `${displayOpusUsagePercent(opusUsage)}%` : '—'}
             </span>
           </div>
-          <div className="flex h-2 gap-1">
-            {(opusUsage ? opusUsagePercentSegments(opusUsage) : [0]).map((percent, index) => (
-              <div key={index} className="h-full flex-1 overflow-hidden rounded-full bg-paper">
+          <div
+            className="grid h-2 w-full min-w-0 gap-1 overflow-hidden"
+            style={{ gridTemplateColumns: `repeat(${opusUsageSegments.length}, minmax(0, 1fr))` }}
+          >
+            {opusUsageSegments.map((percent, index) => (
+              <div key={index} className="h-full min-w-0 overflow-hidden rounded-full bg-paper">
                 <div
                   className={cn(
                     'h-full rounded-full transition-[width] duration-300',
@@ -873,7 +877,7 @@ export function SettingsDialog({
         <Tabs
           value={section}
           onValueChange={(v) => setSection(v as SectionId)}
-          className="flex h-full min-h-0"
+          className="flex h-full min-h-0 min-w-0 w-full overflow-hidden"
           orientation="vertical"
         >
           <nav className="flex w-40 shrink-0 flex-col border-r border-line bg-surface-2/50 p-2">
