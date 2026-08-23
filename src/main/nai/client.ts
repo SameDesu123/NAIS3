@@ -183,10 +183,7 @@ export const UPSCALE_MODEL = 'nai-diffusion-5-curated'
 export const UPSCALE_SCALE = 2
 
 /** V5 Curated 기반 2x 업스케일. 현재 생성 모델과 무관한 공통 전용 모델을 사용한다. */
-export async function upscaleImage(
-  token: string,
-  imageBase64: string
-): Promise<Buffer> {
+export async function upscaleImage(token: string, imageBase64: string): Promise<Buffer> {
   const body = new FormData()
   body.append(
     'request',
