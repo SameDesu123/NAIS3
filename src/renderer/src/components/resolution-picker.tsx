@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { Check, ChevronDown, Plus, Trash2 } from 'lucide-react'
+import { fitNaiGenerationResolution, type ResolutionDimension } from '@shared/nai-resolution'
 import { RESOLUTIONS } from '../lib/constants'
-import { useResolutionsStore, snapDim } from '../stores/resolutions-store'
+import { useResolutionsStore } from '../stores/resolutions-store'
 import { toast } from '../stores/toast-store'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { cn } from '../lib/utils'
 
 /**
  * 해상도 선택 — 기본 해상도(삭제 불가) + 커스텀 해상도(추가/삭제).
- * 커스텀은 64 배수로 스냅(생성 실패 방지). 가격/레이아웃은 width·height 기준이라 자동 대응.
+ * 커스텀은 NovelAI 웹과 같이 64 배수·총 3 Mi 픽셀 제한으로 보정한다.
+ * 가격/레이아웃은 width·height 기준이라 자동 대응.
  */
 export function ResolutionPicker({
   width,
@@ -29,6 +31,10 @@ export function ResolutionPicker({
   const [open, setOpen] = useState(false)
   const [w, setW] = useState('')
   const [h, setH] = useState('')
+  const [lastEditedDimension, setLastEditedDimension] = useState<ResolutionDimension>('height')
+
+  const customPreview =
+    w && h ? fitNaiGenerationResolution(Number(w), Number(h), lastEditedDimension) : null
 
   const currentLabel =
     RESOLUTIONS.find((r) => r.width === width && r.height === height)?.label ??
@@ -41,13 +47,13 @@ export function ResolutionPicker({
     const nw = Number(w)
     const nh = Number(h)
     if (!nw || !nh) return
-    const item = add(nw, nh)
+    const item = add(nw, nh, lastEditedDimension)
     if (item) {
       onPick(item.width, item.height)
       setW('')
       setH('')
       if (item.width !== nw || item.height !== nh)
-        toast(`64 배수로 스냅됨 → ${item.width}×${item.height}`, 'info')
+        toast(`64 배수·3 Mi 픽셀 제한으로 보정됨 → ${item.width}×${item.height}`, 'info')
     } else {
       toast('이미 있는 해상도입니다', 'info')
     }
@@ -113,11 +119,14 @@ export function ResolutionPicker({
           ))}
         </div>
 
-        {/* 커스텀 추가 — 64 배수로 스냅됨 */}
+        {/* 커스텀 추가 — 64 배수·총 3 Mi 픽셀 제한으로 보정됨 */}
         <div className="mt-1 flex items-center gap-1 border-t border-line pt-1.5">
           <input
             value={w}
-            onChange={(e) => setW(e.target.value.replace(/[^0-9]/g, ''))}
+            onChange={(e) => {
+              setW(e.target.value.replace(/[^0-9]/g, ''))
+              setLastEditedDimension('width')
+            }}
             placeholder="가로"
             inputMode="numeric"
             className="h-7 w-0 flex-1 rounded border border-line bg-paper px-1.5 text-center text-[12px] outline-none focus:border-accent/50"
@@ -125,14 +134,21 @@ export function ResolutionPicker({
           <span className="text-[11px] text-faint">×</span>
           <input
             value={h}
-            onChange={(e) => setH(e.target.value.replace(/[^0-9]/g, ''))}
+            onChange={(e) => {
+              setH(e.target.value.replace(/[^0-9]/g, ''))
+              setLastEditedDimension('height')
+            }}
             placeholder="세로"
             inputMode="numeric"
             onKeyDown={(e) => e.key === 'Enter' && doAdd()}
             className="h-7 w-0 flex-1 rounded border border-line bg-paper px-1.5 text-center text-[12px] outline-none focus:border-accent/50"
           />
           <button
-            title={w && h ? `추가 (64 배수 스냅: ${snapDim(Number(w))}×${snapDim(Number(h))})` : '추가'}
+            title={
+              customPreview
+                ? `추가 (NovelAI 보정: ${customPreview.width}×${customPreview.height})`
+                : '추가'
+            }
             onClick={doAdd}
             className="grid size-7 shrink-0 place-items-center rounded bg-accent text-paper hover:opacity-90"
           >
