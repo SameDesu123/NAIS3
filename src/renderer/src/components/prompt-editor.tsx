@@ -55,7 +55,7 @@ export function PromptEditor({
   placeholder?: string
   className?: string
   negative?: boolean
-  /** 외부에서 합산한 토큰 수 (기본+캐릭터 합산 등). undefined면 자체 카운트, null이면 숨김 */
+  /** 외부에서 합산한 전체 토큰 수. undefined면 이 입력칸의 수만 표시, null이면 숨김 */
   tokensOverride?: number | null
   tokenLimit?: number
 }): React.JSX.Element {
@@ -89,6 +89,7 @@ export function PromptEditor({
     return () => clearTimeout(timer)
   }, [value, external])
   const tokens = external ? tokensOverride : ownTokens
+  const overLimit = external && tokens !== null && tokens > tokenLimit
 
   // 세로 스크롤바가 생기면 textarea 콘텐츠 폭이 줄어 줄바꿈이 달라진다 —
   // 미러의 오른쪽을 스크롤바 폭만큼 좁혀 두 레이어의 줄바꿈을 항상 일치시킨다
@@ -418,15 +419,17 @@ export function PromptEditor({
         <span
           className={cn(
             'pointer-events-none absolute bottom-1 right-1.5 rounded bg-paper/85 px-1 font-mono text-[10.5px] backdrop-blur-sm',
-            tokens > tokenLimit ? 'text-danger' : 'text-faint'
+            overLimit ? 'text-danger' : 'text-faint'
           )}
           title={
-            tokens > tokenLimit
+            overLimit
               ? `한도 초과 — ${tokens}/${tokenLimit} 토큰. 초과분은 잘려서 반영되지 않습니다`
-              : `${tokens}/${tokenLimit} 토큰`
+              : external
+                ? `${tokens}/${tokenLimit} 토큰`
+                : `${tokens} 토큰`
           }
         >
-          {tokens}/{tokenLimit}
+          {external ? `${tokens}/${tokenLimit}` : tokens}
         </span>
       )}
 

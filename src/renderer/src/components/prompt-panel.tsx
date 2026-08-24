@@ -21,6 +21,7 @@ import {
   modelCapabilities,
   promptTokenLimit
 } from '@shared/nai-models'
+import { usePromptTokenBudget } from '../hooks/use-prompt-token-budget'
 import { useCharactersStore } from '../stores/characters-store'
 import { useFragmentsStore } from '../stores/fragments-store'
 import { useGenerationStore } from '../stores/generation-store'
@@ -36,6 +37,7 @@ import { RefOverlay } from './ref-overlay'
 import { SOURCE_BANNER_HEIGHT, SourceBanner } from './source-banner'
 import { Button } from './ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
+import { TokenBudgetBadge } from './token-budget-badge'
 
 export function PromptPanel(): React.JSX.Element {
   const request = useGenerationStore((s) => s.request)
@@ -121,44 +123,12 @@ export function PromptPanel(): React.JSX.Element {
   const generating = queueCount > 0
   const activeChars = charItems.filter((c) => c.enabled && c.prompt.trim()).length
 
-  // 토큰 표시: 포지티브는 기본+캐릭터 합산(공홈과 동일), 네거티브는 메인 것만 —
-  // 공홈이 메인 네거와 캐릭터 네거를 별개로 세므로 합산하지 않는다 (캐릭 네거는 카드에서 자체 표시)
-  const [tokenTotals, setTokenTotals] = useState<{ pos: number | null; neg: number | null }>({
-    pos: null,
-    neg: null
+  const tokenTotal = usePromptTokenBudget({
+    model: request.model,
+    prompt: request.prompt,
+    negativePrompt: request.negativePrompt,
+    characters: charItems
   })
-  const enabledChars = useMemo(
-    () => charItems.filter((c) => c.enabled && c.prompt.trim()),
-    [charItems]
-  )
-  useEffect(() => {
-    // V5 uses Qwen rather than the bundled V4.5 T5 tokenizer. Hide the count until
-    // the matching Qwen tokenizer is bundled; showing a T5 count would be misleading.
-    if (isV5Model(request.model)) {
-      const timer = setTimeout(() => setTokenTotals({ pos: null, neg: null }))
-      return () => clearTimeout(timer)
-    }
-    const posTexts = [request.prompt, ...enabledChars.map((c) => c.prompt)].filter((t) => t.trim())
-    const negTexts = [request.negativePrompt].filter((t) => t.trim())
-    if (posTexts.length === 0 && negTexts.length === 0) {
-      const timer = setTimeout(() => setTokenTotals({ pos: null, neg: null }))
-      return () => clearTimeout(timer)
-    }
-    const timer = setTimeout(() => {
-      void window.nais
-        .invoke('tokens:count', { texts: [...posTexts, ...negTexts] })
-        .then(({ counts }) => {
-          // 공홈은 캡션별 EOS를 각각 포함해 그대로 합산한다 (빈 칸 = 1토큰인 이유)
-          const sum = (arr: number[]): number | null =>
-            arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0)
-          setTokenTotals({
-            pos: sum(counts.slice(0, posTexts.length)),
-            neg: sum(counts.slice(posTexts.length))
-          })
-        })
-    }, 250)
-    return () => clearTimeout(timer)
-  }, [request.model, request.prompt, request.negativePrompt, enabledChars])
 
   const anlas = useMemo(
     () =>
@@ -279,7 +249,7 @@ export function PromptPanel(): React.JSX.Element {
             onToggle={() => setPosCollapsed((v) => !v)}
             action={
               <div className="flex items-center gap-1">
-                {promptSplitEnabled && <TokenBadge tokens={tokenTotals.pos} limit={tokenLimit} />}
+                <TokenBudgetBadge tokens={tokenTotal} limit={tokenLimit} />
                 <SyntaxHelp />
               </div>
             }
@@ -294,8 +264,7 @@ export function PromptPanel(): React.JSX.Element {
               <PromptEditor
                 className="min-h-0 flex-1"
                 value={request.prompt}
-                tokensOverride={tokenTotals.pos}
-                tokenLimit={tokenLimit}
+                tokensOverride={isV5Model(request.model) ? null : undefined}
                 placeholder="1girl, ...  (태그 자동완성 · <조각>)"
                 onValueChange={(v) => patch({ prompt: v })}
               />
@@ -330,8 +299,7 @@ export function PromptPanel(): React.JSX.Element {
               negative
               className="min-h-0 flex-1"
               value={request.negativePrompt}
-              tokensOverride={tokenTotals.neg}
-              tokenLimit={tokenLimit}
+              tokensOverride={isV5Model(request.model) ? null : undefined}
               placeholder="UC 프리셋 뒤에 이어 붙습니다"
               onValueChange={(v) => patch({ negativePrompt: v })}
             />
@@ -478,26 +446,6 @@ function CollapseHeader({
       </button>
       {action}
     </div>
-  )
-}
-
-function TokenBadge({ tokens, limit }: { tokens: number | null; limit: number }): React.JSX.Element | null {
-  if (tokens === null) return null
-  const over = tokens > limit
-  return (
-    <span
-      className={
-        'rounded bg-paper px-1.5 py-0.5 font-mono text-[10.5px] ' +
-        (over ? 'text-danger' : 'text-faint')
-      }
-      title={
-        over
-          ? `한도 초과 — ${tokens}/${limit} 토큰. 초과분은 잘려서 반영되지 않습니다`
-          : `최종 프롬프트 ${tokens}/${limit} 토큰`
-      }
-    >
-      {tokens}/{limit}
-    </span>
   )
 }
 

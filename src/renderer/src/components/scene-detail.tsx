@@ -1,7 +1,9 @@
 import { ArrowLeft, Loader2, Minus, Play, Plus, Star, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { Scene } from '@shared/types'
+import { isV5Model, promptTokenLimit } from '@shared/nai-models'
 import { imageUrl } from '../lib/constants'
+import { usePromptTokenBudget } from '../hooks/use-prompt-token-budget'
 import { ResolutionPicker } from './resolution-picker'
 import { useGenerationStore } from '../stores/generation-store'
 import { useScenesStore, appendPrompt } from '../stores/scenes-store'
@@ -14,6 +16,7 @@ import { Lightbox } from './lightbox'
 import { PromptEditor } from './prompt-editor'
 import { ReserveCount } from './reserve-count'
 import { Button } from './ui/button'
+import { TokenBudgetBadge } from './token-budget-badge'
 
 export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
   const select = useScenesStore((s) => s.select)
@@ -35,6 +38,7 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
   const deleteNonFavorites = useScenesStore((s) => s.deleteNonFavorites)
 
   const source = useGenerationStore((s) => s.source)
+  const model = useGenerationStore((s) => s.request.model)
   const basePrompt = useGenerationStore((s) => s.request.prompt)
   const baseNegative = useGenerationStore((s) => s.request.negativePrompt)
   const charItems = useCharactersStore((s) => s.items)
@@ -72,37 +76,13 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
       : null
   const showTile = streaming || heldFrame != null
 
-  // F9: 씬 에디터 토큰 수를 base(메인)+씬 합산으로 표시 — 실제 전송은 base 뒤에 씬을 붙이므로
-  const [sceneTokens, setSceneTokens] = useState<{ pos: number | null; neg: number | null }>({
-    pos: null,
-    neg: null
+  const sceneTokens = usePromptTokenBudget({
+    model,
+    prompt: appendPrompt(basePrompt, scene.prompt),
+    negativePrompt: appendPrompt(baseNegative, scene.negativePrompt),
+    characters: charItems
   })
-  useEffect(() => {
-    const enabled = charItems.filter((c) => c.enabled && c.prompt.trim())
-    const posTexts = [
-      appendPrompt(basePrompt, scene.prompt),
-      ...enabled.map((c) => c.prompt)
-    ].filter((t) => t.trim())
-    const negText = appendPrompt(baseNegative, scene.negativePrompt)
-    const negTexts = negText.trim() ? [negText] : []
-    if (posTexts.length === 0 && negTexts.length === 0) {
-      setSceneTokens({ pos: null, neg: null })
-      return
-    }
-    const timer = setTimeout(() => {
-      void window.nais
-        .invoke('tokens:count', { texts: [...posTexts, ...negTexts] })
-        .then(({ counts }) => {
-          const sum = (a: number[]): number | null =>
-            a.length === 0 ? null : a.reduce((x, y) => x + y, 0)
-          setSceneTokens({
-            pos: sum(counts.slice(0, posTexts.length)),
-            neg: sum(counts.slice(posTexts.length))
-          })
-        })
-    }, 250)
-    return () => clearTimeout(timer)
-  }, [basePrompt, baseNegative, scene.prompt, scene.negativePrompt, charItems])
+  const tokenLimit = promptTokenLimit(model)
 
   // ESC로 씬 목록으로 (라이트박스가 열려 있으면 라이트박스만 닫힘)
   useEffect(() => {
@@ -202,12 +182,16 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
       {/* 스크롤 영역: 프롬프트 + 생성 이미지. scrollbar-gutter로 스크롤바 등장/소멸 시 밀림 방지 */}
       <div className="min-h-0 flex-1 overflow-y-auto p-3 no-scrollbar">
         <div className="grid gap-2">
+          <div className="flex items-center justify-between text-[11px] text-muted">
+            <span>전체 프롬프트 토큰</span>
+            <TokenBudgetBadge tokens={sceneTokens} limit={tokenLimit} />
+          </div>
           {/* resize-y: 우하단 핸들로 세로 크기 조절 (F10) */}
           <PromptEditor
             value={scene.prompt}
             onValueChange={(v) => void update(scene.id, { prompt: v })}
             placeholder="씬 프롬프트"
-            tokensOverride={sceneTokens.pos}
+            tokensOverride={isV5Model(model) ? null : undefined}
             className="h-32 max-h-[520px] min-h-24 resize-y"
           />
           <PromptEditor
@@ -215,7 +199,7 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
             onValueChange={(v) => void update(scene.id, { negativePrompt: v })}
             placeholder="씬 네거티브 프롬프트"
             negative
-            tokensOverride={sceneTokens.neg}
+            tokensOverride={isV5Model(model) ? null : undefined}
             className="h-20 max-h-96 min-h-16 resize-y"
           />
         </div>

@@ -13,13 +13,19 @@ import {
   UserRound,
   X
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CharacterCard } from '@shared/types'
-import { canEnableAnotherCharacter, isV5Model, modelCapabilities } from '@shared/nai-models'
+import {
+  canEnableAnotherCharacter,
+  isV5Model,
+  modelCapabilities,
+  promptTokenLimit
+} from '@shared/nai-models'
 import { cn } from '../lib/utils'
 import { applyClickSelection, useSelectAllShortcut } from '../lib/edit-selection'
 import { buildDisplayRows } from '../lib/folder-list'
+import { usePromptTokenBudget } from '../hooks/use-prompt-token-budget'
 import { useCharactersStore } from '../stores/characters-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { askConfirm, askText } from '../stores/dialog-store'
@@ -31,6 +37,7 @@ import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Input } from './ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { Switch } from './ui/switch'
+import { TokenBudgetBadge } from './token-budget-badge'
 
 /** NAI 웹의 5×5 수동 배치 그리드 (실캡처: 0.1~0.9) */
 const GRID = [0.1, 0.3, 0.5, 0.7, 0.9]
@@ -155,30 +162,15 @@ export function CharacterOverlay(): React.JSX.Element {
     setSelected(new Set())
   }
 
-  // 기본 프롬프트 + 캐릭터 프롬프트가 512 토큰을 합산 공유 (공홈 실측)
   const basePrompt = useGenerationStore((s) => s.request.prompt)
-  const positiveTexts = useMemo(
-    () =>
-      [
-        basePrompt,
-        ...items.filter((c) => c.enabled && c.prompt.trim()).map((c) => c.prompt)
-      ].filter((t) => t.trim()),
-    [basePrompt, items]
-  )
-  const [charTokens, setCharTokens] = useState<number | null>(null)
-  useEffect(() => {
-    if (isV5Model(model) || positiveTexts.length === 0) {
-      const timer = setTimeout(() => setCharTokens(null))
-      return () => clearTimeout(timer)
-    }
-    const timer = setTimeout(() => {
-      void window.nais.invoke('tokens:count', { texts: positiveTexts }).then(({ counts }) => {
-        // 공홈은 캡션별 EOS를 각각 포함해 그대로 합산
-        setCharTokens(counts.reduce((a, b) => a + b, 0))
-      })
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [model, positiveTexts])
+  const baseNegative = useGenerationStore((s) => s.request.negativePrompt)
+  const tokenLimit = promptTokenLimit(model)
+  const totalTokens = usePromptTokenBudget({
+    model,
+    prompt: basePrompt,
+    negativePrompt: baseNegative,
+    characters: items
+  })
 
   // 편집 모드 헤더 — 선택 전용 행 (스위치/좌표 등 상호작용 제거)
   const renderHeaderEdit = (char: CharacterCard): React.ReactNode => {
@@ -310,6 +302,7 @@ export function CharacterOverlay(): React.JSX.Element {
       <PromptEditor
         className="h-40 max-h-[520px] min-h-20 resize-y bg-surface-2"
         value={char.prompt}
+        tokensOverride={isV5Model(model) ? null : undefined}
         placeholder="girl, ..."
         onValueChange={(v) => updateCard(char.id, { prompt: v })}
       />
@@ -317,6 +310,7 @@ export function CharacterOverlay(): React.JSX.Element {
         negative
         className="h-24 max-h-96 min-h-14 resize-y bg-surface-2"
         value={char.negativePrompt}
+        tokensOverride={isV5Model(model) ? null : undefined}
         placeholder="캐릭터 네거티브"
         onValueChange={(v) => updateCard(char.id, { negativePrompt: v })}
       />
@@ -360,17 +354,7 @@ export function CharacterOverlay(): React.JSX.Element {
             전체 해제
           </Button>
         )}
-        {!isV5Model(model) && charTokens !== null && (
-          <span
-            className={cn(
-              'font-mono text-[10.5px]',
-              charTokens > 512 ? 'text-danger' : 'text-faint'
-            )}
-            title="기본 프롬프트 + 캐릭터 프롬프트 합산 (512 토큰 공유)"
-          >
-            {charTokens}/512
-          </span>
-        )}
+        <TokenBudgetBadge tokens={totalTokens} limit={tokenLimit} className="bg-transparent" />
         <div className="flex-1" />
         <label
           className="flex items-center gap-1.5 text-[11.5px] text-muted"
