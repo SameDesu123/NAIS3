@@ -12,11 +12,12 @@ describe('V5 upscaler', () => {
     const zip = new JSZip()
     zip.file('image_0.png', Buffer.from('upscaled-png'))
     const responseBody = await zip.generateAsync({ type: 'uint8array' })
+    const sourceImage = Buffer.from('source-image')
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(responseBody, { status: 200 }))
 
-    const png = await upscaleImage(' token ', 'source-base64')
+    const png = await upscaleImage(' token ', sourceImage.toString('base64'))
 
     expect(UPSCALE_SCALE).toBe(2)
     expect(png).toEqual(Buffer.from('upscaled-png'))
@@ -33,10 +34,15 @@ describe('V5 upscaler', () => {
 
     const body = init?.body
     expect(body).toBeInstanceOf(FormData)
+    const image = (body as FormData).get('image')
+    expect(image).toBeInstanceOf(Blob)
+    expect((image as Blob).type).toBe('image/png')
+    expect(Buffer.from(await (image as Blob).arrayBuffer())).toEqual(sourceImage)
+
     const request = (body as FormData).get('request')
     expect(request).toBeInstanceOf(Blob)
     expect(JSON.parse(await (request as Blob).text())).toEqual({
-      image: 'source-base64',
+      image: 'image',
       model: UPSCALE_MODEL,
       declared_blur_sigma: 0
     })
