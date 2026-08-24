@@ -1,6 +1,7 @@
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 import { createNaisArchive, hasZipSignature, readNaisArchive } from '../src/main/backup/archive'
+import { legacyNais3ToBackupDatabase } from '../src/main/backup/legacy'
 import type { BackupDatabaseV1 } from '../src/main/backup/types'
 
 function fixture(): BackupDatabaseV1 {
@@ -96,6 +97,49 @@ describe('.nais backup archive', () => {
 
     await expect(readNaisArchive(await zip.generateAsync({ type: 'nodebuffer' }))).rejects.toThrow(
       'Unsupported NAIS archive version'
+    )
+  })
+
+  it('normalizes the existing NAIS3 JSON format without touching newer tables', () => {
+    const legacyTables = Object.fromEntries(
+      [
+        'character_folders',
+        'character_prompts',
+        'fragment_folders',
+        'fragments',
+        'vibe_folders',
+        'vibe_images',
+        'charref_folders',
+        'charref_images',
+        'scene_presets',
+        'gen_scenes',
+        'prompt_presets'
+      ].map((table) => [table, []])
+    )
+    legacyTables.character_prompts = [
+      { id: 1, name: 'Alice', thumbnail: { __blob: Buffer.from('thumb').toString('base64') } }
+    ]
+    legacyTables.vibe_images = [
+      {
+        id: 2,
+        name: 'Vibe',
+        file_path: '/old/vibe.webp',
+        __image: Buffer.from('vibe').toString('base64')
+      }
+    ]
+
+    const { database, skippedFiles } = legacyNais3ToBackupDatabase({
+      _app: 'NAIS3',
+      _version: 1,
+      mainParams: '{}',
+      tables: legacyTables
+    })
+
+    expect(skippedFiles).toBe(0)
+    expect(database.includedTables).not.toContain('library_images')
+    expect(database.tables.character_prompts?.[0].thumbnail).toEqual(Buffer.from('thumb'))
+    expect(database.files[0]).toEqual(
+      expect.objectContaining({ table: 'vibe_images', rowId: 2, data: Buffer.from('vibe') })
     )
   })
 })
