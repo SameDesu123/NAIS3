@@ -50,7 +50,10 @@ function applyTheme(theme: Theme, presetId: string): void {
 
 function applyFont(uiFont: string, uiSize: number): void {
   const style = document.documentElement.style
-  style.setProperty('--font-ui', uiFont.trim() ? `'${uiFont.trim()}', ${PRETENDARD_STACK}` : PRETENDARD_STACK)
+  style.setProperty(
+    '--font-ui',
+    uiFont.trim() ? `'${uiFont.trim()}', ${PRETENDARD_STACK}` : PRETENDARD_STACK
+  )
   style.setProperty('--ui-size', `${uiSize}px`)
   style.setProperty('--ui-scale', `${uiSize / 14}`)
 }
@@ -93,14 +96,19 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     void window.nais.invoke('settings:set', { key: 'prompt_size', value: String(clamped) })
   },
   hydrate: async () => {
-    const [{ value: theme }, { value: preset }, { value: font }, { value: size }, { value: psize }] =
-      await Promise.all([
-        window.nais.invoke('settings:get', { key: 'ui_theme' }),
-        window.nais.invoke('settings:get', { key: 'ui_theme_preset' }),
-        window.nais.invoke('settings:get', { key: 'ui_font' }),
-        window.nais.invoke('settings:get', { key: 'ui_size' }),
-        window.nais.invoke('settings:get', { key: 'prompt_size' })
-      ])
+    const [
+      { value: theme },
+      { value: preset },
+      { value: font },
+      { value: size },
+      { value: psize }
+    ] = await Promise.all([
+      window.nais.invoke('settings:get', { key: 'ui_theme' }),
+      window.nais.invoke('settings:get', { key: 'ui_theme_preset' }),
+      window.nais.invoke('settings:get', { key: 'ui_font' }),
+      window.nais.invoke('settings:get', { key: 'ui_size' }),
+      window.nais.invoke('settings:get', { key: 'prompt_size' })
+    ])
     const resolved: Theme = theme === 'light' || theme === 'system' ? theme : 'dark'
     const presetId = preset ?? 'nais3'
     const uiFont = font ?? ''

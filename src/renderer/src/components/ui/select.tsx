@@ -92,7 +92,8 @@ export function SelectContent({
         data-radix-select-content=""
         className={cn(
           'z-50 max-h-[300px] min-w-[8rem] overflow-hidden rounded-lg border border-line bg-surface text-ink shadow-xl',
-          position === 'popper' && 'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
+          position === 'popper' &&
+            'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
           className
         )}
         {...props}

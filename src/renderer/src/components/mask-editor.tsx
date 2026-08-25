@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Slider } from './ui/slider'
+import { useT } from '../lib/i18n'
 
 /**
  * 인페인트 마스크 에디터 (NAIS2 방식):
@@ -25,6 +26,7 @@ export function MaskEditor({
   onConfirm: (maskBase64: string) => void
   onCancel: () => void
 }): React.JSX.Element {
+  const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [brush, setBrush] = useState(28)
   const [erasing, setErasing] = useState(false)
@@ -131,7 +133,9 @@ export function MaskEditor({
   return (
     <Dialog open onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="max-w-[680px] p-4">
-        <DialogTitle className="mb-3">인페인트 마스크 — 재생성할 영역을 칠하세요</DialogTitle>
+        <DialogTitle className="mb-3">
+          {t('인페인트 마스크 — 재생성할 영역을 칠하세요')}
+        </DialogTitle>
         <div className="flex flex-col items-center gap-3">
           <div
             className="relative overflow-hidden rounded-md border border-line bg-paper"
@@ -175,7 +179,7 @@ export function MaskEditor({
               className="gap-1"
               onClick={() => setErasing(false)}
             >
-              <Paintbrush size={14} /> 칠하기
+              <Paintbrush size={14} /> {t('칠하기')}
             </Button>
             <Button
               size="sm"
@@ -183,9 +187,9 @@ export function MaskEditor({
               className="gap-1"
               onClick={() => setErasing(true)}
             >
-              <Eraser size={14} /> 지우기
+              <Eraser size={14} /> {t('지우기')}
             </Button>
-            <span className="ml-1 text-[12px] text-muted">붓 {brush}</span>
+            <span className="ml-1 text-[12px] text-muted">{t('붓 {0}', brush)}</span>
             <Slider
               className="w-36"
               min={8}
@@ -195,14 +199,14 @@ export function MaskEditor({
               onValueChange={([v]) => setBrush(v)}
             />
             <Button size="sm" variant="ghost" className="gap-1" onClick={clear}>
-              <RotateCcw size={13} /> 초기화
+              <RotateCcw size={13} /> {t('초기화')}
             </Button>
             <div className="flex-1" />
             <Button variant="ghost" onClick={onCancel}>
-              취소
+              {t('취소')}
             </Button>
             <Button variant="accent" onClick={() => onConfirm(exportMask())}>
-              적용
+              {t('적용')}
             </Button>
           </div>
         </div>

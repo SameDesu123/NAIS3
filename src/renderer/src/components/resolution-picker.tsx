@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Check, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { RESOLUTIONS } from '../lib/constants'
+import { useT } from '../lib/i18n'
 import { useResolutionsStore, snapDim } from '../stores/resolutions-store'
 import { toast } from '../stores/toast-store'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -23,6 +24,7 @@ export function ResolutionPicker({
   disabled?: boolean
   className?: string
 }): React.JSX.Element {
+  const t = useT()
   const custom = useResolutionsStore((s) => s.custom)
   const add = useResolutionsStore((s) => s.add)
   const remove = useResolutionsStore((s) => s.remove)
@@ -47,9 +49,9 @@ export function ResolutionPicker({
       setW('')
       setH('')
       if (item.width !== nw || item.height !== nh)
-        toast(`64 배수로 스냅됨 → ${item.width}×${item.height}`, 'info')
+        toast(t('64 배수로 스냅됨 → {0}×{1}', item.width, item.height), 'info')
     } else {
-      toast('이미 있는 해상도입니다', 'info')
+      toast(t('이미 있는 해상도입니다'), 'info')
     }
   }
 
@@ -63,7 +65,7 @@ export function ResolutionPicker({
             className
           )}
         >
-          <span className="min-w-0 flex-1 truncate text-left">{currentLabel}</span>
+          <span className="min-w-0 flex-1 truncate text-left">{t(currentLabel)}</span>
           <ChevronDown size={14} className="shrink-0 text-muted" />
         </button>
       </PopoverTrigger>
@@ -81,7 +83,7 @@ export function ResolutionPicker({
                 isCurrent(r.width, r.height) && 'font-semibold text-accent'
               )}
             >
-              <span className="min-w-0 flex-1 truncate">{r.label}</span>
+              <span className="min-w-0 flex-1 truncate">{t(r.label)}</span>
               {isCurrent(r.width, r.height) && <Check size={12} className="shrink-0" />}
             </button>
           ))}
@@ -99,11 +101,11 @@ export function ResolutionPicker({
                   isCurrent(r.width, r.height) && 'font-semibold text-accent'
                 )}
               >
-                <span className="min-w-0 flex-1 truncate">{r.label}</span>
+                <span className="min-w-0 flex-1 truncate">{t(r.label)}</span>
                 {isCurrent(r.width, r.height) && <Check size={12} className="shrink-0" />}
               </button>
               <button
-                title="삭제"
+                title={t('삭제')}
                 onClick={() => remove(i)}
                 className="grid size-6 shrink-0 place-items-center rounded text-faint opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
               >
@@ -118,7 +120,7 @@ export function ResolutionPicker({
           <input
             value={w}
             onChange={(e) => setW(e.target.value.replace(/[^0-9]/g, ''))}
-            placeholder="가로"
+            placeholder={t('가로')}
             inputMode="numeric"
             className="h-7 w-0 flex-1 rounded border border-line bg-paper px-1.5 text-center text-[12px] outline-none focus:border-accent/50"
           />
@@ -126,13 +128,17 @@ export function ResolutionPicker({
           <input
             value={h}
             onChange={(e) => setH(e.target.value.replace(/[^0-9]/g, ''))}
-            placeholder="세로"
+            placeholder={t('세로')}
             inputMode="numeric"
             onKeyDown={(e) => e.key === 'Enter' && doAdd()}
             className="h-7 w-0 flex-1 rounded border border-line bg-paper px-1.5 text-center text-[12px] outline-none focus:border-accent/50"
           />
           <button
-            title={w && h ? `추가 (64 배수 스냅: ${snapDim(Number(w))}×${snapDim(Number(h))})` : '추가'}
+            title={
+              w && h
+                ? t('추가 (64 배수 스냅: {0}×{1})', snapDim(Number(w)), snapDim(Number(h)))
+                : t('추가')
+            }
             onClick={doAdd}
             className="grid size-7 shrink-0 place-items-center rounded bg-accent text-paper hover:opacity-90"
           >

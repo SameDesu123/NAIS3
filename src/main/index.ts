@@ -20,6 +20,7 @@ import {
   thumbnailByPath
 } from './images/storage'
 import { broadcast, registerIpcHandlers } from './ipc'
+import { t } from './i18n'
 import { setupUpdater } from './updater'
 import { logBalance } from './nai/anlas-log'
 import { fetchAnlasBalance, generateImageStream, generateImageZip } from './nai/client'
@@ -129,7 +130,7 @@ app.whenReady().then(() => {
     dbVersion = initDb().version
   } catch (e) {
     // DB를 못 열면 조용히 빈 상태로 시작하지 않는다 — 세이브 유실로 오인되는 최악의 UX
-    dialog.showErrorBox('NAIS3 데이터베이스 오류', e instanceof Error ? e.message : String(e))
+    dialog.showErrorBox(t('NAIS3 데이터베이스 오류'), e instanceof Error ? e.message : String(e))
     app.quit()
     return
   }
@@ -137,7 +138,7 @@ app.whenReady().then(() => {
   // 생성 파이프라인: 큐 → 조각/와일드카드 치환 → 바이브/캐릭레퍼 준비 → 스트리밍 생성 → 저장
   const queue = new GenerationQueue(async (rawRequest, id, signal) => {
     const selection = await resolveNaiAccountForGeneration(requestUsesV5Usage(rawRequest))
-    if (!selection) throw new Error('NAI 토큰이 설정되지 않았습니다')
+    if (!selection) throw new Error(t('NAI 토큰이 설정되지 않았습니다'))
     const token = selection.account.token
     if (selection.rotated) {
       broadcast('nai:accountChanged', {

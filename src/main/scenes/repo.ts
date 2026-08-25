@@ -5,6 +5,7 @@ import JSZip from 'jszip'
 import type { Scene, SceneImage, ScenePreset } from '../../shared/types'
 import { getDb } from '../db'
 import { dropMemoryImage, isMemoryPath, libraryRoot } from '../images/storage'
+import { t } from '../i18n'
 
 interface Row {
   id: number
@@ -211,8 +212,15 @@ export function duplicateScene(id: number): number {
         `INSERT INTO gen_scenes (preset_id, name, prompt, negative_prompt, width, height, sort_order, reserve_count)
          VALUES (?, ?, ?, ?, ?, ?, ?, 0)`
       )
-      .run(s.preset_id, `${s.name} 복제`, s.prompt, s.negative_prompt, s.width, s.height, max.m + 1)
-      .lastInsertRowid
+      .run(
+        s.preset_id,
+        t('{0} 복제', s.name),
+        s.prompt,
+        s.negative_prompt,
+        s.width,
+        s.height,
+        max.m + 1
+      ).lastInsertRowid
   )
 }
 
@@ -452,7 +460,7 @@ export async function exportScenesJson(presetId: number): Promise<boolean> {
     .all(presetId) as Row[]
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showSaveDialog(win, {
-    title: '씬 내보내기',
+    title: t('씬 내보내기'),
     defaultPath: 'nais3-scenes.json',
     filters: [{ name: 'JSON', extensions: ['json'] }]
   })
@@ -471,7 +479,7 @@ export async function exportScenesJson(presetId: number): Promise<boolean> {
 export async function importScenesJson(presetId: number): Promise<number> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showOpenDialog(win, {
-    title: '씬 불러오기',
+    title: t('씬 불러오기'),
     properties: ['openFile'],
     filters: [{ name: 'JSON', extensions: ['json'] }]
   })
@@ -500,7 +508,7 @@ export async function importScenesJson(presetId: number): Promise<number> {
     for (const s of scenes) {
       stmt.run(
         presetId,
-        s.name ?? '씬',
+        s.name ?? t('씬'),
         s.prompt ?? s.scenePrompt ?? '', // NAIS2 파일은 scenePrompt
         s.negativePrompt ?? '',
         s.width ?? 832,
@@ -518,7 +526,7 @@ async function zipFiles(entries: ZipEntry[], defaultName: string): Promise<numbe
   if (entries.length === 0) return 0
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showSaveDialog(win, {
-    title: 'ZIP 내보내기',
+    title: t('ZIP 내보내기'),
     defaultPath: defaultName,
     filters: [{ name: 'ZIP', extensions: ['zip'] }]
   })

@@ -1,5 +1,17 @@
-import { BatteryCharging, Coins, Download, Loader2, Minus, PanelLeft, PanelRight, Settings, Square, X } from 'lucide-react'
+import {
+  BatteryCharging,
+  Coins,
+  Download,
+  Loader2,
+  Minus,
+  PanelLeft,
+  PanelRight,
+  Settings,
+  Square,
+  X
+} from 'lucide-react'
 import { cn } from '../lib/utils'
+import { useT } from '../lib/i18n'
 import { useGenerationStore } from '../stores/generation-store'
 import { useLayoutStore } from '../stores/layout-store'
 import { useUpdateStore } from '../stores/update-store'
@@ -18,6 +30,7 @@ function ctrl(action: 'minimize' | 'maximize' | 'close'): void {
 
 /** 업데이트 발견 시 나타나는 다운로드 버튼 (신호등·패널토글 옆). 클릭 시 자동 업데이트 진행 */
 function UpdateButton(): React.JSX.Element | null {
+  const t = useT()
   const status = useUpdateStore((s) => s.status)
   const percent = useUpdateStore((s) => s.percent)
   const version = useUpdateStore((s) => s.version)
@@ -28,7 +41,7 @@ function UpdateButton(): React.JSX.Element | null {
       <BarButton
         onClick={start}
         className="text-accent hover:text-accent"
-        title={`업데이트 ${version ?? ''} 다운로드 후 자동 설치`}
+        title={t('업데이트 {0} 다운로드 후 자동 설치', version ?? '')}
       >
         <Download size={15} />
       </BarButton>
@@ -36,14 +49,14 @@ function UpdateButton(): React.JSX.Element | null {
   }
   if (status === 'downloading') {
     return (
-      <BarButton className="text-accent" title={`업데이트 다운로드 중 ${percent}%`} disabled>
+      <BarButton className="text-accent" title={t('업데이트 다운로드 중 {0}%', percent)} disabled>
         <Loader2 size={15} className="animate-spin" />
       </BarButton>
     )
   }
   if (status === 'downloaded') {
     return (
-      <BarButton className="text-accent" title="업데이트 설치 — 재시작 중" disabled>
+      <BarButton className="text-accent" title={t('업데이트 설치 — 재시작 중')} disabled>
         <Loader2 size={15} className="animate-spin" />
       </BarButton>
     )
@@ -52,13 +65,20 @@ function UpdateButton(): React.JSX.Element | null {
 }
 
 /** Anlas 잔액 + 예상 소모(-N). 토큰 미설정(잔액 없음)이면 표시하지 않음 */
-function AnlasChips({ balance, cost }: { balance: number | null; cost: number }): React.JSX.Element | null {
+function AnlasChips({
+  balance,
+  cost
+}: {
+  balance: number | null
+  cost: number
+}): React.JSX.Element | null {
+  const t = useT()
   if (balance === null) return null
   return (
     <div className="no-drag mx-1 flex items-center gap-1">
       <span
         className="flex items-center gap-1 rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[11.5px] text-muted"
-        title="Anlas 잔액 (생성할 때마다 갱신)"
+        title={t('Anlas 잔액 (생성할 때마다 갱신)')}
       >
         <Coins size={12} className="text-[#c9a34f]" />
         {balance.toLocaleString()}
@@ -66,7 +86,7 @@ function AnlasChips({ balance, cost }: { balance: number | null; cost: number })
       {cost > 0 && (
         <span
           className="rounded-md bg-danger px-2 py-0.5 font-mono text-[11.5px] font-medium text-white"
-          title="이번 생성에 소모될 Anlas (고해상도 · 캐릭터 레퍼런스 · 미인코딩 바이브 포함)"
+          title={t('이번 생성에 소모될 Anlas (고해상도 · 캐릭터 레퍼런스 · 미인코딩 바이브 포함)')}
         >
           -{cost}
         </span>
@@ -76,6 +96,7 @@ function AnlasChips({ balance, cost }: { balance: number | null; cost: number })
 }
 
 function OpusUsageChip(): React.JSX.Element | null {
+  const t = useT()
   const usage = useGenerationStore((s) => s.opusUsage)
   const model = useGenerationStore((s) => s.request.model)
   if (!usage || !model.startsWith('nai-diffusion-5-')) return null
@@ -86,8 +107,8 @@ function OpusUsageChip(): React.JSX.Element | null {
       className="no-drag flex items-center gap-1.5 rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[11.5px] text-muted"
       title={
         usage.isNegative
-          ? 'V5 충전 게이지 소진 — 충전될 때까지 Anlas 사용'
-          : `V5 Opus 충전 게이지 · 다음 1%까지 약 ${hours.toFixed(1)}시간`
+          ? t('V5 충전 게이지 소진 — 충전될 때까지 Anlas 사용')
+          : t('V5 Opus 충전 게이지 · 다음 1%까지 약 {0}시간', hours.toFixed(1))
       }
     >
       <BatteryCharging size={12} className={usage.isNegative ? 'text-danger' : 'text-accent'} />
@@ -114,6 +135,7 @@ function BarButton({
 }
 
 export function Titlebar(): React.JSX.Element {
+  const t = useT()
   const leftOpen = useLayoutStore((s) => s.leftOpen)
   const rightOpen = useLayoutStore((s) => s.rightOpen)
   const toggleLeft = useLayoutStore((s) => s.toggleLeft)
@@ -165,7 +187,7 @@ export function Titlebar(): React.JSX.Element {
         <PageNav />
       </div>
 
-      <BarButton onClick={toggleLeft} active={leftOpen} title="프롬프트 패널 접기/펴기">
+      <BarButton onClick={toggleLeft} active={leftOpen} title={t('프롬프트 패널 접기/펴기')}>
         <PanelLeft size={15} />
       </BarButton>
 
@@ -187,7 +209,7 @@ export function Titlebar(): React.JSX.Element {
       {isMac && <OpusUsageChip />}
       {isMac && <AnlasChips balance={anlasBalance} cost={anlasCost} />}
 
-      <BarButton onClick={toggleRight} active={rightOpen} title="히스토리 패널 접기/펴기">
+      <BarButton onClick={toggleRight} active={rightOpen} title={t('히스토리 패널 접기/펴기')}>
         <PanelRight size={15} />
       </BarButton>
       {isMac && (
@@ -195,22 +217,22 @@ export function Titlebar(): React.JSX.Element {
           <ThemeToggle />
         </div>
       )}
-      <BarButton onClick={() => setSettingsOpen(true)} title="설정">
+      <BarButton onClick={() => setSettingsOpen(true)} title={t('설정')}>
         <Settings size={15} />
       </BarButton>
 
       {!isMac && (
         <div className="no-drag ml-1 flex items-center">
-          <BarButton className="w-9" onClick={() => ctrl('minimize')} aria-label="최소화">
+          <BarButton className="w-9" onClick={() => ctrl('minimize')} aria-label={t('최소화')}>
             <Minus size={15} />
           </BarButton>
-          <BarButton className="w-9" onClick={() => ctrl('maximize')} aria-label="최대화">
+          <BarButton className="w-9" onClick={() => ctrl('maximize')} aria-label={t('최대화')}>
             <Square size={12} />
           </BarButton>
           <BarButton
             className="w-9 hover:bg-danger hover:text-white"
             onClick={() => ctrl('close')}
-            aria-label="닫기"
+            aria-label={t('닫기')}
           >
             <X size={15} />
           </BarButton>

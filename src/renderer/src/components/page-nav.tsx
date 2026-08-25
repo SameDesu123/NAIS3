@@ -1,6 +1,7 @@
 import { Globe, Image, LayoutGrid, Library, Wand2, type LucideIcon } from 'lucide-react'
 import { motion } from 'motion/react'
 import { cn } from '../lib/utils'
+import { useT } from '../lib/i18n'
 import { useLayoutStore } from '../stores/layout-store'
 
 type Page = 'main' | 'scene' | 'director' | 'library' | 'websearch'
@@ -18,6 +19,7 @@ const PAGES: { id: Page; label: string; icon: LucideIcon }[] = [
  * 활성 탭에 layoutId 슬라이딩 pill이 부드럽게 이동한다.
  */
 export function PageNav(): React.JSX.Element {
+  const t = useT()
   const centerMode = useLayoutStore((s) => s.centerMode)
   const setCenterMode = useLayoutStore((s) => s.setCenterMode)
   const hiddenPages = useLayoutStore((s) => s.hiddenPages)
@@ -45,7 +47,7 @@ export function PageNav(): React.JSX.Element {
             )}
             <span className="relative z-10 flex items-center gap-2">
               <page.icon className="size-4" />
-              {page.label}
+              {t(page.label)}
             </span>
           </button>
         )

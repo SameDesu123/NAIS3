@@ -14,6 +14,7 @@ import { createPortal } from 'react-dom'
 import type { CharRefItem, CharRefType, VibeItem } from '@shared/types'
 import { useGenerationStore } from '../stores/generation-store'
 import { cn } from '../lib/utils'
+import { useT } from '../lib/i18n'
 import { applyClickSelection, useSelectAllShortcut } from '../lib/edit-selection'
 import { buildDisplayRows } from '../lib/folder-list'
 import { CHARREF_TYPES, refsStoreFor } from '../stores/refs-store'
@@ -32,6 +33,7 @@ import { Switch } from './ui/switch'
  * 헤더: 토글 / 썸네일(호버 미리보기) / 이름. 펼치면 전체 이미지 + 파라미터.
  */
 export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.Element {
+  const t = useT()
   const model = useGenerationStore((s) => s.request.model)
   const store = refsStoreFor(kind)
   const setOverlayOpen = store((s) => s.setOverlayOpen)
@@ -92,9 +94,9 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
 
   const bulkDelete = async (): Promise<void> => {
     if (
-      !(await askConfirm('선택 삭제', {
-        message: `선택한 ${selected.size}개를 삭제합니다.`,
-        confirmLabel: '삭제',
+      !(await askConfirm(t('선택 삭제'), {
+        message: t('선택한 {0}개를 삭제합니다.', selected.size),
+        confirmLabel: t('삭제'),
         danger: true
       }))
     )
@@ -151,7 +153,7 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
             </span>
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
-            {item.name || <span className="text-faint">이름 없음</span>}
+            {item.name || <span className="text-faint">{t('이름 없음')}</span>}
           </span>
           <span className="shrink-0 font-mono text-[10px] text-faint">
             {kind === 'vibe'
@@ -186,7 +188,7 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
           className="min-w-0 flex-1 truncate text-left text-[13px] text-ink"
           onClick={() => setExpandedId((prev) => (prev === item.id ? null : item.id))}
         >
-          {item.name || <span className="text-faint">이름 없음</span>}
+          {item.name || <span className="text-faint">{t('이름 없음')}</span>}
         </button>
         {/* 바이브 인코딩 완료 표시 — 채워진 점=인코딩됨, 빈 점=생성 시 인코딩 예정 */}
         {kind === 'vibe' && (
@@ -199,8 +201,8 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
             )}
             title={
               (item as VibeItem).encodedModels?.includes(model)
-                ? '현재 모델로 인코딩됨'
-                : '현재 모델 미인코딩 (생성 시 2 Anlas)'
+                ? t('현재 모델로 인코딩됨')
+                : t('현재 모델 미인코딩 (생성 시 2 Anlas)')
             }
           />
         )}
@@ -231,14 +233,14 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
           <Input
             className="h-7 flex-1 text-[12px]"
             value={item.name}
-            placeholder="이름 (선택)"
+            placeholder={t('이름 (선택)')}
             onChange={(e) => update(item.id, { name: e.target.value })}
           />
           <Button
             size="sm"
             variant="ghost"
             className="h-7 w-7 p-0 hover:text-danger"
-            title="삭제"
+            title={t('삭제')}
             onClick={() => remove(item.id)}
           >
             <Trash2 size={13} />
@@ -260,13 +262,13 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
           size="icon"
           variant="ghost"
           className="h-7 w-7"
-          title="닫기"
+          title={t('닫기')}
           onClick={() => setOverlayOpen(false)}
         >
           <X size={15} />
         </Button>
         <span className="text-[13px] font-medium">
-          {kind === 'vibe' ? '바이브 트랜스퍼' : '캐릭터 레퍼런스'}
+          {kind === 'vibe' ? t('바이브 트랜스퍼') : t('캐릭터 레퍼런스')}
         </span>
         {enabledCount > 0 && (
           <span className="rounded-full bg-accent-soft px-1.5 font-mono text-[10.5px] text-accent">
@@ -281,37 +283,37 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
           <Input
             className="pl-7"
             value={search}
-            placeholder="검색"
+            placeholder={t('검색')}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Button
           size="sm"
           variant="ghost"
-          title="폴더 추가"
-          onClick={() => void createFolder('새 폴더')}
+          title={t('폴더 추가')}
+          onClick={() => void createFolder(t('새 폴더'))}
         >
           <FolderPlus size={14} />
         </Button>
         <Button
           size="sm"
           variant={editMode ? 'accent' : 'ghost'}
-          title="편집 모드 (다중 선택 — 클릭 토글, Shift+클릭 구간, Ctrl+A 전체)"
+          title={t('편집 모드 (다중 선택 — 클릭 토글, Shift+클릭 구간, Ctrl+A 전체)')}
           onClick={toggleEditMode}
         >
           <CheckSquare size={14} />
         </Button>
         <Button size="sm" variant="accent" className="gap-1" onClick={() => void add(null)}>
-          <ImagePlus size={13} /> 추가
+          <ImagePlus size={13} /> {t('추가')}
         </Button>
       </div>
 
       {/* 편집 모드 일괄 작업 바 — 검색 아래 */}
       {editMode && (
         <div className="flex flex-wrap items-center gap-1 border-b border-line pb-2 text-[12px]">
-          <span className="text-muted">{selected.size}개</span>
+          <span className="text-muted">{t('{0}개', selected.size)}</span>
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set(visibleIds))}>
-            전체
+            {t('전체')}
           </Button>
           <Button
             size="sm"
@@ -319,7 +321,7 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
             disabled={selected.size === 0}
             onClick={() => setSelected(new Set())}
           >
-            해제
+            {t('해제')}
           </Button>
           <div className="flex-1" />
           <Button
@@ -329,7 +331,7 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
             disabled={selected.size === 0}
             onClick={() => void bulkDuplicate()}
           >
-            <Copy size={12} /> 복제
+            <Copy size={12} /> {t('복제')}
           </Button>
           <Button
             size="sm"
@@ -338,7 +340,7 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
             disabled={selected.size === 0}
             onClick={() => setBulkParamsOpen(true)}
           >
-            <SlidersHorizontal size={12} /> 파라미터
+            <SlidersHorizontal size={12} /> {t('파라미터')}
           </Button>
           <Button
             size="sm"
@@ -347,7 +349,7 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
             disabled={selected.size === 0}
             onClick={() => void bulkDelete()}
           >
-            <Trash2 size={12} /> 삭제
+            <Trash2 size={12} /> {t('삭제')}
           </Button>
         </div>
       )}
@@ -380,19 +382,19 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
             <>
               <ContextMenuItem
                 onSelect={async () => {
-                  const name = await askText('이름 변경', byId.get(row.id)?.name ?? '')
+                  const name = await askText(t('이름 변경'), byId.get(row.id)?.name ?? '')
                   if (name != null) update(row.id, { name })
                 }}
               >
-                <Pencil size={13} /> 이름 변경
+                <Pencil size={13} /> {t('이름 변경')}
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem danger onSelect={() => remove(row.id)}>
-                <Trash2 size={13} /> 삭제
+                <Trash2 size={13} /> {t('삭제')}
               </ContextMenuItem>
             </>
           )}
-          emptyText={items.length === 0 ? '이미지를 추가해보세요' : '검색 결과 없음'}
+          emptyText={items.length === 0 ? t('이미지를 추가해보세요') : t('검색 결과 없음')}
         />
       </div>
 
@@ -434,6 +436,7 @@ function BulkParamsDialog({
   onApply: (patch: Record<string, unknown>) => void
   onClose: () => void
 }): React.JSX.Element {
+  const t = useT()
   const [strength, setStrength] = useState(0.6)
   const [info, setInfo] = useState(0.7)
   const [fidelity, setFidelity] = useState(0.5)
@@ -442,11 +445,13 @@ function BulkParamsDialog({
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm p-4">
-        <DialogTitle className="mb-1">파라미터 일괄 적용</DialogTitle>
-        <p className="mb-3 text-[12px] text-muted">선택한 {count}개에 아래 값을 적용합니다.</p>
+        <DialogTitle className="mb-1">{t('파라미터 일괄 적용')}</DialogTitle>
+        <p className="mb-3 text-[12px] text-muted">
+          {t('선택한 {0}개에 아래 값을 적용합니다.', count)}
+        </p>
         <div className="flex flex-col gap-2.5">
           {kind === 'charref' && (
-            <ParamRow label="타입">
+            <ParamRow label={t('타입')}>
               <Select value={refType} onValueChange={(v) => setRefType(v as CharRefType)}>
                 <SelectTrigger className="h-7 flex-1 text-[12px]">
                   <SelectValue />
@@ -461,7 +466,7 @@ function BulkParamsDialog({
               </Select>
             </ParamRow>
           )}
-          <ParamRow label={`강도 ${strength.toFixed(2)}`}>
+          <ParamRow label={t('강도 {0}', strength.toFixed(2))}>
             <Slider
               min={0}
               max={1}
@@ -471,7 +476,7 @@ function BulkParamsDialog({
             />
           </ParamRow>
           {kind === 'vibe' ? (
-            <ParamRow label={`정보 ${info.toFixed(2)}`}>
+            <ParamRow label={t('정보 {0}', info.toFixed(2))}>
               <Slider
                 min={0}
                 max={1}
@@ -481,7 +486,7 @@ function BulkParamsDialog({
               />
             </ParamRow>
           ) : (
-            <ParamRow label={`충실도 ${fidelity.toFixed(2)}`}>
+            <ParamRow label={t('충실도 {0}', fidelity.toFixed(2))}>
               <Slider
                 min={0}
                 max={1}
@@ -494,7 +499,7 @@ function BulkParamsDialog({
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            취소
+            {t('취소')}
           </Button>
           <Button
             variant="accent"
@@ -506,7 +511,7 @@ function BulkParamsDialog({
               )
             }
           >
-            적용
+            {t('적용')}
           </Button>
         </div>
       </DialogContent>
@@ -538,9 +543,10 @@ function VibeParams({
   model: string
   update: (id: number, patch: Record<string, unknown>) => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <div className="flex flex-col gap-1.5">
-      <ParamRow label={`강도 ${item.strength.toFixed(2)}`}>
+      <ParamRow label={t('강도 {0}', item.strength.toFixed(2))}>
         <Slider
           min={0}
           max={1}
@@ -549,7 +555,7 @@ function VibeParams({
           onValueChange={([v]) => update(item.id, { strength: Math.round(v * 100) / 100 })}
         />
       </ParamRow>
-      <ParamRow label={`정보 ${item.infoExtracted.toFixed(2)}`}>
+      <ParamRow label={t('정보 {0}', item.infoExtracted.toFixed(2))}>
         <Slider
           min={0}
           max={1}
@@ -559,7 +565,7 @@ function VibeParams({
         />
       </ParamRow>
       {!item.encodedModels?.includes(model) && (
-        <p className="text-[10.5px] text-faint">생성 시 인코딩 (2 Anlas, 이후 캐시)</p>
+        <p className="text-[10.5px] text-faint">{t('생성 시 인코딩 (2 Anlas, 이후 캐시)')}</p>
       )}
     </div>
   )
@@ -572,9 +578,10 @@ function CharRefParams({
   item: CharRefItem
   update: (id: number, patch: Record<string, unknown>) => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <div className="flex flex-col gap-1.5">
-      <ParamRow label="타입">
+      <ParamRow label={t('타입')}>
         <Select
           value={item.refType}
           onValueChange={(v) => update(item.id, { refType: v as CharRefType })}
@@ -591,7 +598,7 @@ function CharRefParams({
           </SelectContent>
         </Select>
       </ParamRow>
-      <ParamRow label={`강도 ${item.strength.toFixed(2)}`}>
+      <ParamRow label={t('강도 {0}', item.strength.toFixed(2))}>
         <Slider
           min={0}
           max={1}
@@ -600,7 +607,7 @@ function CharRefParams({
           onValueChange={([v]) => update(item.id, { strength: Math.round(v * 100) / 100 })}
         />
       </ParamRow>
-      <ParamRow label={`충실도 ${item.fidelity.toFixed(2)}`}>
+      <ParamRow label={t('충실도 {0}', item.fidelity.toFixed(2))}>
         <Slider
           min={0}
           max={1}

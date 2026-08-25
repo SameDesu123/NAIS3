@@ -8,8 +8,7 @@ import { getDb } from '../db'
 export function logBalance(balance: number): void {
   const db = getDb()
   const last = db.prepare('SELECT balance FROM anlas_log ORDER BY id DESC LIMIT 1').get() as
-    | { balance: number }
-    | undefined
+    { balance: number } | undefined
   if (last?.balance === balance) return // 변화 없으면 기록 생략
   db.prepare('INSERT INTO anlas_log (balance) VALUES (?)').run(balance)
 }

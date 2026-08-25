@@ -72,7 +72,8 @@ export function parseWeights(text: string): WeightSegment[] {
       }
     }
   }
-  if (text.length > segStart) segments.push({ start: segStart, end: text.length, weight: segWeight })
+  if (text.length > segStart)
+    segments.push({ start: segStart, end: text.length, weight: segWeight })
   return segments
 }
 
@@ -121,12 +122,10 @@ export function highlightRanges(text: string): HighlightRange[] {
     start: m.index,
     end: m.index + m[0].length
   }))
-  const inFragment = (pos: number): boolean =>
-    fragments.some((f) => f.start <= pos && pos < f.end)
+  const inFragment = (pos: number): boolean => fragments.some((f) => f.start <= pos && pos < f.end)
 
   const comments = commentSpans(text)
-  const inComment = (pos: number): boolean =>
-    comments.some((c) => c.start <= pos && pos < c.end)
+  const inComment = (pos: number): boolean => comments.some((c) => c.start <= pos && pos < c.end)
 
   // 경계점: 가중치 세그먼트 + 조각 + 주석 경계
   const bounds = new Set<number>([0, text.length])
