@@ -139,7 +139,10 @@ export function CharacterOverlay(): React.JSX.Element {
     () => items.filter((c) => c.enabled && c.prompt.trim()),
     [items]
   )
+  const canPositionCharacters = positionableCharacters.length >= 2
+  const positioningEnabled = useCoords && canPositionCharacters
   const openPositionEditor = (id?: number): void => {
+    if (!canPositionCharacters) return
     const selected =
       positionableCharacters.find((char) => char.id === id) ?? positionableCharacters[0]
     if (!selected) return
@@ -266,7 +269,7 @@ export function CharacterOverlay(): React.JSX.Element {
       >
         {char.name || char.prompt.slice(0, 40) || <span className="text-faint">빈 캐릭터</span>}
       </button>
-      {useCoords && char.enabled && !v5 && (
+      {positioningEnabled && char.enabled && !v5 && (
         <Popover>
           <PopoverTrigger asChild>
             <Button size="sm" variant="ghost" className="h-7 gap-1 px-1.5 font-mono text-[11px]">
@@ -282,7 +285,7 @@ export function CharacterOverlay(): React.JSX.Element {
           </PopoverContent>
         </Popover>
       )}
-      {useCoords && char.enabled && v5 && (
+      {positioningEnabled && char.enabled && v5 && (
         <Button
           size="sm"
           variant="ghost"
@@ -405,10 +408,18 @@ export function CharacterOverlay(): React.JSX.Element {
         <div className="flex-1" />
         <label
           className="flex items-center gap-1.5 text-[11.5px] text-muted"
-          title="끄면 AI's Choice (NAI가 위치 결정)"
+          title={
+            canPositionCharacters
+              ? "끄면 AI's Choice (NAI가 위치 결정)"
+              : '위치 지정은 활성 캐릭터가 2명 이상일 때 사용할 수 있습니다'
+          }
         >
           위치 지정
-          <Switch checked={useCoords} onCheckedChange={(v) => patch({ useCoords: v })} />
+          <Switch
+            checked={positioningEnabled}
+            disabled={!canPositionCharacters}
+            onCheckedChange={(v) => patch({ useCoords: v })}
+          />
         </label>
         {v5 && (
           <Button
@@ -416,7 +427,7 @@ export function CharacterOverlay(): React.JSX.Element {
             variant="ghost"
             className="h-7 gap-1 px-2"
             title="V5 캐릭터 자유 위치 편집"
-            disabled={positionableCharacters.length === 0}
+            disabled={!canPositionCharacters}
             onClick={() => openPositionEditor(positionEditorId ?? undefined)}
           >
             <Crosshair size={13} /> 배치
@@ -512,7 +523,7 @@ export function CharacterOverlay(): React.JSX.Element {
           searching={searching}
           expandedId={editMode ? null : expandedId}
           // 헤더가 item 밖 상태(좌표 토글/편집 선택)에 의존 — 바뀌면 카드 리렌더
-          renderKey={editMode ? selected : useCoords}
+          renderKey={editMode ? selected : positioningEnabled}
           folderActions={{
             rename: renameFolder,
             toggleCollapse,
@@ -586,7 +597,7 @@ export function CharacterOverlay(): React.JSX.Element {
 
       {v5 && (
         <CharacterPositionEditor
-          open={positionEditorOpen}
+          open={positionEditorOpen && canPositionCharacters}
           characters={positionableCharacters}
           selectedId={positionEditorId}
           width={outputWidth}
