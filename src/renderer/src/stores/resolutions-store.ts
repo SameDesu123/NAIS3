@@ -1,4 +1,9 @@
 import { create } from 'zustand'
+import {
+  fitNaiGenerationResolution,
+  snapNaiDimension,
+  type ResolutionDimension
+} from '@shared/nai-resolution'
 
 export interface CustomResolution {
   label: string
@@ -8,7 +13,11 @@ export interface CustomResolution {
 
 interface ResolutionsState {
   custom: CustomResolution[]
-  add: (width: number, height: number) => CustomResolution | null
+  add: (
+    width: number,
+    height: number,
+    preservedDimension?: ResolutionDimension
+  ) => CustomResolution | null
   remove: (index: number) => void
 }
 
@@ -26,17 +35,14 @@ function save(list: CustomResolution[]): void {
   localStorage.setItem(KEY, JSON.stringify(list))
 }
 
-/** NAI 유효 해상도로 스냅 — 64의 배수, 각 변 [64, 2048]. 생성 실패 방지 */
-export function snapDim(n: number): number {
-  return Math.max(64, Math.min(2048, Math.round(n / 64) * 64))
-}
+export const snapDim = snapNaiDimension
 
 export const useResolutionsStore = create<ResolutionsState>((set, get) => ({
   custom: load(),
-  add: (width, height) => {
-    const w = snapDim(width)
-    const h = snapDim(height)
-    if (!Number.isFinite(w) || !Number.isFinite(h)) return null
+  add: (width, height, preservedDimension = 'height') => {
+    const fitted = fitNaiGenerationResolution(width, height, preservedDimension)
+    if (!fitted) return null
+    const { width: w, height: h } = fitted
     // 이미 있으면(기본/커스텀 무관) 추가 안 함 — 중복 방지는 UI에서, 여기선 커스텀 중복만 체크
     if (get().custom.some((r) => r.width === w && r.height === h)) return null
     const item = { label: `${w}×${h}`, width: w, height: h }
