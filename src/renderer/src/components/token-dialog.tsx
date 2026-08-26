@@ -650,6 +650,7 @@ function AccountSection(): React.JSX.Element {
   }
 
   const activeAccount = accounts.find((account) => account.active)
+  const opusUsageSegments = opusUsage ? opusUsagePercentSegments(opusUsage) : [0]
 
   return (
     <div className="flex min-h-full w-full min-w-0 max-w-full flex-col gap-3 overflow-x-hidden">
@@ -778,9 +779,14 @@ function AccountSection(): React.JSX.Element {
               {opusUsage ? `${displayOpusUsagePercent(opusUsage)}%` : '—'}
             </span>
           </div>
-          <div className="flex h-2 gap-1">
-            {(opusUsage ? opusUsagePercentSegments(opusUsage) : [0]).map((percent, index) => (
-              <div key={index} className="h-full flex-1 overflow-hidden rounded-full bg-paper">
+          {/* 부스트로 100%를 넘으면 100 단위로 칸이 늘어난다(198% = 100+98).
+              flex-1 대신 grid minmax(0,1fr) — 칸이 늘어도 폭을 벗어나지 않는다 (PR #6) */}
+          <div
+            className="grid h-2 w-full min-w-0 gap-1 overflow-hidden"
+            style={{ gridTemplateColumns: `repeat(${opusUsageSegments.length}, minmax(0, 1fr))` }}
+          >
+            {opusUsageSegments.map((percent, index) => (
+              <div key={index} className="h-full min-w-0 overflow-hidden rounded-full bg-paper">
                 <div
                   className={cn(
                     'h-full rounded-full transition-[width] duration-300',
