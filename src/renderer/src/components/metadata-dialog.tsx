@@ -224,11 +224,11 @@ function SplitPreview({
 }): React.JSX.Element {
   const parts = meta.promptParts
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex flex-1 flex-col">
       <div className="mb-1">
         <CheckLabel checked={sel.prompt} onClick={() => toggle('prompt')} label="프롬프트 3분할" />
       </div>
-      <div className={cn('flex min-h-0 flex-1 flex-col gap-1.5', !sel.prompt && 'opacity-40')}>
+      <div className={cn('flex flex-1 flex-col gap-1.5', !sel.prompt && 'opacity-40')}>
         <Part label="고정" value={parts?.base ?? ''} />
         <Part label="가변" value={parts?.additional ?? ''} />
         <Part label="디테일" value={parts?.detail ?? ''} />
@@ -237,9 +237,12 @@ function SplitPreview({
   )
 }
 
+// 래퍼에 min-h-0을 주면 안 된다 — 래퍼만 0까지 눌리고 안쪽 textarea는 자기 min-height를 지켜서
+// 박스 밖으로 삐져나와 아래 섹션 위에 그려진다(작은 화면에서 UI 깨짐). min-height:auto로 두면
+// 대신 바깥 본문(overflow-y-auto)이 스크롤된다.
 function Part({ label, value }: { label: string; value: string }): React.JSX.Element {
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded-md border border-line bg-surface-2/40 p-2">
+    <div className="flex flex-1 flex-col rounded-md border border-line bg-surface-2/40 p-2">
       <div className="mb-1 flex items-center justify-between gap-2">
         <p className="text-[10.5px] font-medium text-faint">{label}</p>
         <CopyButton value={value} label={`${label} 복사`} />
@@ -293,7 +296,7 @@ function Field({
   grow?: boolean
 }): React.JSX.Element {
   return (
-    <div className={grow ? 'flex min-h-0 flex-1 flex-col' : 'flex flex-none flex-col'}>
+    <div className={grow ? 'flex flex-1 flex-col' : 'flex flex-none flex-col'}>
       <div className="mb-1">
         <div className="flex items-center justify-between gap-2">
           <CheckLabel checked={sel[k]} onClick={() => toggle(k)} label={label} />
