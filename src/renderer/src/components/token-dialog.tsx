@@ -616,7 +616,7 @@ function AccountSection(): React.JSX.Element {
   const activeAccount = accounts.find((account) => account.active)
 
   return (
-    <div className="flex min-h-full min-w-0 flex-col gap-3 overflow-x-hidden">
+    <div className="flex min-h-full w-full min-w-0 max-w-full flex-col gap-3 overflow-x-hidden">
       <div className="min-w-0">
         <p className="text-[13px] text-ink">NAI 계정</p>
         <p className="mt-0.5 text-[11.5px] text-faint">
@@ -625,7 +625,7 @@ function AccountSection(): React.JSX.Element {
         </p>
       </div>
 
-      <div className="grid min-w-0 grid-cols-[7rem_minmax(0,1fr)_auto] gap-1.5">
+      <div className="grid w-full min-w-0 max-w-full grid-cols-[7rem_minmax(0,1fr)_auto] gap-1.5">
         <Input
           className="w-28 shrink-0"
           value={label}
@@ -652,7 +652,7 @@ function AccountSection(): React.JSX.Element {
       {status === 'ok' && <span className="text-[12px] text-accent">{message}</span>}
       {status === 'fail' && <span className="text-[12px] text-danger">{message}</span>}
 
-      <div className="min-w-0 space-y-1.5">
+      <div className="w-full min-w-0 max-w-full space-y-1.5">
         {accounts.length === 0 ? (
           <div className="rounded-lg border border-dashed border-line p-4 text-center text-[11.5px] text-faint">
             등록된 계정이 없습니다.
@@ -726,7 +726,7 @@ function AccountSection(): React.JSX.Element {
       </div>
 
       {activeAccount && subscriptionTier === 'opus' && (
-        <div className="rounded-lg border border-line bg-surface-2/50 p-3">
+        <div className="w-full min-w-0 max-w-full rounded-lg border border-line bg-surface-2/50 p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink">
               <BatteryCharging
@@ -765,7 +765,7 @@ function AccountSection(): React.JSX.Element {
       )}
 
       {/* Anlas 사용량 — 잔액 스냅샷 간 감소분 합산 */}
-      <div className="rounded-lg border border-line bg-surface-2/50 p-3">
+      <div className="w-full min-w-0 max-w-full rounded-lg border border-line bg-surface-2/50 p-3">
         <p className="mb-2 flex items-center gap-1.5 text-[12.5px] font-medium text-ink">
           <Coins size={13} className="text-[#c9a34f]" /> Anlas
         </p>
@@ -873,7 +873,7 @@ export function SettingsDialog({
         <Tabs
           value={section}
           onValueChange={(v) => setSection(v as SectionId)}
-          className="flex h-full min-h-0"
+          className="flex h-full w-full min-h-0 min-w-0 overflow-hidden"
           orientation="vertical"
         >
           <nav className="flex w-40 shrink-0 flex-col border-r border-line bg-surface-2/50 p-2">
@@ -893,7 +893,7 @@ export function SettingsDialog({
               ))}
             </TabsList>
           </nav>
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex w-0 min-w-0 flex-1 flex-col overflow-hidden">
             {/* 헤더 — 섹션명. 우측 상단 X가 이 영역 위에 놓여 본문과 겹치지 않는다 */}
             <div className="flex shrink-0 items-center border-b border-line px-6 py-3.5">
               <h2 className="text-[14px] font-semibold text-ink">
@@ -913,7 +913,7 @@ export function SettingsDialog({
               <TabsContent value="shortcuts" className="m-0">
                 <ShortcutsSection />
               </TabsContent>
-              <TabsContent value="account" className="m-0 min-h-full min-w-0">
+              <TabsContent value="account" className="m-0 min-h-full w-full min-w-0 max-w-full">
                 <AccountSection />
               </TabsContent>
               <TabsContent value="about" className="m-0">
