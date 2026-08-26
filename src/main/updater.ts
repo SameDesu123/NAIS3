@@ -7,6 +7,7 @@ import { tmpdir } from 'os'
 import { basename, join, resolve } from 'path'
 import { promisify } from 'util'
 import { broadcast } from './ipc'
+import { t } from './i18n'
 
 // electron-updater는 CJS — ESM에서 named import가 깨질 수 있어 default에서 구조분해
 const { autoUpdater } = electronUpdater
@@ -124,7 +125,7 @@ async function downloadAndInstallMac(): Promise<void> {
 
     // 1. zip 다운로드 (진행률 브로드캐스트)
     const res = await fetch(asset.browser_download_url)
-    if (!res.ok || !res.body) throw new Error(`다운로드 실패 ${res.status}`)
+    if (!res.ok || !res.body) throw new Error(t('다운로드 실패 {0}', res.status))
     const tmp = await mkdtemp(join(tmpdir(), 'nais3-update-'))
     const zipPath = join(tmp, asset.name)
     const out = createWriteStream(zipPath)
@@ -173,7 +174,10 @@ async function downloadAndInstallMac(): Promise<void> {
     // 권한 부족 등으로 실패하면 릴리즈 페이지로 폴백
     broadcast('update:status', {
       state: 'error',
-      message: `자동 설치 실패 — 릴리즈 페이지를 엽니다 (${e instanceof Error ? e.message : e})`
+      message: t(
+        '자동 설치 실패 — 릴리즈 페이지를 엽니다 ({0})',
+        e instanceof Error ? e.message : String(e)
+      )
     })
     void shell.openExternal(RELEASE_PAGE)
   }

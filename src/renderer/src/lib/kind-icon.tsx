@@ -15,6 +15,7 @@ import {
   Wand2,
   type LucideIcon
 } from 'lucide-react'
+import { useT } from './i18n'
 
 /** 생성 종류별 아이콘·색 (NAIS2 히스토리 배지 계승). 디렉터는 툴별 아이콘/색을 director-mode와 일치 */
 const KIND_MAP: Record<string, { Icon: LucideIcon; className: string; label: string }> = {
@@ -44,11 +45,12 @@ export function kindMeta(kind: string): { Icon: LucideIcon; className: string; l
 
 /** 좌하단 배지 형태 (히스토리 썸네일·소스 배너 공용) */
 export function KindBadge({ kind, size = 12 }: { kind: string; size?: number }): React.JSX.Element {
+  const t = useT()
   const { Icon, className, label } = kindMeta(kind)
   return (
     <span
       className="pointer-events-none absolute bottom-1 left-1 grid place-items-center rounded bg-black/55 p-0.5 backdrop-blur-sm"
-      title={label}
+      title={t(label)}
     >
       <Icon size={size} className={className} />
     </span>

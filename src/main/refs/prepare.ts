@@ -2,6 +2,7 @@ import { readFileSync } from 'fs'
 import sharp from 'sharp'
 import type { CharacterReferenceOptions, VibeOptions } from '../nai/payload'
 import { ENDPOINTS } from '../nai/endpoints'
+import { t } from '../i18n'
 import {
   charRefRowsByIds,
   enabledCharRefRows,
@@ -36,7 +37,7 @@ export async function prepareVibes(
       })
       if (!res.ok) {
         const text = await res.text().catch(() => '')
-        throw new Error(`바이브 인코딩 실패 ${res.status}: ${text.slice(0, 200)}`)
+        throw new Error(t('바이브 인코딩 실패 {0}: {1}', res.status, text.slice(0, 200)))
       }
       encoded = Buffer.from(await res.arrayBuffer()).toString('base64')
       const packed = putVibeEncoding(row.encoded, row.encodedIe, model, row.infoExtracted, encoded)
@@ -59,7 +60,11 @@ async function processCharRefImage(filePath: string): Promise<string> {
   const h = meta.height ?? 1
   const ratio = w / h
   const canvas =
-    ratio > 1.2 ? { w: 1536, h: 1024 } : ratio < 1 / 1.2 ? { w: 1024, h: 1536 } : { w: 1472, h: 1472 }
+    ratio > 1.2
+      ? { w: 1536, h: 1024 }
+      : ratio < 1 / 1.2
+        ? { w: 1024, h: 1536 }
+        : { w: 1472, h: 1472 }
 
   const png = await sharp(buf)
     .resize(canvas.w, canvas.h, { fit: 'contain', background: { r: 0, g: 0, b: 0 } })

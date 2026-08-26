@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { CharacterCard, CharacterCardPatch, ListFolder } from '@shared/types'
 import { canonicalize, moveRow, toOrderEntries } from '../lib/folder-list'
+import { t } from '../lib/i18n'
 
 /**
  * 캐릭터 단일 리스트 모델 (공용 폴더 리스트 로직 사용):
@@ -147,12 +148,12 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
     for (let i = 0; i < Math.min(chars.length, maxCharacters); i++) {
       const ch = chars[i]
       const { id } = await window.nais.invoke('chars:create', {
-        name: `가져온 캐릭터 ${i + 1}`,
+        name: t('가져온 캐릭터 {0}', i + 1),
         folderId: null
       })
       const card: CharacterCard = {
         id,
-        name: `가져온 캐릭터 ${i + 1}`,
+        name: t('가져온 캐릭터 {0}', i + 1),
         prompt: ch.prompt,
         negativePrompt: ch.negativePrompt,
         thumbnail: '',

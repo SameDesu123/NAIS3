@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { t } from '../lib/i18n'
 
 /**
  * 텍스트 입력 다이얼로그 (Electron은 window.prompt를 지원하지 않음).
@@ -44,7 +45,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
         confirm: {
           title,
           message: opts?.message,
-          confirmLabel: opts?.confirmLabel ?? '확인',
+          confirmLabel: opts?.confirmLabel ?? t('확인'),
           danger: opts?.danger ?? false,
           resolve
         }

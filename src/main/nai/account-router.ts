@@ -6,6 +6,7 @@ import {
   setActiveNaiAccount,
   type StoredNaiAccount
 } from '../db/settings'
+import { t } from '../i18n'
 import { fetchAnlasBalance } from './client'
 
 export interface NaiAccountBalance {
@@ -56,7 +57,7 @@ export async function chooseNaiAccount(
   const activeIndex = accounts.findIndex((account) => account.id === activeId)
   const normalizedIndex = activeIndex >= 0 ? activeIndex : 0
   const active = accounts[normalizedIndex]
-  if (!active) throw new Error('NAI 토큰이 설정되지 않았습니다')
+  if (!active) throw new Error(t('NAI 토큰이 설정되지 않았습니다'))
   if (!usesV5Usage || accounts.length < 2) return { account: active, rotated: false }
 
   const activeBalance = await balanceFor(active.token)

@@ -1,5 +1,6 @@
 import { getDb } from '../db'
 import { getSetting, setSetting } from '../db/settings'
+import { t } from '../i18n'
 import { createPromptPreset } from '../prompts/repo'
 import type { PresetParams } from '../../shared/types'
 
@@ -42,8 +43,7 @@ function mergePrompt(base: unknown, add: unknown, detail: unknown): string {
 function nais2PresetParams(p: Obj): PresetParams | undefined {
   const num = (v: unknown): number | undefined =>
     typeof v === 'number' && Number.isFinite(v) ? v : undefined
-  const str = (v: unknown): string | undefined =>
-    typeof v === 'string' && v ? v : undefined
+  const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined)
   const res = p.selectedResolution as { width?: unknown; height?: unknown } | undefined
   const params: PresetParams = {
     model: str(p.model),
@@ -65,13 +65,18 @@ function nais2PresetParams(p: Obj): PresetParams | undefined {
 
 export function importNais2(data: Obj): Nais2ImportResult {
   const db = getDb()
-  const res: Nais2ImportResult = { characters: 0, presets: 0, fragments: 0, scenes: 0, prompt: false }
+  const res: Nais2ImportResult = {
+    characters: 0,
+    presets: 0,
+    fragments: 0,
+    scenes: 0,
+    prompt: false
+  }
 
   // 폴더 find-or-create (동명이면 재사용) — 캐릭터/조각 폴더 구조 유지용
   const folderIdFor = (table: 'character_folders' | 'fragment_folders', name: string): number => {
     const existing = db.prepare(`SELECT id FROM ${table} WHERE name = ?`).get(name) as
-      | { id: number }
-      | undefined
+      { id: number } | undefined
     if (existing) return existing.id
     const max = (
       db.prepare(`SELECT COALESCE(MAX(sort_order),0) AS m FROM ${table}`).get() as { m: number }
@@ -89,9 +94,9 @@ export function importNais2(data: Obj): Nais2ImportResult {
     const groups = (Array.isArray(chs.groups) ? (chs.groups as Obj[]) : []).filter(
       (g) => g.id != null && g.name
     )
-    const rawChars = (Array.isArray(chs.characters) && chs.characters.length
-      ? chs.characters
-      : chs.presets) as Obj[] | undefined
+    const rawChars = (
+      Array.isArray(chs.characters) && chs.characters.length ? chs.characters : chs.presets
+    ) as Obj[] | undefined
     const chars = (rawChars ?? [])
       .map((c) => ({
         name: String(c.name ?? ''),
@@ -102,12 +107,19 @@ export function importNais2(data: Obj): Nais2ImportResult {
       .filter((c) => c.prompt || c.negative || c.name)
     if (chars.length) {
       const groupFolder = new Map<string, number>()
-      for (const g of groups) groupFolder.set(String(g.id), folderIdFor('character_folders', String(g.name)))
+      for (const g of groups)
+        groupFolder.set(String(g.id), folderIdFor('character_folders', String(g.name)))
       db.prepare('DELETE FROM character_prompts').run()
       chars.forEach((c, i) => {
         db.prepare(
           'INSERT INTO character_prompts (name, prompt, negative_prompt, folder_id, sort_order) VALUES (?, ?, ?, ?, ?)'
-        ).run(c.name, c.prompt, c.negative, c.groupId ? (groupFolder.get(c.groupId) ?? null) : null, i)
+        ).run(
+          c.name,
+          c.prompt,
+          c.negative,
+          c.groupId ? (groupFolder.get(c.groupId) ?? null) : null,
+          i
+        )
         res.characters++
       })
     }
@@ -117,7 +129,7 @@ export function importNais2(data: Obj): Nais2ImportResult {
     const ps = state(data, 'nais2-presets')
     const presets = (Array.isArray(ps.presets) ? (ps.presets as Obj[]) : [])
       .map((p) => ({
-        name: String(p.name ?? '가져온 프리셋'),
+        name: String(p.name ?? t('가져온 프리셋')),
         prompt: mergePrompt(p.basePrompt, p.additionalPrompt, p.detailPrompt),
         negative: removeComments(String(p.negativePrompt ?? '')).trim(),
         params: nais2PresetParams(p)
@@ -136,11 +148,13 @@ export function importNais2(data: Obj): Nais2ImportResult {
     const contentMap = (data['nais2-wildcard-content'] ?? {}) as Record<string, unknown>
     const frags = (Array.isArray(wc.files) ? (wc.files as Obj[]) : [])
       .map((f) => {
-        const lines = (Array.isArray(contentMap[String(f.id)])
-          ? contentMap[String(f.id)]
-          : Array.isArray(f.content)
-            ? f.content
-            : []) as unknown[]
+        const lines = (
+          Array.isArray(contentMap[String(f.id)])
+            ? contentMap[String(f.id)]
+            : Array.isArray(f.content)
+              ? f.content
+              : []
+        ) as unknown[]
         return {
           name: String(f.name ?? '').trim(),
           content: lines.map((l) => String(l)).join('\n'),
@@ -167,7 +181,9 @@ export function importNais2(data: Obj): Nais2ImportResult {
       }
       frags.forEach((f, i) => {
         // NAIS2 folder는 경로 문자열 — fragment_folders를 만들어 folder_id로 매핑 (구조 유지)
-        const folderId = f.folder ? folderIdFor('fragment_folders', f.folder.replace(/\//g, '-')) : null
+        const folderId = f.folder
+          ? folderIdFor('fragment_folders', f.folder.replace(/\//g, '-'))
+          : null
         db.prepare(
           'INSERT INTO fragments (name, content, folder_id, sort_order) VALUES (?, ?, ?, ?)'
         ).run(unique(f.name), f.content, folderId, i)
@@ -182,7 +198,7 @@ export function importNais2(data: Obj): Nais2ImportResult {
     if (Array.isArray(sc.presets)) {
       for (const p of sc.presets as Obj[]) {
         const scenes = (Array.isArray(p.scenes) ? (p.scenes as Obj[]) : []).map((s) => ({
-          name: String(s.name ?? '씬'),
+          name: String(s.name ?? t('씬')),
           prompt: String(s.scenePrompt ?? ''),
           width: Number(s.width) || 832,
           height: Number(s.height) || 1216
@@ -196,7 +212,7 @@ export function importNais2(data: Obj): Nais2ImportResult {
         const presetId = Number(
           db
             .prepare('INSERT INTO scene_presets (name, sort_order) VALUES (?, ?)')
-            .run(String(p.name ?? '가져온 씬'), maxOrder + 1).lastInsertRowid
+            .run(String(p.name ?? t('가져온 씬')), maxOrder + 1).lastInsertRowid
         )
         scenes.forEach((s, i) => {
           db.prepare(

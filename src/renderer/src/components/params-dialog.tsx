@@ -1,6 +1,7 @@
 import { Dice5, Lock, LockOpen } from 'lucide-react'
 import type { UcPresetIndex } from '@shared/types'
 import { NOISE_SCHEDULES, SAMPLERS, UC_PRESET_OPTIONS } from '../lib/constants'
+import { useT } from '../lib/i18n'
 import {
   generationDefaultsForModel,
   inpaintingModelFor,
@@ -31,6 +32,7 @@ export function ParamsDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }): React.JSX.Element {
+  const t = useT()
   const request = useGenerationStore((s) => s.request)
   const source = useGenerationStore((s) => s.source)
   const patch = useGenerationStore((s) => s.patchRequest)
@@ -43,9 +45,9 @@ export function ParamsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[420px] p-5">
-        <DialogTitle className="mb-4">생성 파라미터</DialogTitle>
+        <DialogTitle className="mb-4">{t('생성 파라미터')}</DialogTitle>
         <div className="grid gap-4">
-          <Row label="모델">
+          <Row label={t('모델')}>
             <Select
               value={request.model}
               onValueChange={(model) => patch({ model, ...generationDefaultsForModel(model) })}
@@ -61,7 +63,7 @@ export function ParamsDialog({
               </SelectContent>
             </Select>
           </Row>
-          <Row label="해상도">
+          <Row label={t('해상도')}>
             <ResolutionPicker
               className="w-52"
               width={request.width}
@@ -70,12 +72,12 @@ export function ParamsDialog({
             />
           </Row>
 
-          <Row label="시드">
+          <Row label={t('시드')}>
             <div className="flex w-52 items-center gap-1.5">
               <Input
                 className="font-mono"
                 value={request.seed < 0 ? '' : String(request.seed)}
-                placeholder="랜덤"
+                placeholder={t('랜덤')}
                 onChange={(e) => {
                   const n = Number(e.target.value)
                   patch({ seed: e.target.value === '' || Number.isNaN(n) ? -1 : n })
@@ -84,18 +86,23 @@ export function ParamsDialog({
               <Button
                 size="icon"
                 variant={seedLocked ? 'accent' : 'ghost'}
-                title={seedLocked ? '시드 고정됨' : '시드 고정'}
+                title={seedLocked ? t('시드 고정됨') : t('시드 고정')}
                 onClick={() => setSeedLocked(!seedLocked)}
               >
                 {seedLocked ? <Lock size={14} /> : <LockOpen size={14} />}
               </Button>
-              <Button size="icon" variant="ghost" title="랜덤 시드" onClick={() => patch({ seed: -1 })}>
+              <Button
+                size="icon"
+                variant="ghost"
+                title={t('랜덤 시드')}
+                onClick={() => patch({ seed: -1 })}
+              >
                 <Dice5 size={14} />
               </Button>
             </div>
           </Row>
 
-          <Row label={`스텝 ${request.steps}`}>
+          <Row label={t('스텝 {0}', request.steps)}>
             <Slider
               className="w-52"
               min={1}
@@ -128,7 +135,7 @@ export function ParamsDialog({
             />
           </Row>
 
-          <Row label="샘플러">
+          <Row label={t('샘플러')}>
             <Select value={request.sampler} onValueChange={(v) => patch({ sampler: v })}>
               <SelectTrigger className="w-52">
                 <SelectValue />
@@ -144,7 +151,7 @@ export function ParamsDialog({
           </Row>
 
           {capabilities.noiseScheduleSelection && (
-            <Row label="노이즈 스케줄">
+            <Row label={t('노이즈 스케줄')}>
               <Select
                 value={request.noiseSchedule}
                 onValueChange={(v) => patch({ noiseSchedule: v })}
@@ -163,7 +170,7 @@ export function ParamsDialog({
             </Row>
           )}
 
-          <Row label="UC 프리셋">
+          <Row label={t('UC 프리셋')}>
             <Select
               value={String(request.ucPreset)}
               onValueChange={(v) => patch({ ucPreset: Number(v) as UcPresetIndex })}
@@ -181,7 +188,7 @@ export function ParamsDialog({
             </Select>
           </Row>
 
-          <Row label="퀄리티 태그">
+          <Row label={t('퀄리티 태그')}>
             <Switch
               checked={request.qualityToggle}
               onCheckedChange={(v) => patch({ qualityToggle: v })}
@@ -195,7 +202,7 @@ export function ParamsDialog({
           )}
 
           {supportsTransparency && (
-            <Row label="투명 배경">
+            <Row label={t('투명 배경')}>
               <Switch
                 checked={request.transparentBackground ?? false}
                 onCheckedChange={(v) => patch({ transparentBackground: v })}
