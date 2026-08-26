@@ -121,7 +121,7 @@ export function PromptPresetBar(): React.JSX.Element {
                       p.id === activeId && 'font-semibold text-accent'
                     )}
                   >
-                    <span className="truncate">{t(p.name)}</span>
+                    <span className="truncate">{p.name}</span>
                   </div>
                   <button
                     className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-ink group-hover:opacity-100"

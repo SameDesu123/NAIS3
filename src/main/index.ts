@@ -20,7 +20,7 @@ import {
   thumbnailByPath
 } from './images/storage'
 import { broadcast, registerIpcHandlers } from './ipc'
-import { t } from './i18n'
+import { resolveInitialLanguage, t } from './i18n'
 import { setupUpdater } from './updater'
 import { logBalance } from './nai/anlas-log'
 import { fetchAnlasBalance, generateImageStream, generateImageZip } from './nai/client'
@@ -128,6 +128,8 @@ app.whenReady().then(() => {
   let dbVersion: number
   try {
     dbVersion = initDb().version
+    // DB가 열린 직후 언어를 1회 확정·고정 (기존 설치는 한국어 유지)
+    resolveInitialLanguage()
   } catch (e) {
     // DB를 못 열면 조용히 빈 상태로 시작하지 않는다 — 세이브 유실로 오인되는 최악의 UX
     dialog.showErrorBox(t('NAIS3 데이터베이스 오류'), e instanceof Error ? e.message : String(e))

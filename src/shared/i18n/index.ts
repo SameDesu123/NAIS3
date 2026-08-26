@@ -10,13 +10,22 @@ export function isLang(value: unknown): value is Lang {
   return value === 'ko' || value === 'en'
 }
 
-/** {0}, {1}, ... 플레이스홀더를 args로 치환 */
+/**
+ * {0}, {1}, ... 플레이스홀더를 args로 치환.
+ * 영어 복수형은 {0|image|images} 형태로 args[0]이 1인지에 따라 고른다.
+ * (한국어는 복수형이 없어 키에 이 문법이 등장하지 않는다 — 한국어 모드는 무영향)
+ */
 export function format(template: string, args: readonly (string | number)[]): string {
   if (args.length === 0) return template
-  return template.replace(/\{(\d+)\}/g, (match, index) => {
-    const value = args[Number(index)]
-    return value === undefined ? match : String(value)
-  })
+  return template
+    .replace(/\{(\d+)\|([^|{}]*)\|([^|{}]*)\}/g, (match, index, one, many) => {
+      const value = args[Number(index)]
+      return value === undefined ? match : Number(value) === 1 ? one : many
+    })
+    .replace(/\{(\d+)\}/g, (match, index) => {
+      const value = args[Number(index)]
+      return value === undefined ? match : String(value)
+    })
 }
 
 export function translate(

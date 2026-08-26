@@ -123,7 +123,7 @@ function PresetDropdown(): React.JSX.Element {
                       p.id === activePresetId && 'font-semibold text-accent'
                     )}
                   >
-                    <span className="truncate">{t(p.name)}</span>
+                    <span className="truncate">{p.name}</span>
                   </div>
                   <button
                     className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-fg group-hover:opacity-100"
@@ -644,7 +644,7 @@ function BulkBar(): React.JSX.Element {
           {presets
             .filter((p) => p.id !== activePresetId)
             .map((p) => (
-              <MenuItem key={p.id} label={t(p.name)} onClick={() => void bulkMove(p.id)} />
+              <MenuItem key={p.id} label={p.name} onClick={() => void bulkMove(p.id)} />
             ))}
           {presets.filter((p) => p.id !== activePresetId).length === 0 && (
             <p className="px-2 py-1.5 text-[12px] text-faint">{t('다른 프리셋 없음')}</p>
@@ -877,7 +877,7 @@ const SceneCard = memo(function SceneCard({
                         b.color === null && 'bg-danger'
                       )}
                       style={b.color ? { backgroundColor: b.color } : undefined}
-                      title={t('{0} {1}장', t(b.name), b.count)}
+                      title={t('{0} {1}장', b.name, b.count)}
                     >
                       {b.count}
                     </span>
@@ -885,7 +885,7 @@ const SceneCard = memo(function SceneCard({
                   {rest.length > 0 && (
                     <span
                       className="grid h-6 min-w-6 place-items-center rounded-full bg-black/60 px-1.5 text-[11px] font-bold text-white shadow"
-                      title={rest.map((b) => t('{0} {1}장', t(b.name), b.count)).join('\n')}
+                      title={rest.map((b) => t('{0} {1}장', b.name, b.count)).join('\n')}
                     >
                       +{rest.length}
                     </span>
