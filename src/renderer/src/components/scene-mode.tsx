@@ -571,6 +571,10 @@ function BulkBar(): React.JSX.Element {
   const bulkMove = useScenesStore((s) => s.bulkMove)
   const bulkDelete = useScenesStore((s) => s.bulkDelete)
   const bulkSetResolution = useScenesStore((s) => s.bulkSetResolution)
+  const bulkAdjustReserve = useScenesStore((s) => s.bulkAdjustReserve)
+  const casts = useScenesStore((s) => s.casts)
+  const activeCastId = useScenesStore((s) => s.activeCastId)
+  const batchCount = useGenerationStore((s) => s.batchCount)
   const customResolutions = useResolutionsStore((s) => s.custom)
   const bulkClearFavorites = useScenesStore((s) => s.bulkClearFavorites)
   const bulkClearImages = useScenesStore((s) => s.bulkClearImages)
@@ -578,6 +582,13 @@ function BulkBar(): React.JSX.Element {
 
   const n = selection.size
   const disabled = n === 0
+  const activeCast = casts.find((c) => c.id === activeCastId) ?? null
+
+  function reserveTip(delta: number): string {
+    const step = Math.abs(delta) * (batchCount || 1)
+    const who = activeCast ? `"${activeCast.name}" 출연` : '사이드바 설정'
+    return `선택한 ${n}개 씬의 ${who} 예약 ${delta > 0 ? '+' : '-'}${step}`
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-b border-line bg-surface-2 px-3 py-2 text-[13px]">
@@ -588,6 +599,28 @@ function BulkBar(): React.JSX.Element {
       <Button size="sm" variant="ghost" onClick={clearSelection} disabled={disabled}>
         해제
       </Button>
+      <div className="mx-1 h-4 w-px bg-line" />
+
+      {/* 선택 씬만 예약 증감 — 단위·대상 출연은 카드의 +/-와 동일 */}
+      <div className="flex items-center gap-0.5 rounded-full border border-line bg-paper p-0.5">
+        <span className="px-1.5 text-[12px] text-muted">예약</span>
+        <button
+          className="grid size-5 place-items-center rounded-full text-fg hover:bg-surface-2 disabled:opacity-30"
+          disabled={disabled}
+          title={reserveTip(-1)}
+          onClick={() => void bulkAdjustReserve(-1)}
+        >
+          <Minus size={13} />
+        </button>
+        <button
+          className="grid size-5 place-items-center rounded-full text-fg hover:bg-surface-2 disabled:opacity-30"
+          disabled={disabled}
+          title={reserveTip(1)}
+          onClick={() => void bulkAdjustReserve(1)}
+        >
+          <Plus size={13} />
+        </button>
+      </div>
       <div className="mx-1 h-4 w-px bg-line" />
 
       {/* 프리셋 이동 */}

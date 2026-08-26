@@ -310,6 +310,22 @@ export function bulkSetResolution(ids: number[], width: number, height: number):
     .run(width, height, ...ids)
 }
 
+/** 선택 씬들의 해당 출연 예약을 delta만큼 증감 (최소 0) */
+export function bulkAdjustReserve(ids: number[], castId: string, delta: number): void {
+  if (ids.length === 0) return
+  const db = getDb()
+  const rows = db
+    .prepare(`SELECT id, reserve_json FROM gen_scenes WHERE id IN (${placeholders(ids.length)})`)
+    .all(...ids) as { id: number; reserve_json: string | null }[]
+  db.transaction(() => {
+    for (const row of rows) {
+      const reserves = parseReserves(row.reserve_json)
+      reserves[castId] = Math.max(0, (reserves[castId] ?? 0) + delta)
+      setSceneReserves(row.id, reserves)
+    }
+  })()
+}
+
 export function bulkClearFavorites(ids: number[]): void {
   if (ids.length === 0) return
   getDb()

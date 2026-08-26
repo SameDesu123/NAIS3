@@ -87,6 +87,7 @@ import {
   bulkMove,
   bulkDelete,
   bulkSetResolution,
+  bulkAdjustReserve,
   bulkClearFavorites,
   bulkClearImages,
   bulkExportZip,
@@ -386,6 +387,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   })
   handle('scenes:bulkSetResolution', ({ ids, width, height }) => {
     bulkSetResolution(ids, width, height)
+  })
+  handle('scenes:bulkAdjustReserve', ({ ids, castId, delta }) => {
+    bulkAdjustReserve(ids, castId, delta)
   })
   handle('scenes:bulkClearFavorites', ({ ids }) => {
     bulkClearFavorites(ids)
