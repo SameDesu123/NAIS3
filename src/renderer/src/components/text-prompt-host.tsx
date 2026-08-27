@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useT } from '../lib/i18n'
 import { useDialogStore } from '../stores/dialog-store'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
@@ -14,6 +15,7 @@ export function TextPromptHost(): React.JSX.Element {
 }
 
 function TextPrompt(): React.JSX.Element {
+  const t = useT()
   const req = useDialogStore((s) => s.textPrompt)
   const resolve = useDialogStore((s) => s._resolve)
   const [value, setValue] = useState('')
@@ -39,10 +41,10 @@ function TextPrompt(): React.JSX.Element {
         />
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => resolve(null)}>
-            취소
+            {t('취소')}
           </Button>
           <Button variant="accent" disabled={!value.trim()} onClick={() => resolve(value.trim())}>
-            확인
+            {t('확인')}
           </Button>
         </div>
       </DialogContent>
@@ -51,6 +53,7 @@ function TextPrompt(): React.JSX.Element {
 }
 
 function ConfirmPrompt(): React.JSX.Element {
+  const t = useT()
   const req = useDialogStore((s) => s.confirm)
   const resolve = useDialogStore((s) => s._resolveConfirm)
 
@@ -59,13 +62,19 @@ function ConfirmPrompt(): React.JSX.Element {
       <DialogContent className="max-w-[400px] p-5">
         <DialogTitle className="mb-2">{req?.title}</DialogTitle>
         {req?.message && (
-          <p className="whitespace-pre-line text-[13px] leading-relaxed text-muted">{req.message}</p>
+          <p className="whitespace-pre-line text-[13px] leading-relaxed text-muted">
+            {req.message}
+          </p>
         )}
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => resolve(false)}>
-            아니오
+            {t('아니오')}
           </Button>
-          <Button variant={req?.danger ? 'danger' : 'accent'} autoFocus onClick={() => resolve(true)}>
+          <Button
+            variant={req?.danger ? 'danger' : 'accent'}
+            autoFocus
+            onClick={() => resolve(true)}
+          >
             {req?.confirmLabel}
           </Button>
         </div>

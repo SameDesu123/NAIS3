@@ -3,6 +3,7 @@ import type { ImageMetadata, UcPresetIndex } from '@shared/types'
 import { QUALITY_TAGS_SUFFIX, UC_PRESETS_V45_FULL } from '@shared/nai-presets'
 import { modelCapabilities } from '@shared/nai-models'
 import { imageUrl } from '../lib/constants'
+import { t } from '../lib/i18n'
 import { useCharactersStore } from './characters-store'
 import { mergePromptParts, useGenerationStore } from './generation-store'
 import { useLayoutStore } from './layout-store'
@@ -127,7 +128,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const req = useGenerationStore.getState().request
       void usePromptPresetsStore
         .getState()
-        .create('가져온 프리셋', req.prompt, req.negativePrompt)
+        .create(t('가져온 프리셋'), req.prompt, req.negativePrompt)
         .then((id) => usePromptPresetsStore.getState().setActive(id))
     }
     if (sel.seed && m.seed != null) gen.setSeedLocked(true)

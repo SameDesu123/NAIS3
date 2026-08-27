@@ -92,8 +92,7 @@ export function dropMemoryImage(filePath: string): void {
 /** 원본이 만료됐을 때의 표시 폴백 — DB 썸네일(webp) */
 export function thumbnailByPath(filePath: string): Buffer | null {
   const row = getDb().prepare('SELECT thumbnail FROM images WHERE file_path = ?').get(filePath) as
-    | { thumbnail: Buffer | null }
-    | undefined
+    { thumbnail: Buffer | null } | undefined
   return row?.thumbnail ?? null
 }
 

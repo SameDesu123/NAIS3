@@ -4,6 +4,7 @@ import { basename } from 'path'
 import JSZip from 'jszip'
 import type { CharacterOrderEntry, Fragment, ListFolder } from '../../shared/types'
 import { getDb } from '../db'
+import { t } from '../i18n'
 import type { FragmentSource } from './processor'
 
 interface Row {
@@ -98,7 +99,7 @@ export function duplicateFragment(id: number): number | null {
     .prepare('SELECT name, content, folder_id FROM fragments WHERE id = ?')
     .get(id) as { name: string; content: string; folder_id: number | null } | undefined
   if (!r) return null
-  return createFragment(`${r.name} 복사`, r.folder_id, r.content)
+  return createFragment(t('{0} 복사', r.name), r.folder_id, r.content)
 }
 
 export function reorderFragments(order: CharacterOrderEntry[]): void {
@@ -120,7 +121,9 @@ export function reorderFragments(order: CharacterOrderEntry[]): void {
 
 export function createFragmentFolder(name: string): number {
   const db = getDb()
-  const max = db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM fragment_folders').get() as {
+  const max = db
+    .prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM fragment_folders')
+    .get() as {
     m: number
   }
   return Number(
@@ -178,9 +181,9 @@ export function fragmentSource(): FragmentSource {
 export async function importTxtFragments(): Promise<number> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showOpenDialog(win, {
-    title: '조각 TXT 가져오기',
+    title: t('조각 TXT 가져오기'),
     properties: ['openFile', 'multiSelections'],
-    filters: [{ name: '텍스트/ZIP', extensions: ['txt', 'zip'] }]
+    filters: [{ name: t('텍스트/ZIP'), extensions: ['txt', 'zip'] }]
   })
   if (result.canceled) return 0
   let count = 0
@@ -208,7 +211,7 @@ export async function exportAllFragmentsZip(): Promise<number> {
   if (!rows.length) return 0
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showSaveDialog(win, {
-    title: '조각 전체 내보내기',
+    title: t('조각 전체 내보내기'),
     defaultPath: 'nais3-fragments.zip',
     filters: [{ name: 'ZIP', extensions: ['zip'] }]
   })
@@ -227,15 +230,14 @@ export async function exportAllFragmentsZip(): Promise<number> {
 
 export async function exportTxtFragment(id: number): Promise<boolean> {
   const row = getDb().prepare('SELECT name, content FROM fragments WHERE id = ?').get(id) as
-    | { name: string; content: string }
-    | undefined
+    { name: string; content: string } | undefined
   if (!row) return false
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showSaveDialog(win, {
-    title: '조각 내보내기',
+    title: t('조각 내보내기'),
     // Windows 금지 문자 제거 (이름은 사용자 입력)
     defaultPath: `${row.name.replace(/[/\\:*?"<>|]/g, '_') || 'fragment'}.txt`,
-    filters: [{ name: '텍스트', extensions: ['txt'] }]
+    filters: [{ name: t('텍스트'), extensions: ['txt'] }]
   })
   if (result.canceled || !result.filePath) return false
   writeFileSync(result.filePath, row.content, 'utf-8')

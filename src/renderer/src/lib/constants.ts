@@ -22,7 +22,13 @@ export const RESOLUTIONS = [
   { label: '가로 (1216×832)', width: 1216, height: 832 },
   { label: '정사각 (1024×1024)', width: 1024, height: 1024 },
   { label: '세로 대형 (1024×1536)', width: 1024, height: 1536 },
-  { label: '가로 대형 (1536×1024)', width: 1536, height: 1024 }
+  { label: '가로 대형 (1536×1024)', width: 1536, height: 1024 },
+  { label: '정사각 대형 (1472×1472)', width: 1472, height: 1472 },
+  { label: '세로 배경화면 (1088×1920)', width: 1088, height: 1920 },
+  { label: '가로 배경화면 (1920×1088)', width: 1920, height: 1088 },
+  { label: '세로 소형 (512×768)', width: 512, height: 768 },
+  { label: '가로 소형 (768×512)', width: 768, height: 512 },
+  { label: '정사각 소형 (640×640)', width: 640, height: 640 }
 ] as const
 
 /** 실캡처 확정 매핑 — 2는 미사용이라 UI에 노출하지 않는다 */

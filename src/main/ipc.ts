@@ -87,6 +87,7 @@ import {
   bulkMove,
   bulkDelete,
   bulkSetResolution,
+  bulkAdjustReserve,
   bulkClearFavorites,
   bulkClearImages,
   bulkExportZip,
@@ -151,6 +152,7 @@ import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'fs'
 import { basename } from 'path'
 import sharp from 'sharp'
 import { verifyToken } from './nai/client'
+import { t } from './i18n'
 import type { GenerationQueue } from './queue/generation-queue'
 
 /** IpcInvokeMap 계약을 강제하는 handle 등록 헬퍼 */
@@ -310,7 +312,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
     const stamp = new Date().toISOString().slice(0, 10)
     const result = await dialog.showSaveDialog(win, {
-      title: '데이터 내보내기',
+      title: t('데이터 내보내기'),
       defaultPath: `NAIS3-backup-${stamp}.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }]
     })
@@ -322,7 +324,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('backup:import', async () => {
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
     const result = await dialog.showOpenDialog(win, {
-      title: '데이터 가져오기 (NAIS3 / NAIS2 백업)',
+      title: t('데이터 가져오기 (NAIS3 / NAIS2 백업)'),
       filters: [{ name: 'JSON', extensions: ['json'] }],
       properties: ['openFile']
     })
@@ -332,25 +334,28 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
       // 포맷 감지: NAIS3는 _app='NAIS3', NAIS2는 nais2-* 키
       if (data._app === 'NAIS3') {
         const { imported } = importAll(data)
-        return { summary: `NAIS3 백업 복원 완료 (${imported}개 항목)`, needsPromptReload: true }
+        return {
+          summary: t('NAIS3 백업 복원 완료 ({0}개 항목)', imported),
+          needsPromptReload: true
+        }
       }
       if (Object.keys(data).some((k) => k.startsWith('nais2-'))) {
         const r = importNais2(data)
         const parts = [
-          r.characters ? `캐릭터 ${r.characters}` : '',
-          r.presets ? `프리셋 ${r.presets}` : '',
-          r.fragments ? `조각 ${r.fragments}` : '',
-          r.scenes ? `씬 ${r.scenes}` : '',
-          r.prompt ? '프롬프트' : ''
+          r.characters ? t('캐릭터 {0}', r.characters) : '',
+          r.presets ? t('프리셋 {0}', r.presets) : '',
+          r.fragments ? t('조각 {0}', r.fragments) : '',
+          r.scenes ? t('씬 {0}', r.scenes) : '',
+          r.prompt ? t('프롬프트') : ''
         ].filter(Boolean)
         return {
           summary: parts.length
-            ? `NAIS2에서 ${parts.join(' · ')} 가져옴`
-            : '가져올 항목이 없습니다',
+            ? t('NAIS2에서 {0} 가져옴', parts.join(' · '))
+            : t('가져올 항목이 없습니다'),
           needsPromptReload: r.prompt
         }
       }
-      return { error: '알 수 없는 백업 형식입니다' }
+      return { error: t('알 수 없는 백업 형식입니다') }
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) }
     }
@@ -386,6 +391,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   })
   handle('scenes:bulkSetResolution', ({ ids, width, height }) => {
     bulkSetResolution(ids, width, height)
+  })
+  handle('scenes:bulkAdjustReserve', ({ ids, castId, delta }) => {
+    bulkAdjustReserve(ids, castId, delta)
   })
   handle('scenes:bulkClearFavorites', ({ ids }) => {
     bulkClearFavorites(ids)
@@ -534,7 +542,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     if (memory && !memBuf) return { saved: false } // 원본 만료 (자동저장 꺼짐 생성분)
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
     const result = await dialog.showSaveDialog(win, {
-      title: '다른 이름으로 저장',
+      title: t('다른 이름으로 저장'),
       defaultPath: memory ? `NAIS3_${Date.now()}.png` : basename(filePath),
       filters: [{ name: 'PNG', extensions: ['png'] }]
     })
@@ -547,7 +555,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('images:saveBase64As', async ({ base64, defaultName }) => {
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
     const result = await dialog.showSaveDialog(win, {
-      title: '이미지 저장',
+      title: t('이미지 저장'),
       defaultPath: defaultName ?? `NAIS3_${Date.now()}.png`,
       filters: [{ name: 'PNG', extensions: ['png'] }]
     })
@@ -585,7 +593,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('settings:pickSaveDir', async (req) => {
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
     const result = await dialog.showOpenDialog(win, {
-      title: req?.target === 'scene' ? '씬 저장 폴더 선택' : '저장 폴더 선택',
+      title: req?.target === 'scene' ? t('씬 저장 폴더 선택') : t('저장 폴더 선택'),
       properties: ['openDirectory', 'createDirectory']
     })
     if (result.canceled || result.filePaths.length === 0) return { dir: null }
@@ -605,9 +613,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     const win = BrowserWindow.getAllWindows()[0]
     if (!win || win.isFocused()) return // 보고 있는 중엔 토스트 불필요
     if (!Notification.isSupported()) return
-    const body = failed > 0 ? `${done}장 완료 · ${failed}장 실패` : `${done}장 완료`
+    const body = failed > 0 ? t('{0}장 완료 · {1}장 실패', done, failed) : t('{0}장 완료', done)
     // silent — 소리는 앱의 알림음 설정이 따로 담당 (이중 재생 방지)
-    const n = new Notification({ title: 'NAIS3 생성 완료', body, silent: true })
+    const n = new Notification({ title: t('NAIS3 생성 완료'), body, silent: true })
     n.on('click', () => {
       if (win.isMinimized()) win.restore()
       win.show()
@@ -621,11 +629,11 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
       if (base64) {
         const buf = Buffer.from(base64.replace(/^data:[^,]+,/, ''), 'base64')
         const meta = await metadataFromPng(buf)
-        return meta ? { meta } : { error: '이 이미지에서 NAI 메타데이터를 찾지 못했습니다' }
+        return meta ? { meta } : { error: t('이 이미지에서 NAI 메타데이터를 찾지 못했습니다') }
       }
       if (filePath) {
         if (!isMemoryPath(filePath) && !isUnderImagesRoot(filePath))
-          return { error: '허용되지 않은 경로' }
+          return { error: t('허용되지 않은 경로') }
         const row = getDb()
           .prepare('SELECT payload_json FROM images WHERE file_path = ?')
           .get(filePath) as { payload_json: string } | undefined
@@ -636,7 +644,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
         const buf = isMemoryPath(filePath) ? getMemoryImage(filePath) : readFileSync(filePath)
         if (!buf) {
           if (fromDb) return { meta: fromDb }
-          return { error: '원본이 만료되었습니다 (자동저장 꺼짐 상태로 생성된 이미지)' }
+          return { error: t('원본이 만료되었습니다 (자동저장 꺼짐 상태로 생성된 이미지)') }
         }
         const fromPng = await metadataFromPng(buf)
         if (fromPng) {
@@ -649,9 +657,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
         }
         // 2) 폴백: DB payload_json (우리 스트리밍 이미지는 tEXt가 없을 수 있음)
         if (fromDb) return { meta: fromDb }
-        return { error: '메타데이터를 찾지 못했습니다' }
+        return { error: t('메타데이터를 찾지 못했습니다') }
       }
-      return { error: '입력이 없습니다' }
+      return { error: t('입력이 없습니다') }
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) }
     }
@@ -664,13 +672,13 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
         buf = Buffer.from(base64.replace(/^data:[^,]+,/, ''), 'base64')
       } else if (filePath) {
         if (!isMemoryPath(filePath) && !isUnderImagesRoot(filePath))
-          return { error: '허용되지 않은 경로' }
+          return { error: t('허용되지 않은 경로') }
         buf = isMemoryPath(filePath) ? getMemoryImage(filePath) : readFileSync(filePath)
-        if (!buf) return { error: '원본이 만료되었습니다 (자동저장 꺼짐 상태로 생성된 이미지)' }
+        if (!buf) return { error: t('원본이 만료되었습니다 (자동저장 꺼짐 상태로 생성된 이미지)') }
       }
-      if (!buf) return { error: '입력이 없습니다' }
+      if (!buf) return { error: t('입력이 없습니다') }
       const tags = await analyzeArtists(buf)
-      if (tags.length === 0) return { error: '작가 태그를 찾지 못했습니다' }
+      if (tags.length === 0) return { error: t('작가 태그를 찾지 못했습니다') }
       return { tags }
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) }
@@ -679,7 +687,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
 
   handle('images:upscale', async ({ imageBase64, scale }) => {
     const token = getNaiToken()
-    if (!token) return { error: 'NAI 토큰이 설정되지 않았습니다' }
+    if (!token) return { error: t('NAI 토큰이 설정되지 않았습니다') }
     try {
       const input = Buffer.from(imageBase64.replace(/^data:[^,]+,/, ''), 'base64')
       const meta = await sharp(input).metadata()
@@ -724,7 +732,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
 
   handle('director:run', async ({ method, imageBase64, prompt, defry }) => {
     const token = getNaiToken()
-    if (!token) return { error: 'NAI 토큰이 설정되지 않았습니다' }
+    if (!token) return { error: t('NAI 토큰이 설정되지 않았습니다') }
     try {
       const input = Buffer.from(imageBase64.replace(/^data:[^,]+,/, ''), 'base64')
       const meta = await sharp(input).metadata()
@@ -757,10 +765,10 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
 
   handle('images:readForSource', async ({ filePath }) => {
     if (!isMemoryPath(filePath) && !isUnderImagesRoot(filePath))
-      return { error: '허용되지 않은 경로' }
+      return { error: t('허용되지 않은 경로') }
     try {
       const buf = isMemoryPath(filePath) ? getMemoryImage(filePath) : readFileSync(filePath)
-      if (!buf) return { error: '원본이 만료되었습니다 (자동저장 꺼짐 상태로 생성된 이미지)' }
+      if (!buf) return { error: t('원본이 만료되었습니다 (자동저장 꺼짐 상태로 생성된 이미지)') }
       const meta = await sharp(buf).metadata()
       return { base64: buf.toString('base64'), width: meta.width ?? 0, height: meta.height ?? 0 }
     } catch (e) {

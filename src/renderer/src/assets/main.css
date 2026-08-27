@@ -26,7 +26,9 @@
     'Pretendard Variable', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable',
     'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   /* 한글은 mono 폰트에 없어 Pretendard로 폴백 (Windows 기본 폴백 글꼴이 깨져 보이는 문제 방지) */
-  --font-mono: 'JetBrains Mono', Consolas, ui-monospace, 'Pretendard Variable', 'Apple SD Gothic Neo', 'Malgun Gothic', monospace;
+  --font-mono:
+    'JetBrains Mono', Consolas, ui-monospace, 'Pretendard Variable', 'Apple SD Gothic Neo',
+    'Malgun Gothic', monospace;
   --radius: 8px;
   --ui-size: 15px;
   --ui-scale: calc(15 / 14);
@@ -77,16 +79,36 @@ body {
 }
 
 /* UI 크기 배율 — 하드코딩된 픽셀 텍스트 크기를 --ui-scale로 일괄 조정 (WHIMS 패턴) */
-[class*='text-[10px]'] { font-size: calc(10px * var(--ui-scale)) !important; }
-[class*='text-[10.5px]'] { font-size: calc(10.5px * var(--ui-scale)) !important; }
-[class*='text-[11px]'] { font-size: calc(11px * var(--ui-scale)) !important; }
-[class*='text-[11.5px]'] { font-size: calc(11.5px * var(--ui-scale)) !important; }
-[class*='text-[12px]'] { font-size: calc(12px * var(--ui-scale)) !important; }
-[class*='text-[12.5px]'] { font-size: calc(12.5px * var(--ui-scale)) !important; }
-[class*='text-[13px]'] { font-size: calc(13px * var(--ui-scale)) !important; }
-[class*='text-[14px]'] { font-size: calc(14px * var(--ui-scale)) !important; }
-[class*='text-[15px]'] { font-size: calc(15px * var(--ui-scale)) !important; }
-[class*='text-[16px]'] { font-size: calc(16px * var(--ui-scale)) !important; }
+[class*='text-[10px]'] {
+  font-size: calc(10px * var(--ui-scale)) !important;
+}
+[class*='text-[10.5px]'] {
+  font-size: calc(10.5px * var(--ui-scale)) !important;
+}
+[class*='text-[11px]'] {
+  font-size: calc(11px * var(--ui-scale)) !important;
+}
+[class*='text-[11.5px]'] {
+  font-size: calc(11.5px * var(--ui-scale)) !important;
+}
+[class*='text-[12px]'] {
+  font-size: calc(12px * var(--ui-scale)) !important;
+}
+[class*='text-[12.5px]'] {
+  font-size: calc(12.5px * var(--ui-scale)) !important;
+}
+[class*='text-[13px]'] {
+  font-size: calc(13px * var(--ui-scale)) !important;
+}
+[class*='text-[14px]'] {
+  font-size: calc(14px * var(--ui-scale)) !important;
+}
+[class*='text-[15px]'] {
+  font-size: calc(15px * var(--ui-scale)) !important;
+}
+[class*='text-[16px]'] {
+  font-size: calc(16px * var(--ui-scale)) !important;
+}
 
 textarea,
 input {

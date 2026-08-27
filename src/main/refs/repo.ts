@@ -6,6 +6,7 @@ import sharp from 'sharp'
 import type { CharacterOrderEntry, CharRefItem, ListFolder, VibeItem } from '../../shared/types'
 import { vibeEncodingModels } from './vibe-encoding-cache'
 import { getDb } from '../db'
+import { t } from '../i18n'
 
 /**
  * 바이브/캐릭레퍼 이미지 라이브러리 — 캐릭터·조각과 동일한 폴더 리스트 모델.
@@ -101,9 +102,9 @@ export function listCharRefs(): { folders: ListFolder[]; items: CharRefItem[] } 
 export async function addRefImages(kind: Kind, folderId: number | null): Promise<number> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showOpenDialog(win, {
-    title: kind === 'vibe' ? '바이브 이미지 추가' : '레퍼런스 이미지 추가',
+    title: kind === 'vibe' ? t('바이브 이미지 추가') : t('레퍼런스 이미지 추가'),
     properties: ['openFile', 'multiSelections'],
-    filters: [{ name: '이미지', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
+    filters: [{ name: t('이미지'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
   })
   if (result.canceled) return 0
 

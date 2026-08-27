@@ -1,6 +1,7 @@
 import { Minus, Pencil, Plus, X } from 'lucide-react'
 import { effectiveGenerationStrength } from '@shared/anlas'
 import { kindMeta } from '../lib/kind-icon'
+import { useT } from '../lib/i18n'
 import { useGenerationStore } from '../stores/generation-store'
 import { Slider } from './ui/slider'
 
@@ -11,6 +12,7 @@ export const SOURCE_BANNER_HEIGHT = 340
  * i2i/인페인트 소스 배너 — NAIS2 스타일: 제목바 + 큰 이미지(꽉 차게) + 파라미터.
  */
 export function SourceBanner(): React.JSX.Element | null {
+  const t = useT()
   const source = useGenerationStore((s) => s.source)
   const setSource = useGenerationStore((s) => s.setSource)
   const editSourceMask = useGenerationStore((s) => s.editSourceMask)
@@ -31,19 +33,21 @@ export function SourceBanner(): React.JSX.Element | null {
       {/* 제목바 */}
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line bg-surface-2/50 px-2.5">
         <Icon size={15} className={className} />
-        <span className="text-[12.5px] font-medium text-ink">{isInpaint ? '인페인트 모드' : 'I2I 모드'}</span>
+        <span className="text-[12.5px] font-medium text-ink">
+          {isInpaint ? t('인페인트 모드') : t('I2I 모드')}
+        </span>
         <div className="flex-1" />
         {/* 마스크 재편집 (NAIS2와 동일 위치 — X 왼쪽). 기존에 칠한 영역을 그대로 불러와 다듬는다 */}
         <button
           className="grid size-6 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-ink"
-          title={isInpaint ? '마스크 다시 편집' : '마스크를 그려 인페인트로 전환'}
+          title={isInpaint ? t('마스크 다시 편집') : t('마스크를 그려 인페인트로 전환')}
           onClick={editSourceMask}
         >
           <Pencil size={14} />
         </button>
         <button
           className="grid size-6 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-ink"
-          title="소스 해제"
+          title={t('소스 해제')}
           onClick={() => setSource(null)}
         >
           <X size={15} />
@@ -76,7 +80,12 @@ export function SourceBanner(): React.JSX.Element | null {
 
       {/* 파라미터 — 이미지 여백과 같은 배경색으로 이어지게. i2i·인페인트 모두 strength/noise 사용 */}
       <div className="flex flex-col gap-1.5 bg-surface-2 px-2.5 py-2">
-        <ParamRow label="Strength" value={strength} onChange={(v) => patch({ i2iStrength: v })} min={0.01} />
+        <ParamRow
+          label="Strength"
+          value={strength}
+          onChange={(v) => patch({ i2iStrength: v })}
+          min={0.01}
+        />
         <ParamRow label="Noise" value={noise} onChange={(v) => patch({ i2iNoise: v })} min={0} />
       </div>
     </div>
@@ -118,7 +127,9 @@ function ParamRow({
       >
         <Plus size={12} />
       </button>
-      <span className="w-8 shrink-0 text-right font-mono text-[11.5px] text-ink">{value.toFixed(2)}</span>
+      <span className="w-8 shrink-0 text-right font-mono text-[11.5px] text-ink">
+        {value.toFixed(2)}
+      </span>
     </div>
   )
 }

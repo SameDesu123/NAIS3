@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { t } from '../lib/i18n'
 import { useCharactersStore } from './characters-store'
 import { useFragmentsStore } from './fragments-store'
 import { useGenerationStore } from './generation-store'
@@ -138,7 +139,7 @@ function runAction(action: ShortcutAction): void {
       void useFragmentsStore
         .getState()
         .resetSequential()
-        .then(() => toast('조각 순차 카운터를 리셋했습니다', 'success'))
+        .then(() => toast(t('조각 순차 카운터를 리셋했습니다'), 'success'))
       break
   }
 }

@@ -18,6 +18,7 @@ import { createPortal } from 'react-dom'
 import type { CharacterCard } from '@shared/types'
 import { canEnableAnotherCharacter, modelCapabilities, promptTokenLimit } from '@shared/nai-models'
 import { cn } from '../lib/utils'
+import { useT } from '../lib/i18n'
 import { applyClickSelection, useSelectAllShortcut } from '../lib/edit-selection'
 import { buildDisplayRows } from '../lib/folder-list'
 import { useCharactersStore } from '../stores/characters-store'
@@ -62,6 +63,7 @@ function PositionPicker({
 }
 
 export function CharacterOverlay(): React.JSX.Element {
+  const t = useT()
   const setOverlayOpen = useCharactersStore((s) => s.setOverlayOpen)
   const folders = useCharactersStore((s) => s.folders)
   const items = useCharactersStore((s) => s.items)
@@ -141,9 +143,9 @@ export function CharacterOverlay(): React.JSX.Element {
 
   const bulkDelete = async (): Promise<void> => {
     if (
-      !(await askConfirm('선택 삭제', {
-        message: `선택한 캐릭터 ${selected.size}개를 삭제합니다.`,
-        confirmLabel: '삭제',
+      !(await askConfirm(t('선택 삭제'), {
+        message: t('선택한 캐릭터 {0}개를 삭제합니다.', selected.size),
+        confirmLabel: t('삭제'),
         danger: true
       }))
     )
@@ -218,7 +220,9 @@ export function CharacterOverlay(): React.JSX.Element {
           </span>
         )}
         <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
-          {char.name || char.prompt.slice(0, 40) || <span className="text-faint">빈 캐릭터</span>}
+          {char.name || char.prompt.slice(0, 40) || (
+            <span className="text-faint">{t('빈 캐릭터')}</span>
+          )}
         </span>
       </div>
     )
@@ -251,10 +255,12 @@ export function CharacterOverlay(): React.JSX.Element {
       )}
       <button
         className="min-w-0 flex-1 truncate text-left text-[13px] text-ink"
-        title="눌러서 수정"
+        title={t('눌러서 수정')}
         onClick={() => setExpandedId((prev) => (prev === char.id ? null : char.id))}
       >
-        {char.name || char.prompt.slice(0, 40) || <span className="text-faint">빈 캐릭터</span>}
+        {char.name || char.prompt.slice(0, 40) || (
+          <span className="text-faint">{t('빈 캐릭터')}</span>
+        )}
       </button>
       {useCoords && char.enabled && (
         <Popover>
@@ -281,7 +287,7 @@ export function CharacterOverlay(): React.JSX.Element {
         <Input
           className="h-8 flex-1 bg-surface-2 text-[12.5px]"
           value={char.name}
-          placeholder="이름"
+          placeholder={t('이름')}
           onChange={(e) => updateCard(char.id, { name: e.target.value })}
         />
         {/* F12: 썸네일이 있으면 "이미지 제거"로 (옆의 캐릭터 삭제와 구분되게 이미지 아이콘 명시) */}
@@ -290,10 +296,10 @@ export function CharacterOverlay(): React.JSX.Element {
             size="sm"
             variant="ghost"
             className="h-8 gap-1 px-2 text-[12px] hover:text-danger"
-            title="캐릭터 썸네일 제거"
+            title={t('캐릭터 썸네일 제거')}
             onClick={() => void clearThumbnail(char.id)}
           >
-            <ImageOff size={14} /> 제거
+            <ImageOff size={14} /> {t('제거')}
           </Button>
         ) : (
           <Button
@@ -302,14 +308,14 @@ export function CharacterOverlay(): React.JSX.Element {
             className="h-8 gap-1 px-2 text-[12px]"
             onClick={() => void pickThumbnail(char.id)}
           >
-            <ImagePlus size={14} /> 이미지
+            <ImagePlus size={14} /> {t('이미지')}
           </Button>
         )}
         <Button
           size="sm"
           variant="ghost"
           className="h-8 w-8 p-0 hover:text-danger"
-          title="캐릭터 삭제"
+          title={t('캐릭터 삭제')}
           onClick={() => removeCard(char.id)}
         >
           <Trash2 size={14} />
@@ -330,7 +336,7 @@ export function CharacterOverlay(): React.JSX.Element {
         value={char.negativePrompt}
         tokenModel={model}
         tokenLimit={tokenLimit}
-        placeholder="캐릭터 네거티브"
+        placeholder={t('캐릭터 네거티브')}
         onValueChange={(v) => updateCard(char.id, { negativePrompt: v })}
       />
     </div>
@@ -343,12 +349,12 @@ export function CharacterOverlay(): React.JSX.Element {
           size="icon"
           variant="ghost"
           className="h-7 w-7"
-          title="닫기"
+          title={t('닫기')}
           onClick={() => setOverlayOpen(false)}
         >
           <X size={15} />
         </Button>
-        <span className="text-[13px] font-medium">캐릭터</span>
+        <span className="text-[13px] font-medium">{t('캐릭터')}</span>
         {enabledCount > 0 && (
           <span
             className={cn(
@@ -357,7 +363,7 @@ export function CharacterOverlay(): React.JSX.Element {
                 ? 'bg-danger/15 text-danger'
                 : 'bg-accent-soft text-accent'
             )}
-            title={`활성 캐릭터 ${enabledCount}/${maxCharacters}`}
+            title={t('활성 캐릭터 {0}/{1}', enabledCount, maxCharacters)}
           >
             {enabledCount}/{maxCharacters}
           </span>
@@ -367,10 +373,10 @@ export function CharacterOverlay(): React.JSX.Element {
             size="sm"
             variant="ghost"
             className="h-6 px-2 text-[11px]"
-            title="활성 캐릭터 전체 해제"
+            title={t('활성 캐릭터 전체 해제')}
             onClick={disableAll}
           >
-            전체 해제
+            {t('전체 해제')}
           </Button>
         )}
         {charTokens !== null && (
@@ -379,7 +385,7 @@ export function CharacterOverlay(): React.JSX.Element {
               'font-mono text-[10.5px]',
               charTokens > tokenLimit ? 'text-danger' : 'text-faint'
             )}
-            title={`기본 프롬프트 + 캐릭터 프롬프트 합산 (${tokenLimit} 토큰 공유)`}
+            title={t('기본 프롬프트 + 캐릭터 프롬프트 합산 ({0} 토큰 공유)', tokenLimit)}
           >
             {charTokens}/{tokenLimit}
           </span>
@@ -387,9 +393,9 @@ export function CharacterOverlay(): React.JSX.Element {
         <div className="flex-1" />
         <label
           className="flex items-center gap-1.5 text-[11.5px] text-muted"
-          title="끄면 AI's Choice (NAI가 위치 결정)"
+          title={t("끄면 AI's Choice (NAI가 위치 결정)")}
         >
-          위치 지정
+          {t('위치 지정')}
           <Switch checked={useCoords} onCheckedChange={(v) => patch({ useCoords: v })} />
         </label>
       </div>
@@ -400,22 +406,22 @@ export function CharacterOverlay(): React.JSX.Element {
           <Input
             className="pl-7"
             value={search}
-            placeholder="이름·프롬프트 검색"
+            placeholder={t('이름·프롬프트 검색')}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Button
           size="sm"
           variant="ghost"
-          title="폴더 추가"
-          onClick={() => void createFolder('새 폴더')}
+          title={t('폴더 추가')}
+          onClick={() => void createFolder(t('새 폴더'))}
         >
           <FolderPlus size={14} />
         </Button>
         <Button
           size="sm"
           variant={editMode ? 'accent' : 'ghost'}
-          title="편집 모드 (다중 선택 — 클릭 토글, Shift+클릭 구간, Ctrl+A 전체)"
+          title={t('편집 모드 (다중 선택 — 클릭 토글, Shift+클릭 구간, Ctrl+A 전체)')}
           onClick={toggleEditMode}
         >
           <CheckSquare size={14} />
@@ -426,16 +432,16 @@ export function CharacterOverlay(): React.JSX.Element {
           className="gap-1"
           onClick={() => void createCard(null, maxCharacters)}
         >
-          <Plus size={13} /> 캐릭터
+          <Plus size={13} /> {t('캐릭터')}
         </Button>
       </div>
 
       {/* 편집 모드 일괄 작업 바 — 검색 아래 */}
       {editMode && (
         <div className="flex flex-wrap items-center gap-1 border-b border-line pb-2 text-[12px]">
-          <span className="text-muted">{selected.size}개</span>
+          <span className="text-muted">{t('{0}개', selected.size)}</span>
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set(visibleIds))}>
-            전체
+            {t('전체')}
           </Button>
           <Button
             size="sm"
@@ -443,7 +449,7 @@ export function CharacterOverlay(): React.JSX.Element {
             disabled={selected.size === 0}
             onClick={() => setSelected(new Set())}
           >
-            해제
+            {t('해제')}
           </Button>
           <div className="flex-1" />
           <Button
@@ -453,7 +459,7 @@ export function CharacterOverlay(): React.JSX.Element {
             disabled={selected.size === 0}
             onClick={() => void bulkDuplicate()}
           >
-            <Copy size={12} /> 복제
+            <Copy size={12} /> {t('복제')}
           </Button>
           <Button
             size="sm"
@@ -462,7 +468,7 @@ export function CharacterOverlay(): React.JSX.Element {
             disabled={selected.size === 0}
             onClick={() => setBulkPromptOpen(true)}
           >
-            <TextCursorInput size={12} /> 프롬프트 주입
+            <TextCursorInput size={12} /> {t('프롬프트 주입')}
           </Button>
           <Button
             size="sm"
@@ -471,7 +477,7 @@ export function CharacterOverlay(): React.JSX.Element {
             disabled={selected.size === 0}
             onClick={() => void bulkDelete()}
           >
-            <Trash2 size={12} /> 삭제
+            <Trash2 size={12} /> {t('삭제')}
           </Button>
         </div>
       )}
@@ -505,22 +511,22 @@ export function CharacterOverlay(): React.JSX.Element {
             <>
               <ContextMenuItem
                 onSelect={async () => {
-                  const name = await askText('이름 변경', char.name)
+                  const name = await askText(t('이름 변경'), char.name)
                   if (name != null) updateCard(char.id, { name })
                 }}
               >
-                <Pencil size={13} /> 이름 변경
+                <Pencil size={13} /> {t('이름 변경')}
               </ContextMenuItem>
               <ContextMenuItem onSelect={() => void duplicateCard(char.id)}>
-                <Copy size={13} /> 복제
+                <Copy size={13} /> {t('복제')}
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem danger onSelect={() => removeCard(char.id)}>
-                <Trash2 size={13} /> 삭제
+                <Trash2 size={13} /> {t('삭제')}
               </ContextMenuItem>
             </>
           )}
-          emptyText={items.length === 0 ? '캐릭터를 추가해보세요' : '검색 결과 없음'}
+          emptyText={items.length === 0 ? t('캐릭터를 추가해보세요') : t('검색 결과 없음')}
         />
       </div>
 
@@ -575,47 +581,51 @@ function BulkPromptDialog({
   onApply: (positive: string, negative: string) => void
   onClose: () => void
 }): React.JSX.Element {
+  const t = useT()
   const [positive, setPositive] = useState('')
   const [negative, setNegative] = useState('')
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md p-4">
-        <DialogTitle className="mb-1">프롬프트 일괄 주입</DialogTitle>
+        <DialogTitle className="mb-1">{t('프롬프트 일괄 주입')}</DialogTitle>
         <p className="mb-3 text-[12px] text-muted">
-          선택한 캐릭터 {count}개의 프롬프트 하단(새 줄)에 이어붙입니다. 빈 칸은 건너뜁니다.
+          {t(
+            '선택한 캐릭터 {0}개의 프롬프트 하단(새 줄)에 이어붙입니다. 빈 칸은 건너뜁니다.',
+            count
+          )}
         </p>
         <div className="flex flex-col gap-2">
           <div>
-            <p className="mb-1 text-[11.5px] text-muted">포지티브에 추가</p>
+            <p className="mb-1 text-[11.5px] text-muted">{t('포지티브에 추가')}</p>
             <PromptEditor
               className="h-24 min-h-16 resize-y bg-surface-2"
               value={positive}
               tokensOverride={null}
-              placeholder="예: smile, looking at viewer"
+              placeholder={t('예: smile, looking at viewer')}
               onValueChange={setPositive}
             />
           </div>
           <div>
-            <p className="mb-1 text-[11.5px] text-muted">네거티브에 추가</p>
+            <p className="mb-1 text-[11.5px] text-muted">{t('네거티브에 추가')}</p>
             <PromptEditor
               className="h-20 min-h-16 resize-y bg-surface-2"
               value={negative}
               tokensOverride={null}
-              placeholder="(선택)"
+              placeholder={t('(선택)')}
               onValueChange={setNegative}
             />
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            취소
+            {t('취소')}
           </Button>
           <Button
             variant="accent"
             disabled={!positive.trim() && !negative.trim()}
             onClick={() => onApply(positive, negative)}
           >
-            적용
+            {t('적용')}
           </Button>
         </div>
       </DialogContent>

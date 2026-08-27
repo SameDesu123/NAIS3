@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Fragment, ListFolder } from '@shared/types'
 import { canonicalize, moveRow, toOrderEntries } from '../lib/folder-list'
+import { t } from '../lib/i18n'
 
 interface FragmentsState {
   folders: ListFolder[]
@@ -39,7 +40,7 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   },
 
   create: async (folderId) => {
-    const { id } = await window.nais.invoke('frags:create', { name: '새 조각', folderId })
+    const { id } = await window.nais.invoke('frags:create', { name: t('새 조각'), folderId })
     await get().load() // 이름 중복 처리(name-2 등)가 메인에서 일어나므로 재로드
     return id
   },
@@ -67,7 +68,9 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   toggleCollapse: (id) => {
     const folder = get().folders.find((f) => f.id === id)
     if (!folder) return
-    set({ folders: get().folders.map((f) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f)) })
+    set({
+      folders: get().folders.map((f) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f))
+    })
     void window.nais.invoke('frags:folderCollapse', { id, collapsed: !folder.collapsed })
   },
 

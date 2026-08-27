@@ -1,5 +1,6 @@
 import { Download, RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useT } from '../lib/i18n'
 import { toast } from '../stores/toast-store'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
@@ -29,6 +30,7 @@ export function MosaicEditor({
   onConfirm: (resultBase64: string) => void
   onCancel: () => void
 }): React.JSX.Element {
+  const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const originalRef = useRef<ImageData | null>(null)
   const doneCells = useRef(new Set<string>()) // 현재 pixelSize 그리드에서 이미 칠한 셀
@@ -159,7 +161,7 @@ export function MosaicEditor({
   return (
     <Dialog open onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="max-w-[680px] p-4">
-        <DialogTitle className="mb-3">모자이크 — 가릴 영역을 칠하세요</DialogTitle>
+        <DialogTitle className="mb-3">{t('모자이크 — 가릴 영역을 칠하세요')}</DialogTitle>
         <div className="flex flex-col items-center gap-3">
           <div
             className="relative overflow-hidden rounded-md border border-line bg-paper"
@@ -197,7 +199,7 @@ export function MosaicEditor({
           </div>
 
           <div className="flex w-full items-center gap-2">
-            <span className="text-[12px] text-muted">픽셀 {pixel}</span>
+            <span className="text-[12px] text-muted">{t('픽셀 {0}', pixel)}</span>
             <Slider
               className="w-28"
               min={5}
@@ -210,7 +212,7 @@ export function MosaicEditor({
                 doneCells.current.clear() // 그리드가 바뀌면 셀 추적 초기화
               }}
             />
-            <span className="ml-1 text-[12px] text-muted">붓 {brush}</span>
+            <span className="ml-1 text-[12px] text-muted">{t('붓 {0}', brush)}</span>
             <Slider
               className="w-28"
               min={BRUSH_MIN}
@@ -223,7 +225,7 @@ export function MosaicEditor({
               }}
             />
             <Button size="sm" variant="ghost" className="gap-1" onClick={reset}>
-              <RotateCcw size={13} /> 초기화
+              <RotateCcw size={13} /> {t('초기화')}
             </Button>
             <div className="flex-1" />
             {/* 스택/히스토리를 거치지 않고 이 창에서 바로 파일로 저장 */}
@@ -231,7 +233,7 @@ export function MosaicEditor({
               size="sm"
               variant="ghost"
               className="gap-1"
-              title="모자이크 결과를 파일로 바로 저장 (창은 열린 채)"
+              title={t('모자이크 결과를 파일로 바로 저장 (창은 열린 채)')}
               onClick={() => {
                 if (!originalRef.current) return
                 void window.nais
@@ -239,13 +241,13 @@ export function MosaicEditor({
                     base64: exportResult(),
                     defaultName: `mosaic_${width}x${height}.png`
                   })
-                  .then(({ saved }) => saved && toast('저장 완료', 'success'))
+                  .then(({ saved }) => saved && toast(t('저장 완료'), 'success'))
               }}
             >
-              <Download size={13} /> 다운로드
+              <Download size={13} /> {t('다운로드')}
             </Button>
             <Button variant="ghost" onClick={onCancel}>
-              취소
+              {t('취소')}
             </Button>
             <Button
               variant="accent"
@@ -253,7 +255,7 @@ export function MosaicEditor({
                 if (originalRef.current) onConfirm(exportResult())
               }}
             >
-              적용
+              {t('적용')}
             </Button>
           </div>
         </div>
