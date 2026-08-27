@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '../lib/utils'
+import { useT } from '../lib/i18n'
 
 /**
  * 예약 수 배지 — 클릭하면 입력창으로 바뀌어 수량을 직접 적을 수 있다 (+/- 연타 대체).
@@ -21,6 +22,7 @@ export function ReserveCount({
   inputClassName?: string
   onCommit: (count: number) => void
 }): React.JSX.Element {
+  const t = useT()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -62,7 +64,7 @@ export function ReserveCount({
     <button
       className={cn('cursor-text', className)}
       style={style}
-      title={title ? `${title} — 클릭하면 직접 입력` : '클릭하면 직접 입력'}
+      title={title ? t('{0} — 클릭하면 직접 입력', t(title)) : t('클릭하면 직접 입력')}
       onClick={(e) => {
         e.stopPropagation()
         setDraft(String(value))

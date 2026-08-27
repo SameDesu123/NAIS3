@@ -594,6 +594,8 @@ export interface IpcInvokeMap {
   'scenes:bulkMove': { req: { ids: number[]; presetId: number }; res: void }
   'scenes:bulkDelete': { req: { ids: number[] }; res: void }
   'scenes:bulkSetResolution': { req: { ids: number[]; width: number; height: number }; res: void }
+  /** 선택 씬들의 해당 출연 예약을 delta만큼 증감 (최소 0). castId '' = 사이드바 */
+  'scenes:bulkAdjustReserve': { req: { ids: number[]; castId: string; delta: number }; res: void }
   'scenes:bulkClearFavorites': { req: { ids: number[] }; res: void }
   'scenes:bulkClearImages': { req: { ids: number[] }; res: { deleted: number } }
   'scenes:bulkExportZip': { req: { ids: number[] }; res: { count: number } }

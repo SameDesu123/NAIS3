@@ -22,6 +22,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { directorAugmentCost, UPSCALE_ANLAS_COST } from '@shared/anlas'
 import { EMOTIONS, type DirectorMethod } from '@shared/types'
+import { useT } from '../lib/i18n'
 import { useArtistTagsStore } from '../stores/artist-tags-store'
 import { openInDirector, useDirectorStore } from '../stores/director-store'
 import { useGenerationStore } from '../stores/generation-store'
@@ -44,12 +45,44 @@ const TOOLS: {
   color: string
   opt?: Opt
 }[] = [
-  { method: 'bg-removal', label: '배경 제거', desc: '캐릭터만 남기고 배경을 투명하게', icon: Eraser, color: 'text-rose-400' },
+  {
+    method: 'bg-removal',
+    label: '배경 제거',
+    desc: '캐릭터만 남기고 배경을 투명하게',
+    icon: Eraser,
+    color: 'text-rose-400'
+  },
   { method: 'lineart', label: '라인아트', desc: '선화 추출', icon: PenTool, color: 'text-sky-400' },
-  { method: 'sketch', label: '스케치', desc: '스케치풍으로 변환', icon: Pencil, color: 'text-amber-400' },
-  { method: 'colorize', label: '색칠', desc: '선화를 채색 (프롬프트로 유도)', icon: Droplets, color: 'text-emerald-400', opt: 'colorize' },
-  { method: 'emotion', label: '표정 변경', desc: '얼굴 표정을 교체', icon: Smile, color: 'text-fuchsia-400', opt: 'emotion' },
-  { method: 'declutter', label: '이미지 정리', desc: '워터마크·잡요소 제거', icon: Sparkles, color: 'text-violet-400' },
+  {
+    method: 'sketch',
+    label: '스케치',
+    desc: '스케치풍으로 변환',
+    icon: Pencil,
+    color: 'text-amber-400'
+  },
+  {
+    method: 'colorize',
+    label: '색칠',
+    desc: '선화를 채색 (프롬프트로 유도)',
+    icon: Droplets,
+    color: 'text-emerald-400',
+    opt: 'colorize'
+  },
+  {
+    method: 'emotion',
+    label: '표정 변경',
+    desc: '얼굴 표정을 교체',
+    icon: Smile,
+    color: 'text-fuchsia-400',
+    opt: 'emotion'
+  },
+  {
+    method: 'declutter',
+    label: '이미지 정리',
+    desc: '워터마크·잡요소 제거',
+    icon: Sparkles,
+    color: 'text-violet-400'
+  },
   {
     method: 'declutter-keep-bubbles',
     label: '정리 (말풍선 유지)',
@@ -60,6 +93,7 @@ const TOOLS: {
 ]
 
 export function DirectorMode(): React.JSX.Element {
+  const t = useT()
   const stack = useDirectorStore((s) => s.stack)
   const loading = useDirectorStore((s) => s.loading)
   const error = useDirectorStore((s) => s.error)
@@ -163,22 +197,33 @@ export function DirectorMode(): React.JSX.Element {
       >
         {shown ? (
           <>
-            <img src={shown} className="h-full w-full object-contain p-2" draggable={false} alt="" />
+            <img
+              src={shown}
+              className="h-full w-full object-contain p-2"
+              draggable={false}
+              alt=""
+            />
             {isResult && (
               <span className="absolute left-3 top-3 rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-medium text-white">
-                결과
+                {t('결과')}
               </span>
             )}
             {/* 하단 컨트롤 */}
             <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-line bg-paper/85 p-1 backdrop-blur">
-              <Button size="icon" variant="ghost" className="rounded-full" title="지우기" onClick={clear}>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="rounded-full"
+                title={t('지우기')}
+                onClick={clear}
+              >
                 <X size={16} />
               </Button>
               <Button
                 size="icon"
                 variant="ghost"
                 className="rounded-full"
-                title="되돌리기 (이전 이미지)"
+                title={t('되돌리기 (이전 이미지)')}
                 disabled={!isResult}
                 onClick={undo}
               >
@@ -189,7 +234,7 @@ export function DirectorMode(): React.JSX.Element {
                 size="icon"
                 variant="ghost"
                 className="rounded-full"
-                title="다른 이미지 열기"
+                title={t('다른 이미지 열기')}
                 onClick={() => fileRef.current?.click()}
               >
                 <Upload size={16} />
@@ -206,15 +251,17 @@ export function DirectorMode(): React.JSX.Element {
             onClick={() => fileRef.current?.click()}
           >
             <Upload size={44} strokeWidth={1.2} className="opacity-40" />
-            <p className="text-[14px] font-medium">이미지를 열거나 드래그하세요</p>
-            <p className="text-[12px] opacity-60">히스토리 이미지를 우클릭해 바로 보낼 수도 있어요</p>
+            <p className="text-[14px] font-medium">{t('이미지를 열거나 드래그하세요')}</p>
+            <p className="text-[12px] opacity-60">
+              {t('히스토리 이미지를 우클릭해 바로 보낼 수도 있어요')}
+            </p>
           </div>
         )}
 
         {loading && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/45 text-white backdrop-blur-sm">
             <Loader2 size={40} className="animate-spin" />
-            <span className="text-[13px]">처리 중…</span>
+            <span className="text-[13px]">{t('처리 중…')}</span>
           </div>
         )}
 
@@ -222,8 +269,8 @@ export function DirectorMode(): React.JSX.Element {
         <DropOverlay
           show={dragOver && !!shown}
           icon={Wand2}
-          label="여기 놓으면 이 이미지로 교체합니다"
-          sub="디렉터 툴로 새 이미지 열기"
+          label={t('여기 놓으면 이 이미지로 교체합니다')}
+          sub={t('디렉터 툴로 새 이미지 열기')}
         />
 
         <input
@@ -243,12 +290,12 @@ export function DirectorMode(): React.JSX.Element {
       <div className="flex w-[320px] shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-surface">
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           <Wand2 size={16} className="text-accent" />
-          <h2 className="text-[14px] font-semibold">디렉터 툴</h2>
+          <h2 className="text-[14px] font-semibold">{t('디렉터 툴')}</h2>
         </div>
         <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3 no-scrollbar">
           {error && (
             <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-[12px] text-danger">
-              {error}
+              {t(error)}
             </p>
           )}
           {/* i2i·인페인트 — 여기서 시작하면 메인 페이지로 이동 */}
@@ -256,15 +303,15 @@ export function DirectorMode(): React.JSX.Element {
             icon={ImageIcon}
             color="text-indigo-400"
             label="I2I"
-            desc="이 이미지로 img2img (메인으로)"
+            desc={t('이 이미지로 img2img (메인으로)')}
             disabled={!source}
             onRun={() => sendToMain('i2i')}
           />
           <SendToMainCard
             icon={Layers}
             color="text-pink-400"
-            label="인페인트"
-            desc="마스크 칠해 부분 재생성 (메인으로)"
+            label={t('인페인트')}
+            desc={t('마스크 칠해 부분 재생성 (메인으로)')}
             disabled={!source}
             onRun={() => sendToMain('inpaint')}
           />
@@ -287,8 +334,8 @@ export function DirectorMode(): React.JSX.Element {
           <SendToMainCard
             icon={Grid3x3}
             color="text-orange-400"
-            label="모자이크"
-            desc="브러시로 칠해 픽셀화 (로컬·무료)"
+            label={t('모자이크')}
+            desc={t('브러시로 칠해 픽셀화 (로컬·무료)')}
             disabled={!source || loading}
             onRun={() => {
               if (!source) return
@@ -299,8 +346,8 @@ export function DirectorMode(): React.JSX.Element {
           <SendToMainCard
             icon={Palette}
             color="text-teal-400"
-            label="작가 태그 분석"
-            desc="그림체 닮은 작가 태그 추출 (Kaloscope·무료)"
+            label={t('작가 태그 분석')}
+            desc={t('그림체 닮은 작가 태그 추출 (Kaloscope·무료)')}
             disabled={!source || loading}
             onRun={() => {
               if (source) void useArtistTagsStore.getState().show({ base64: source })
@@ -327,10 +374,11 @@ export function DirectorMode(): React.JSX.Element {
 
 /** 예상 Anlas 칩 — 0=무료(초록), >0=빨간 -N */
 function CostChip({ cost }: { cost: number | null }): React.JSX.Element | null {
+  const t = useT()
   if (cost == null) return null
   return cost === 0 ? (
     <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">
-      무료
+      {t('무료')}
     </span>
   ) : (
     <span className="shrink-0 rounded bg-danger/15 px-1.5 py-0.5 font-mono text-[10px] font-medium text-danger">
@@ -348,6 +396,7 @@ function ToolCard({
   disabled: boolean
   cost: number | null
 }): React.JSX.Element {
+  const t = useT()
   const run = useDirectorStore((s) => s.run)
   // 옵션은 카드별 로컬 state — 툴끼리 값 공유 안 되게
   const [emotion, setEmotion] = useState('neutral')
@@ -382,8 +431,8 @@ function ToolCard({
       <div className={cn('flex items-center gap-2.5', hasOpt && 'mb-2')}>
         <Icon size={18} className={tool.color} />
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-ink">{tool.label}</p>
-          <p className="truncate text-[11px] text-faint">{tool.desc}</p>
+          <p className="text-[13px] font-medium text-ink">{t(tool.label)}</p>
+          <p className="truncate text-[11px] text-faint">{t(tool.desc)}</p>
         </div>
         <CostChip cost={cost} />
         <ChevronRight
@@ -408,7 +457,7 @@ function ToolCard({
           </Select>
           <Input
             className="h-8"
-            placeholder="추가 프롬프트 (선택)"
+            placeholder={t('추가 프롬프트 (선택)')}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />
@@ -419,7 +468,7 @@ function ToolCard({
         <div className="grid gap-1.5" onClick={stop}>
           <Input
             className="h-8"
-            placeholder="색 유도 프롬프트 (선택)"
+            placeholder={t('색 유도 프롬프트 (선택)')}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />
@@ -438,6 +487,7 @@ function UpscaleCard({
   disabled: boolean
   cost: number | null
 }): React.JSX.Element {
+  const t = useT()
   const upscale = useDirectorStore((s) => s.upscale)
   return (
     <div
@@ -452,8 +502,10 @@ function UpscaleCard({
       <div className="flex items-center gap-2.5">
         <Maximize2 size={18} className="text-cyan-400" />
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-ink">업스케일</p>
-          <p className="truncate text-[11px] text-faint">V5 Curated로 선명하게 2배 확대</p>
+          <p className="text-[13px] font-medium text-ink">{t('업스케일')}</p>
+          <p className="truncate text-[11px] text-faint">
+            {t('V5 Curated로 선명하게 2배 확대')}
+          </p>
         </div>
         <CostChip cost={cost} />
         <ChevronRight
@@ -506,15 +558,25 @@ function SendToMainCard({
         <p className="text-[13px] font-medium text-ink">{label}</p>
         <p className="truncate text-[11px] text-faint">{desc}</p>
       </div>
-      <ChevronRight size={16} className="shrink-0 text-faint transition-colors group-hover:text-accent" />
+      <ChevronRight
+        size={16}
+        className="shrink-0 text-faint transition-colors group-hover:text-accent"
+      />
     </div>
   )
 }
 
-function DefryRow({ value, onChange }: { value: number; onChange: (v: number) => void }): React.JSX.Element {
+function DefryRow({
+  value,
+  onChange
+}: {
+  value: number
+  onChange: (v: number) => void
+}): React.JSX.Element {
+  const t = useT()
   return (
     <div className="flex items-center gap-2 px-0.5">
-      <span className="w-16 shrink-0 text-[11px] text-muted">약화 {value}</span>
+      <span className="w-16 shrink-0 text-[11px] text-muted">{t('약화 {0}', value)}</span>
       <Slider min={0} max={5} step={1} value={[value]} onValueChange={([v]) => onChange(v)} />
     </div>
   )

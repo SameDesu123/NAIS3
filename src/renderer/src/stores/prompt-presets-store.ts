@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { GenerationRequest, PresetParams, PromptParts, PromptPreset } from '@shared/types'
 import { mergePromptParts, useGenerationStore } from './generation-store'
+import { t } from '../lib/i18n'
 
 /** 프리셋에 함께 저장/복원되는 파라미터 (시드·캐릭터 제외) */
 export function pickPresetParams(req: GenerationRequest): PresetParams {
@@ -19,7 +20,10 @@ export function pickPresetParams(req: GenerationRequest): PresetParams {
   }
 }
 
-export type PromptPresetSyncSnapshot = Pick<PromptPreset, 'prompt' | 'negativePrompt' | 'params'> & {
+export type PromptPresetSyncSnapshot = Pick<
+  PromptPreset,
+  'prompt' | 'negativePrompt' | 'params'
+> & {
   /** undefined = 조각 비교/저장 제외 (3분할 꺼짐 등 — 저장된 조각을 건드리지 않음) */
   promptParts?: PromptParts | null
 }
@@ -144,7 +148,7 @@ export const usePromptPresetsStore = create<PromptPresetsState>((set, get) => ({
       })
     } else {
       // 2) 전부 삭제됐으면 기본 프리셋을 새로 만들어 활성화 (빈 프롬프트)
-      const newId = await get().create('기본', '', '')
+      const newId = await get().create(t('기본'), '', '')
       get().setActive(newId)
       useGenerationStore
         .getState()

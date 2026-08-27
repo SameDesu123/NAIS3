@@ -21,6 +21,7 @@ import {
   modelCapabilities,
   promptTokenLimit
 } from '@shared/nai-models'
+import { useT } from '../lib/i18n'
 import { useCharactersStore } from '../stores/characters-store'
 import { useFragmentsStore } from '../stores/fragments-store'
 import { useGenerationStore } from '../stores/generation-store'
@@ -38,6 +39,7 @@ import { Button } from './ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
 export function PromptPanel(): React.JSX.Element {
+  const t = useT()
   const request = useGenerationStore((s) => s.request)
   const patch = useGenerationStore((s) => s.patchRequest)
   const patchPromptParts = useGenerationStore((s) => s.patchPromptParts)
@@ -296,7 +298,7 @@ export function PromptPanel(): React.JSX.Element {
                 value={request.prompt}
                 tokensOverride={tokenTotals.pos}
                 tokenLimit={tokenLimit}
-                placeholder="1girl, ...  (태그 자동완성 · <조각>)"
+                placeholder={t('1girl, ...  (태그 자동완성 · <조각>)')}
                 onValueChange={(v) => patch({ prompt: v })}
               />
             ))}
@@ -332,7 +334,7 @@ export function PromptPanel(): React.JSX.Element {
               value={request.negativePrompt}
               tokensOverride={tokenTotals.neg}
               tokenLimit={tokenLimit}
-              placeholder="UC 프리셋 뒤에 이어 붙습니다"
+              placeholder={t('UC 프리셋 뒤에 이어 붙습니다')}
               onValueChange={(v) => patch({ negativePrompt: v })}
             />
           )}
@@ -379,7 +381,7 @@ export function PromptPanel(): React.JSX.Element {
           size="icon"
           variant="ghost"
           className="h-10 w-9 shrink-0"
-          title="생성 파라미터"
+          title={t('생성 파라미터')}
           onClick={() => setParamsOpen(true)}
         >
           <SlidersHorizontal size={16} />
@@ -415,7 +417,7 @@ export function PromptPanel(): React.JSX.Element {
         </div>
         {generating ? (
           <Button variant="danger" size="lg" className="flex-1" onClick={() => void cancelAll()}>
-            <Square size={14} /> 취소 ({queueCount})
+            <Square size={14} /> {t('취소')} ({queueCount})
           </Button>
         ) : isScene ? (
           <Button
@@ -425,15 +427,15 @@ export function PromptPanel(): React.JSX.Element {
             disabled={sceneReserved === 0}
             title={
               sceneReserved === 0
-                ? '씬에 예약(+)을 걸어야 생성할 수 있습니다'
-                : `모든 프리셋의 예약 ${sceneReserved}장 생성 (프리셋 순서대로)`
+                ? t('씬에 예약(+)을 걸어야 생성할 수 있습니다')
+                : t('모든 프리셋의 예약 {0}장 생성 (프리셋 순서대로)', sceneReserved)
             }
             onClick={() => void generateReserved()}
           >
-            씬 생성
+            {t('씬 생성')}
             {sceneReserved > 0 && (
               // 한글 '장'이 mono 폴백(Windows Consolas)에서 깨져 보여 기본 폰트(Pretendard) 사용
-              <span className="text-[12px] opacity-75">{sceneReserved}장</span>
+              <span className="text-[12px] opacity-75">{t('{0}장', sceneReserved)}</span>
             )}
           </Button>
         ) : (
@@ -441,10 +443,10 @@ export function PromptPanel(): React.JSX.Element {
             variant="accent"
             size="lg"
             className="flex-1 gap-2"
-            title={formatAnlasEstimate(anlas, batchCount)}
+            title={formatAnlasEstimate(anlas, batchCount, t)}
             onClick={() => void generate()}
           >
-            생성
+            {t('생성')}
           </Button>
         )}
       </div>
@@ -466,14 +468,15 @@ function CollapseHeader({
   onToggle: () => void
   action?: React.ReactNode
 }): React.JSX.Element {
+  const t = useT()
   return (
     <div className="flex shrink-0 items-center justify-between text-[12px] font-medium text-muted">
       <button
         onClick={onToggle}
         className="flex items-center gap-1 transition-colors hover:text-ink"
-        title={collapsed ? `${label} 펼치기` : `${label} 접기`}
+        title={collapsed ? t('{0} 펼치기', t(label)) : t('{0} 접기', t(label))}
       >
-        <span>{label}</span>
+        <span>{t(label)}</span>
         {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
       </button>
       {action}
@@ -481,7 +484,14 @@ function CollapseHeader({
   )
 }
 
-function TokenBadge({ tokens, limit }: { tokens: number | null; limit: number }): React.JSX.Element | null {
+function TokenBadge({
+  tokens,
+  limit
+}: {
+  tokens: number | null
+  limit: number
+}): React.JSX.Element | null {
+  const t = useT()
   if (tokens === null) return null
   const over = tokens > limit
   return (
@@ -492,8 +502,8 @@ function TokenBadge({ tokens, limit }: { tokens: number | null; limit: number })
       }
       title={
         over
-          ? `한도 초과 — ${tokens}/${limit} 토큰. 초과분은 잘려서 반영되지 않습니다`
-          : `최종 프롬프트 ${tokens}/${limit} 토큰`
+          ? t('한도 초과 — {0}/{1} 토큰. 초과분은 잘려서 반영되지 않습니다', tokens, limit)
+          : t('최종 프롬프트 {0}/{1} 토큰', tokens, limit)
       }
     >
       {tokens}/{limit}
@@ -683,6 +693,7 @@ function SplitField({
 
 /** 프롬프트 문법 도움말 — ⓘ 팝오버 (주석·조각·순차·랜덤·가중치) */
 function SyntaxHelp(): React.JSX.Element {
+  const t = useT()
   const rows: { syntax: string; desc: string }[] = [
     { syntax: '# 메모', desc: '#로 시작하는 줄은 주석 (전송 제외)' },
     { syntax: '<이름>', desc: '조각 삽입 — 여러 줄이면 매 생성 랜덤 1줄' },
@@ -695,20 +706,20 @@ function SyntaxHelp(): React.JSX.Element {
       <PopoverTrigger asChild>
         <button
           className="grid size-5 place-items-center rounded text-faint transition-colors hover:text-ink"
-          title="프롬프트 문법 도움말"
+          title={t('프롬프트 문법 도움말')}
         >
           <Info size={13} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-2.5">
-        <p className="mb-1.5 text-[12px] font-semibold text-ink">프롬프트 문법</p>
+        <p className="mb-1.5 text-[12px] font-semibold text-ink">{t('프롬프트 문법')}</p>
         <div className="flex flex-col gap-1.5">
           {rows.map((r) => (
             <div key={r.syntax} className="flex flex-col gap-0.5">
               <code className="w-fit rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-accent">
-                {r.syntax}
+                {t(r.syntax)}
               </code>
-              <span className="text-[11px] leading-snug text-muted">{r.desc}</span>
+              <span className="text-[11px] leading-snug text-muted">{t(r.desc)}</span>
             </div>
           ))}
         </div>
@@ -732,6 +743,7 @@ function ToolButton({
   onClick: () => void
   disabled?: boolean
 }): React.JSX.Element {
+  const t = useT()
   return (
     <div className="relative">
       <Button
@@ -739,10 +751,10 @@ function ToolButton({
         className="h-8 w-full min-w-0 gap-1 px-1.5 text-[12px]"
         onClick={onClick}
         disabled={disabled}
-        title={disabled ? '선택한 모델에서는 아직 지원하지 않습니다' : undefined}
+        title={disabled ? t('선택한 모델에서는 아직 지원하지 않습니다') : undefined}
       >
         {icon}
-        <span className="min-w-0 truncate">{label}</span>
+        <span className="min-w-0 truncate">{t(label)}</span>
       </Button>
       {badge > 0 && (
         // 우측 상단에 겹치는 알림 배지 (붉은 원)

@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '../lib/utils'
+import { useT } from '../lib/i18n'
 import { caretCoords } from '../lib/caret'
 import { highlightRanges } from '../lib/prompt-weights'
 import { fragmentPaths } from '../stores/fragments-store'
@@ -59,6 +60,7 @@ export function PromptEditor({
   tokensOverride?: number | null
   tokenLimit?: number
 }): React.JSX.Element {
+  const t = useT()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -324,7 +326,7 @@ export function PromptEditor({
         style={{ caretColor: 'var(--ink)' }}
         spellCheck={false}
         value={value}
-        placeholder={placeholder}
+        placeholder={placeholder ? t(placeholder) : undefined}
         onChange={(e) => {
           onValueChange(e.target.value)
           refreshSuggestions(e.target.value, e.target.selectionStart)
@@ -366,7 +368,7 @@ export function PromptEditor({
           <input
             ref={findInputRef}
             className="w-28 bg-transparent font-mono text-[12px] text-ink outline-none placeholder:font-sans placeholder:text-faint"
-            placeholder="찾기"
+            placeholder={t('찾기')}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
@@ -390,7 +392,7 @@ export function PromptEditor({
           </span>
           <button
             className="grid size-5 shrink-0 place-items-center rounded text-faint hover:bg-surface-2 hover:text-ink disabled:opacity-30"
-            title="이전 (Shift+Enter)"
+            title={t('이전 (Shift+Enter)')}
             disabled={hits.length === 0}
             onClick={() => step(-1)}
           >
@@ -398,7 +400,7 @@ export function PromptEditor({
           </button>
           <button
             className="grid size-5 shrink-0 place-items-center rounded text-faint hover:bg-surface-2 hover:text-ink disabled:opacity-30"
-            title="다음 (Enter)"
+            title={t('다음 (Enter)')}
             disabled={hits.length === 0}
             onClick={() => step(1)}
           >
@@ -406,7 +408,7 @@ export function PromptEditor({
           </button>
           <button
             className="grid size-5 shrink-0 place-items-center rounded text-faint hover:bg-surface-2 hover:text-ink"
-            title="닫기 (Esc)"
+            title={t('닫기 (Esc)')}
             onClick={closeFind}
           >
             <X size={13} />
@@ -422,8 +424,8 @@ export function PromptEditor({
           )}
           title={
             tokens > tokenLimit
-              ? `한도 초과 — ${tokens}/${tokenLimit} 토큰. 초과분은 잘려서 반영되지 않습니다`
-              : `${tokens}/${tokenLimit} 토큰`
+              ? t('한도 초과 — {0}/{1} 토큰. 초과분은 잘려서 반영되지 않습니다', tokens, tokenLimit)
+              : t('{0}/{1} 토큰', tokens, tokenLimit)
           }
         >
           {tokens}/{tokenLimit}

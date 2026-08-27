@@ -5,6 +5,7 @@ import { BrowserWindow, dialog } from 'electron'
 import sharp from 'sharp'
 import type { LibraryImage, LibraryStack } from '../../shared/types'
 import { getDb } from '../db'
+import { t } from '../i18n'
 import { libraryRoot } from '../images/storage'
 
 /**
@@ -128,9 +129,9 @@ export function reorderImages(ids: number[]): void {
 export async function importViaDialog(stackId: number | null): Promise<number> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showOpenDialog(win, {
-    title: '라이브러리에 이미지 추가',
+    title: t('라이브러리에 이미지 추가'),
     properties: ['openFile', 'multiSelections'],
-    filters: [{ name: '이미지', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
+    filters: [{ name: t('이미지'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
   })
   if (result.canceled) return 0
   return importPaths(result.filePaths, stackId)
@@ -206,7 +207,7 @@ export async function exportImages(ids: number[], prefix?: string): Promise<numb
   if (ids.length === 0) return 0
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showOpenDialog(win, {
-    title: '내보낼 폴더 선택',
+    title: t('내보낼 폴더 선택'),
     properties: ['openDirectory', 'createDirectory']
   })
   if (result.canceled || !result.filePaths[0]) return 0
