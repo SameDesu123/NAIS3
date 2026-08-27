@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { imageUrl } from '../lib/constants'
+import { useT } from '../lib/i18n'
 import { addToLibrary } from '../stores/library-store'
 import { ImageContextMenu } from './image-context-menu'
 
@@ -20,6 +21,7 @@ export function Lightbox({
   /** L 단축키로 라이브러리 저장 — 라이브러리 자신의 뷰어에서는 끔 (중복 추가 방지) */
   allowLibraryAdd?: boolean
 }): React.JSX.Element | null {
+  const t = useT()
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
       if (e.key === 'Escape') onClose()
@@ -105,7 +107,9 @@ export function Lightbox({
       )}
       <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 font-mono text-[12px] text-white">
         {index + 1} / {filePaths.length}
-        {allowLibraryAdd && <span className="ml-2 opacity-60">휠 넘기기 · L 라이브러리 저장</span>}
+        {allowLibraryAdd && (
+          <span className="ml-2 opacity-60">{t('휠 넘기기 · L 라이브러리 저장')}</span>
+        )}
       </span>
     </div>,
     document.body

@@ -8,6 +8,7 @@ import type {
   CharacterOrderEntry
 } from '../../shared/types'
 import { getDb } from '../db'
+import { t } from '../i18n'
 
 interface CharRow {
   id: number
@@ -115,10 +116,10 @@ export function duplicateCharacter(id: number): number {
     .prepare(
       `INSERT INTO character_prompts
          (name, prompt, negative_prompt, folder, thumbnail, settings_json, enabled, center_x, center_y, folder_id, sort_order)
-       SELECT name || ' 복사', prompt, negative_prompt, folder, thumbnail, settings_json, 0, center_x, center_y, folder_id, ?
+       SELECT name || ?, prompt, negative_prompt, folder, thumbnail, settings_json, 0, center_x, center_y, folder_id, ?
        FROM character_prompts WHERE id = ?`
     )
-    .run(max + 1, id)
+    .run(` ${t('복사')}`, max + 1, id)
   return Number(info.lastInsertRowid)
 }
 
@@ -185,9 +186,9 @@ export function deleteFolder(id: number): void {
 export async function pickCharacterThumbnail(id: number): Promise<string | null> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showOpenDialog(win, {
-    title: '캐릭터 이미지 선택',
+    title: t('캐릭터 이미지 선택'),
     properties: ['openFile'],
-    filters: [{ name: '이미지', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }]
+    filters: [{ name: t('이미지'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }]
   })
   if (result.canceled || result.filePaths.length === 0) return null
 

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useArtistTagsStore } from '../stores/artist-tags-store'
 import { toast } from '../stores/toast-store'
 import { cn } from '../lib/utils'
+import { useT } from '../lib/i18n'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 
@@ -17,6 +18,7 @@ function formatScore(score: number): string {
  * 선택된 태그만 하단 텍스트로 모아 복사한다.
  */
 export function ArtistTagsDialog(): React.JSX.Element {
+  const t = useT()
   const open = useArtistTagsStore((s) => s.open)
   const loading = useArtistTagsStore((s) => s.loading)
   const tags = useArtistTagsStore((s) => s.tags)
@@ -49,21 +51,21 @@ export function ArtistTagsDialog(): React.JSX.Element {
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="flex max-h-[85vh] max-w-[680px] flex-col p-0">
         <DialogTitle className="border-b border-line px-5 py-3.5 text-[15px]">
-          작가 태그 분석{' '}
+          {t('작가 태그 분석')}{' '}
           <span className="text-[12px] font-normal text-faint">
-            — 그림체가 닮은 작가 추정 (Kaloscope)
+            {t('— 그림체가 닮은 작가 추정 (Kaloscope)')}
           </span>
         </DialogTitle>
 
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted">
             <Loader2 size={18} className="animate-spin" />
-            <p className="text-[13px]">스타일 분석 중… (수 초 걸릴 수 있습니다)</p>
+            <p className="text-[13px]">{t('스타일 분석 중… (수 초 걸릴 수 있습니다)')}</p>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center gap-3 py-14 text-danger">
             <ImageOff size={30} strokeWidth={1.4} />
-            <p className="max-w-[80%] text-center text-[13px]">{error}</p>
+            <p className="max-w-[80%] text-center text-[13px]">{t(error)}</p>
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 gap-4 overflow-y-auto p-5">
@@ -84,13 +86,13 @@ export function ArtistTagsDialog(): React.JSX.Element {
             <div className="flex min-w-0 flex-1 flex-col gap-3">
               {/* 한 줄에 하나씩 — 이름 길이와 무관하게 정렬이 흐트러지지 않게 */}
               <div className="flex min-h-0 flex-col gap-1 overflow-y-auto">
-                {tags.map((t) => {
-                  const off = excluded.has(t.label)
+                {tags.map((tag) => {
+                  const off = excluded.has(tag.label)
                   return (
                     <button
-                      key={t.label}
-                      onClick={() => toggle(t.label)}
-                      title={off ? '클릭해서 포함' : '클릭해서 제외'}
+                      key={tag.label}
+                      onClick={() => toggle(tag.label)}
+                      title={off ? t('클릭해서 포함') : t('클릭해서 제외')}
                       className={cn(
                         'flex w-full shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11.5px] transition-colors',
                         off
@@ -102,20 +104,20 @@ export function ArtistTagsDialog(): React.JSX.Element {
                         size={11}
                         className={cn('shrink-0', off ? 'text-faint' : 'text-accent')}
                       />
-                      <span className="min-w-0 flex-1 truncate text-left">{t.label}</span>
+                      <span className="min-w-0 flex-1 truncate text-left">{tag.label}</span>
                       <span className="shrink-0 font-mono text-[10px] text-faint">
-                        {formatScore(t.score)}
+                        {formatScore(tag.score)}
                       </span>
                     </button>
                   )
                 })}
               </div>
               <div className="flex min-h-0 flex-none flex-col">
-                <p className="mb-1 text-[12px] font-medium text-muted">선택된 태그</p>
+                <p className="mb-1 text-[12px] font-medium text-muted">{t('선택된 태그')}</p>
                 <textarea
                   readOnly
                   value={selectedText}
-                  placeholder="(선택된 태그 없음)"
+                  placeholder={t('(선택된 태그 없음)')}
                   className="block h-24 w-full resize-none overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-line bg-surface-2/40 p-2 font-mono text-[12px] leading-relaxed text-ink outline-none placeholder:font-sans placeholder:text-faint"
                 />
               </div>
@@ -125,7 +127,7 @@ export function ArtistTagsDialog(): React.JSX.Element {
 
         <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
           <Button variant="ghost" onClick={close}>
-            닫기
+            {t('닫기')}
           </Button>
           <Button
             variant="accent"
@@ -133,10 +135,10 @@ export function ArtistTagsDialog(): React.JSX.Element {
             disabled={!selectedText}
             onClick={() => {
               void navigator.clipboard.writeText(selectedText)
-              toast('작가 태그가 복사되었습니다', 'success')
+              toast(t('작가 태그가 복사되었습니다'), 'success')
             }}
           >
-            <Copy size={13} /> 복사
+            <Copy size={13} /> {t('복사')}
           </Button>
         </div>
       </DialogContent>

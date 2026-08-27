@@ -19,6 +19,7 @@ import { SortableList, SortableRow } from './sortable-list'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Input } from './ui/input'
+import { useT } from '../lib/i18n'
 
 /**
  * 출연(Cast) 관리 — 예약에 붙는 캐릭터/레퍼런스 구성을 편집.
@@ -27,6 +28,7 @@ import { Input } from './ui/input'
  * 씬 카드 예약 배지에 그 색으로 표시된다 (사이드바 예약 = 빨강).
  */
 export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
+  const t = useT()
   const casts = useScenesStore((s) => s.casts)
   const addCast = useScenesStore((s) => s.addCast)
   const updateCast = useScenesStore((s) => s.updateCast)
@@ -69,7 +71,7 @@ export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX
 
   const submit = (): void => {
     const data = {
-      name: name.trim() || `출연 ${casts.length + 1}`,
+      name: name.trim() || t('출연 {0}', casts.length + 1),
       characterIds,
       charRefIds,
       vibeIds
@@ -83,11 +85,11 @@ export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="flex h-[86vh] max-w-4xl flex-col p-0">
         <div className="shrink-0 border-b border-line px-5 py-3.5">
-          <DialogTitle className="text-[15px]">출연 관리</DialogTitle>
+          <DialogTitle className="text-[15px]">{t('출연 관리')}</DialogTitle>
           <p className="mt-1 text-[12px] text-muted">
-            출연 = 예약에 붙는 캐릭터/레퍼런스 구성입니다. 아래에서 선택해 출연을 추가한 뒤,
-            툴바에서 출연을 고르고 예약(+)하면 그 출연의 색으로 예약이 기록됩니다. (빨간 예약 =
-            사이드바 설정)
+            {t(
+              '출연 = 예약에 붙는 캐릭터/레퍼런스 구성입니다. 아래에서 선택해 출연을 추가한 뒤, 툴바에서 출연을 고르고 예약(+)하면 그 출연의 색으로 예약이 기록됩니다. (빨간 예약 = 사이드바 설정)'
+            )}
           </p>
         </div>
 
@@ -97,18 +99,18 @@ export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX
             <span
               className="size-5 shrink-0 rounded-md shadow-inner"
               style={{ backgroundColor: builderColor }}
-              title="이 출연의 예약 배지 색"
+              title={t('이 출연의 예약 배지 색')}
             />
             <Input
               className="h-8 max-w-xs"
               value={name}
-              placeholder={`출연 이름 (예: 미쿠) — 비우면 "출연 ${casts.length + 1}"`}
+              placeholder={t('출연 이름 (예: 미쿠) — 비우면 "출연 {0}"', casts.length + 1)}
               onChange={(e) => setName(e.target.value)}
             />
             <div className="flex-1" />
             {editingId && (
               <Button size="sm" variant="ghost" className="gap-1 text-muted" onClick={resetBuilder}>
-                <X size={13} /> 편집 취소
+                <X size={13} /> {t('편집 취소')}
               </Button>
             )}
             <Button
@@ -120,11 +122,11 @@ export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX
             >
               {editingId ? (
                 <>
-                  <Check size={13} /> 변경 저장
+                  <Check size={13} /> {t('변경 저장')}
                 </>
               ) : (
                 <>
-                  <Plus size={13} /> 출연 추가
+                  <Plus size={13} /> {t('출연 추가')}
                 </>
               )}
             </Button>
@@ -133,9 +135,13 @@ export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX
           {/* 3열 선택자 — 높이 고정(각자 스크롤)이라 내용에 따라 레이아웃이 튀지 않음 */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <section>
-              <SectionTitle icon={UserRound} label="캐릭터 프롬프트" count={characterIds.length} />
+              <SectionTitle
+                icon={UserRound}
+                label={t('캐릭터 프롬프트')}
+                count={characterIds.length}
+              />
               <div className="h-52 space-y-0.5 overflow-y-auto rounded-md border border-line bg-paper p-1.5">
-                {characters.length === 0 && <EmptyNote text="캐릭터 프롬프트가 없습니다." />}
+                {characters.length === 0 && <EmptyNote text={t('캐릭터 프롬프트가 없습니다.')} />}
                 <CharacterChecklist
                   characters={characters}
                   folders={charFolders}
@@ -145,20 +151,24 @@ export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX
               </div>
             </section>
             <section>
-              <SectionTitle icon={ImageIcon} label="캐릭터 레퍼런스" count={charRefIds.length} />
+              <SectionTitle
+                icon={ImageIcon}
+                label={t('캐릭터 레퍼런스')}
+                count={charRefIds.length}
+              />
               <ThumbGrid
                 items={charRefs}
                 selectedIds={charRefIds}
-                emptyText="캐릭터 레퍼런스가 없습니다."
+                emptyText={t('캐릭터 레퍼런스가 없습니다.')}
                 onToggle={(id) => toggle(charRefIds, setCharRefIds, id)}
               />
             </section>
             <section>
-              <SectionTitle icon={Waves} label="바이브 레퍼런스" count={vibeIds.length} />
+              <SectionTitle icon={Waves} label={t('바이브 레퍼런스')} count={vibeIds.length} />
               <ThumbGrid
                 items={vibes}
                 selectedIds={vibeIds}
-                emptyText="바이브 레퍼런스가 없습니다."
+                emptyText={t('바이브 레퍼런스가 없습니다.')}
                 onToggle={(id) => toggle(vibeIds, setVibeIds, id)}
               />
             </section>
@@ -168,7 +178,7 @@ export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX
           <div className="mt-2 flex min-h-7 flex-wrap items-center gap-1.5">
             {!hasSelection && (
               <span className="text-[11px] text-faint">
-                선택한 캐릭터/레퍼런스가 여기에 표시됩니다.
+                {t('선택한 캐릭터/레퍼런스가 여기에 표시됩니다.')}
               </span>
             )}
             {characterIds.map((id) => {
@@ -177,7 +187,7 @@ export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX
                 <Chip
                   key={`c${id}`}
                   color="sky"
-                  label={c ? c.name || c.prompt.split(',')[0] || '캐릭터' : '삭제된 캐릭터'}
+                  label={c ? c.name || c.prompt.split(',')[0] || t('캐릭터') : t('삭제된 캐릭터')}
                   onRemove={() => toggle(characterIds, setCharacterIds, id)}
                 />
               )
@@ -186,7 +196,7 @@ export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX
               <Chip
                 key={`r${id}`}
                 color="emerald"
-                label={charRefs.find((x) => x.id === id)?.name || `레퍼런스 #${i + 1}`}
+                label={charRefs.find((x) => x.id === id)?.name || t('레퍼런스 #{0}', i + 1)}
                 onRemove={() => toggle(charRefIds, setCharRefIds, id)}
               />
             ))}
@@ -194,7 +204,7 @@ export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX
               <Chip
                 key={`v${id}`}
                 color="violet"
-                label={vibes.find((x) => x.id === id)?.name || `바이브 #${i + 1}`}
+                label={vibes.find((x) => x.id === id)?.name || t('바이브 #{0}', i + 1)}
                 onRemove={() => toggle(vibeIds, setVibeIds, id)}
               />
             ))}
@@ -203,13 +213,15 @@ export function SceneCastDialog({ onClose }: { onClose: () => void }): React.JSX
 
         {/* ── 출연 목록 ── */}
         <div className="flex shrink-0 items-center justify-between px-5 pb-1 pt-2.5">
-          <span className="text-[12px] font-medium text-muted">{casts.length}개 출연</span>
+          <span className="text-[12px] font-medium text-muted">
+            {t('{0}개 출연', casts.length)}
+          </span>
         </div>
         <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-5 pb-5">
           {casts.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-line py-8 text-faint">
               <UserRound size={32} strokeWidth={1.2} className="opacity-40" />
-              <p className="text-[12.5px]">위에서 선택 후 &quot;출연 추가&quot;를 누르세요.</p>
+              <p className="text-[12.5px]">{t('위에서 선택 후 "출연 추가"를 누르세요.')}</p>
             </div>
           ) : (
             /* 드래그로 순서 변경 — 툴바 출연 드롭다운 순서와 동일하게 반영 */
@@ -250,6 +262,7 @@ function CastRow({
   onEdit: () => void
   onRemove: () => void
 }): React.JSX.Element {
+  const t = useT()
   const charNames = cast.characterIds
     .map((id) => {
       const c = characters.find((x) => x.id === id)
@@ -268,24 +281,28 @@ function CastRow({
       <span
         className="size-4 shrink-0 rounded-full shadow-inner"
         style={{ backgroundColor: cast.color }}
-        title="예약 배지 색"
+        title={t('예약 배지 색')}
       />
       <span className="min-w-0 shrink-0 truncate text-[13px] font-semibold">
-        {cast.name || '이름 없음'}
+        {cast.name || t('이름 없음')}
       </span>
       <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted">
         {charNames && <span title={charNames}>👤 {charNames}</span>}
-        {cast.charRefIds.length > 0 && <span className="ml-2">레퍼 {cast.charRefIds.length}</span>}
-        {cast.vibeIds.length > 0 && <span className="ml-2">바이브 {cast.vibeIds.length}</span>}
+        {cast.charRefIds.length > 0 && (
+          <span className="ml-2">{t('레퍼 {0}', cast.charRefIds.length)}</span>
+        )}
+        {cast.vibeIds.length > 0 && (
+          <span className="ml-2">{t('바이브 {0}', cast.vibeIds.length)}</span>
+        )}
         {!charNames && cast.charRefIds.length === 0 && cast.vibeIds.length === 0 && (
-          <span className="text-faint">구성 없음</span>
+          <span className="text-faint">{t('구성 없음')}</span>
         )}
       </span>
       <Button
         size="sm"
         variant="ghost"
         className="h-7 w-7 shrink-0 p-0 text-muted hover:text-fg"
-        title="편집 (위 빌더로 불러오기)"
+        title={t('편집 (위 빌더로 불러오기)')}
         onClick={onEdit}
       >
         <Pencil size={13} />
@@ -294,7 +311,7 @@ function CastRow({
         size="sm"
         variant="ghost"
         className="h-7 w-7 shrink-0 p-0 text-danger hover:text-danger"
-        title="출연 삭제 (이 출연의 예약도 실행에서 제외됨)"
+        title={t('출연 삭제 (이 출연의 예약도 실행에서 제외됨)')}
         onClick={onRemove}
       >
         <Trash2 size={13} />
@@ -315,6 +332,7 @@ function CharacterChecklist({
   selectedIds: number[]
   onToggle: (id: number) => void
 }): React.JSX.Element {
+  const t = useT()
   const groups: { name: string; color: string | null; items: CharacterCard[] }[] = [
     ...folders
       .map((f) => ({
@@ -324,7 +342,7 @@ function CharacterChecklist({
       }))
       .filter((g) => g.items.length > 0),
     {
-      name: '미분류',
+      name: t('미분류'),
       color: null,
       items: characters.filter(
         (c) => c.folderId == null || !folders.some((f) => f.id === c.folderId)
@@ -364,7 +382,7 @@ function CharacterChecklist({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[12px] font-medium text-ink">
-                    {c.name || '이름 없음'}
+                    {c.name || t('이름 없음')}
                   </span>
                   {c.prompt && (
                     <span className="line-clamp-2 break-all font-mono text-[10px] leading-tight text-faint">
@@ -487,13 +505,14 @@ function Chip({
   label: string
   onRemove: () => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <button
       className={cn(
         'max-w-[180px] truncate rounded-md px-2 py-1 text-[11px] transition hover:opacity-70',
         CHIP_COLORS[color]
       )}
-      title="클릭해서 해제"
+      title={t('클릭해서 해제')}
       onClick={onRemove}
     >
       {label}

@@ -77,6 +77,7 @@ interface ScenesState {
   bulkMove: (presetId: number) => Promise<void>
   bulkDelete: () => Promise<void>
   bulkSetResolution: (width: number, height: number) => Promise<void>
+  bulkAdjustReserve: (delta: number) => Promise<void>
   bulkClearFavorites: () => Promise<void>
   bulkClearImages: () => Promise<void>
   bulkExportZip: () => Promise<void>
@@ -376,6 +377,25 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     const ids = [...get().selection]
     await window.nais.invoke('scenes:bulkSetResolution', { ids, width, height })
     await get().load()
+  },
+  bulkAdjustReserve: async (delta) => {
+    // 선택한 씬만 증감 — 단위·대상 출연은 카드의 +/-와 동일 (배치 개수 × 현재 출연)
+    const ids = get().selection
+    if (ids.size === 0) return
+    const castId = get().activeCastId
+    const step = delta * (useGenerationStore.getState().batchCount || 1)
+    set({
+      scenes: get().scenes.map((s) => {
+        if (!ids.has(s.id)) return s
+        const reserves = { ...s.reserves }
+        const next = Math.max(0, (reserves[castId] ?? 0) + step)
+        if (next > 0) reserves[castId] = next
+        else delete reserves[castId]
+        return { ...s, reserves, reserveCount: Object.values(reserves).reduce((a, b) => a + b, 0) }
+      })
+    })
+    await window.nais.invoke('scenes:bulkAdjustReserve', { ids: [...ids], castId, delta: step })
+    void get().refreshReservedTotal()
   },
   bulkClearFavorites: async () => {
     await window.nais.invoke('scenes:bulkClearFavorites', { ids: [...get().selection] })

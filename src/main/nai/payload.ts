@@ -203,7 +203,9 @@ export function buildGenerateImagePayload(
       qualityToggle: req.qualityToggle,
       ...(v5
         ? {
-            tag_hint_qt: req.qualityToggle ? QUALITY_PRESET_HINT.standard : QUALITY_PRESET_HINT.none,
+            tag_hint_qt: req.qualityToggle
+              ? QUALITY_PRESET_HINT.standard
+              : QUALITY_PRESET_HINT.none,
             tag_hint_uc_preset: UC_PRESET_HINT[req.ucPreset],
             ...(transparent
               ? {
