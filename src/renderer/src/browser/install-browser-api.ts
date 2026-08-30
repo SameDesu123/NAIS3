@@ -121,6 +121,45 @@ async function imageDimensions(base64: string): Promise<{ width: number; height:
   })
 }
 
+async function saveBrowserImage(
+  base64: string,
+  kind: string,
+  payloadJson: string | null = null
+): Promise<string> {
+  return mutateBrowserState((state) => {
+    const id = nextBrowserId(state)
+    const filePath = webPath(base64)
+    state.images.unshift({
+      id,
+      filePath,
+      thumbnail: base64,
+      kind,
+      seed: null,
+      createdAt: new Date().toISOString(),
+      base64,
+      payloadJson,
+      sceneId: null,
+      favorite: false
+    })
+    return filePath
+  })
+}
+
+async function recordAnlasSpend(
+  token: string,
+  operation: () => Promise<{ base64: string }>
+): Promise<{ base64: string }> {
+  const before = await gateway<IpcInvokeMap['nai:balance']['res']>('balance', { token })
+  const result = await operation()
+  const after = await gateway<IpcInvokeMap['nai:balance']['res']>('balance', { token })
+  if (before.anlas != null && after.anlas != null && before.anlas > after.anlas) {
+    await mutateBrowserState((state) => {
+      state.anlasLog.push({ at: new Date().toISOString(), spent: before.anlas! - after.anlas! })
+    })
+  }
+  return result
+}
+
 async function runQueue(): Promise<void> {
   if (queueRunning) return
   queueRunning = true
@@ -635,6 +674,57 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
       }
     }
   }
+  if (channel === 'images:analyzeArtists') {
+    const state = await readBrowserState()
+    const stored = state.images.find((candidate) => candidate.filePath === request.filePath)
+    const imageBase64 = String(request.base64 ?? stored?.base64 ?? '')
+    if (!imageBase64) return { error: 'Image not found' }
+    return gateway('analyze-artists', { imageBase64 })
+  }
+  if (channel === 'images:upscale') {
+    const account = activeAccount(await readBrowserState())
+    if (!account) return { error: 'NAI token is not configured' }
+    try {
+      const result = await recordAnlasSpend(account.token, () =>
+        gateway('upscale', {
+          token: account.token,
+          imageBase64: request.imageBase64,
+          scale: request.scale
+        })
+      )
+      const filePath = await saveBrowserImage(
+        result.base64,
+        'upscale',
+        JSON.stringify({ upscale: request.scale })
+      )
+      return { filePath, base64: result.base64 }
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+  if (channel === 'director:run') {
+    const account = activeAccount(await readBrowserState())
+    if (!account) return { error: 'NAI token is not configured' }
+    try {
+      const result = await recordAnlasSpend(account.token, () =>
+        gateway('director', {
+          token: account.token,
+          method: request.method,
+          imageBase64: request.imageBase64,
+          prompt: request.prompt,
+          defry: request.defry
+        })
+      )
+      const filePath = await saveBrowserImage(
+        result.base64,
+        String(request.method),
+        JSON.stringify({ director: request.method, prompt: request.prompt, defry: request.defry })
+      )
+      return { filePath, base64: result.base64 }
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) }
+    }
+  }
   if (channel === 'images:saveAs') {
     const item = (await readBrowserState()).images.find(
       (candidate) => candidate.filePath === request.filePath
@@ -681,23 +771,7 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
   if (channel === 'images:showInFolder') return undefined
   if (channel === 'images:saveLocal') {
     const base64 = String(request.base64)
-    const filePath = await mutateBrowserState((state) => {
-      const id = nextBrowserId(state)
-      const path = webPath(base64)
-      state.images.unshift({
-        id,
-        filePath: path,
-        thumbnail: base64,
-        kind: 'mosaic',
-        seed: null,
-        createdAt: new Date().toISOString(),
-        base64,
-        payloadJson: null,
-        sceneId: null,
-        favorite: false
-      })
-      return path
-    })
+    const filePath = await saveBrowserImage(base64, 'mosaic')
     return { filePath }
   }
 

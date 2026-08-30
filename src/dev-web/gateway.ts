@@ -5,6 +5,7 @@ import JSZip from 'jszip'
 import sharp from 'sharp'
 import type { Plugin } from 'vite'
 import type { GenerationRequest, SubscriptionInfo } from '../shared/types'
+import { analyzeArtists } from '../main/images/artists'
 import {
   buildGenerateImagePayload,
   type BuildOptions,
@@ -225,6 +226,59 @@ async function route(
       payloadJson: sentPayload,
       vibeEncodings: preparedVibes.encodings
     }
+  }
+
+  if (path === 'director') {
+    const token = String(body.token ?? '')
+    const input = Buffer.from(String(body.imageBase64 ?? '').replace(/^data:[^,]+,/, ''), 'base64')
+    const metadata = await sharp(input).metadata()
+    const requestBody: Record<string, unknown> = {
+      req_type: String(body.method ?? ''),
+      image: input.toString('base64'),
+      width: metadata.width ?? 0,
+      height: metadata.height ?? 0
+    }
+    if (body.prompt !== undefined) requestBody.prompt = body.prompt
+    if (body.defry !== undefined) requestBody.defry = body.defry
+    const response = await fetch(ENDPOINTS.augmentImage, {
+      method: 'POST',
+      headers: naiHeaders(token),
+      body: JSON.stringify(requestBody),
+      signal
+    })
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      throw new Error(`Director request failed ${response.status}: ${detail.slice(0, 300)}`)
+    }
+    return { base64: (await extractZipImage(response)).toString('base64') }
+  }
+
+  if (path === 'upscale') {
+    const token = String(body.token ?? '')
+    const input = Buffer.from(String(body.imageBase64 ?? '').replace(/^data:[^,]+,/, ''), 'base64')
+    const metadata = await sharp(input).metadata()
+    const response = await fetch(ENDPOINTS.upscale, {
+      method: 'POST',
+      headers: naiHeaders(token),
+      body: JSON.stringify({
+        image: input.toString('base64'),
+        width: metadata.width ?? 0,
+        height: metadata.height ?? 0,
+        scale: Number(body.scale)
+      }),
+      signal
+    })
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      throw new Error(`Upscale failed ${response.status}: ${detail.slice(0, 300)}`)
+    }
+    return { base64: (await extractZipImage(response)).toString('base64') }
+  }
+
+  if (path === 'analyze-artists') {
+    const image = Buffer.from(String(body.imageBase64 ?? '').replace(/^data:[^,]+,/, ''), 'base64')
+    const artistTags = await analyzeArtists(image)
+    return artistTags.length > 0 ? { tags: artistTags } : { error: 'No artist tags found' }
   }
 
   if (path === 'tokens') {
