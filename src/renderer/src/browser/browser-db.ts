@@ -44,6 +44,7 @@ export interface BrowserState {
   fragments: Fragment[]
   vibeFolders: ListFolder[]
   vibes: VibeItem[]
+  vibeEncodings: Record<string, string>
   charRefFolders: ListFolder[]
   charRefs: CharRefItem[]
   promptPresets: PromptPreset[]
@@ -67,6 +68,7 @@ function emptyState(): BrowserState {
     fragments: [],
     vibeFolders: [],
     vibes: [],
+    vibeEncodings: {},
     charRefFolders: [],
     charRefs: [],
     promptPresets: [],

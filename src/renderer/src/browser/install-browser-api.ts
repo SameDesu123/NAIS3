@@ -18,17 +18,19 @@ import {
 
 const listeners = new Map<keyof IpcEventMap, Set<(payload: unknown) => void>>()
 const queue: QueueStatus = { items: [], running: false, delayMs: 600 }
+const queueControllers = new Map<string, AbortController>()
 let queueRunning = false
 
 function emit<C extends keyof IpcEventMap>(channel: C, payload: IpcEventMap[C]): void {
   listeners.get(channel)?.forEach((listener) => listener(payload))
 }
 
-async function gateway<T>(route: string, body: unknown): Promise<T> {
+async function gateway<T>(route: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/__nais/api/${route}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal
   })
   const result = (await response.json()) as T & { error?: string }
   if (!response.ok || result.error)
@@ -129,17 +131,53 @@ async function runQueue(): Promise<void> {
     while (item) {
       item.state = 'generating'
       emit('queue:changed', structuredClone(queue))
+      const controller = new AbortController()
+      queueControllers.set(item.id, controller)
       try {
         const state = await readBrowserState()
         const account = activeAccount(state)
         if (!account) throw new Error('NAI token is not configured')
-        const before = await gateway<IpcInvokeMap['nai:balance']['res']>('balance', {
-          token: account.token
-        })
-        const result = await gateway<{ base64: string; payloadJson: string }>('generate', {
-          token: account.token,
-          request: item.request
-        })
+        const before = await gateway<IpcInvokeMap['nai:balance']['res']>(
+          'balance',
+          {
+            token: account.token
+          },
+          controller.signal
+        )
+        const selectedVibes =
+          item.request.vibeIds !== undefined
+            ? state.vibes.filter((vibe) => item!.request.vibeIds!.includes(vibe.id))
+            : state.vibes.filter((vibe) => vibe.enabled)
+        const selectedCharRefs =
+          item.request.charRefIds !== undefined
+            ? state.charRefs.filter((reference) => item!.request.charRefIds!.includes(reference.id))
+            : state.charRefs.filter((reference) => reference.enabled)
+        const result = await gateway<{
+          base64: string
+          payloadJson: string
+          vibeEncodings: { id: number; encodedBase64: string }[]
+        }>(
+          'generate',
+          {
+            token: account.token,
+            request: item.request,
+            vibes: selectedVibes.map((vibe) => ({
+              id: vibe.id,
+              imageBase64: vibe.thumbnail,
+              strength: vibe.strength,
+              informationExtracted: vibe.infoExtracted,
+              encodedBase64:
+                state.vibeEncodings[`${vibe.id}:${item!.request.model}:${vibe.infoExtracted}`]
+            })),
+            characterReferences: selectedCharRefs.map((reference) => ({
+              imageBase64: reference.thumbnail,
+              referenceType: reference.refType,
+              strength: reference.strength,
+              fidelity: reference.fidelity
+            }))
+          },
+          controller.signal
+        )
         const image = await mutateBrowserState((next) => {
           const id = nextBrowserId(next)
           const created: BrowserImage = {
@@ -155,6 +193,14 @@ async function runQueue(): Promise<void> {
             favorite: false
           }
           next.images.unshift(created)
+          for (const encoding of result.vibeEncodings) {
+            const vibe = next.vibes.find((candidate) => candidate.id === encoding.id)
+            if (!vibe) continue
+            next.vibeEncodings[`${vibe.id}:${item!.request.model}:${vibe.infoExtracted}`] =
+              encoding.encodedBase64
+            vibe.encodedModels = [...new Set([...(vibe.encodedModels ?? []), item!.request.model])]
+            vibe.encodedReady = true
+          }
           const scene = next.scenes.find((candidate) => candidate.id === created.sceneId)
           if (scene) {
             scene.imageCount += 1
@@ -163,9 +209,13 @@ async function runQueue(): Promise<void> {
           }
           return created
         })
-        const after = await gateway<IpcInvokeMap['nai:balance']['res']>('balance', {
-          token: account.token
-        })
+        const after = await gateway<IpcInvokeMap['nai:balance']['res']>(
+          'balance',
+          {
+            token: account.token
+          },
+          controller.signal
+        )
         if (before.anlas != null && after.anlas != null && before.anlas > after.anlas) {
           await mutateBrowserState((next) => {
             next.anlasLog.push({
@@ -180,8 +230,13 @@ async function runQueue(): Promise<void> {
           emit('scenes:changed', { sceneId: image.sceneId, filePath: image.filePath })
         }
       } catch (error) {
-        item.state = 'failed'
-        item.error = error instanceof Error ? error.message : String(error)
+        if (controller.signal.aborted) item.state = 'cancelled'
+        else {
+          item.state = 'failed'
+          item.error = error instanceof Error ? error.message : String(error)
+        }
+      } finally {
+        queueControllers.delete(item.id)
       }
       emit('queue:changed', structuredClone(queue))
       await new Promise((resolve) => setTimeout(resolve, queue.delayMs))
@@ -366,6 +421,7 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
     const ids = new Set(request.ids as string[])
     queue.items.forEach((item) => {
       if (ids.has(item.id) && item.state === 'pending') item.state = 'cancelled'
+      if (ids.has(item.id) && item.state === 'generating') queueControllers.get(item.id)?.abort()
     })
     emit('queue:changed', structuredClone(queue))
     return undefined

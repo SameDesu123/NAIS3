@@ -2,9 +2,15 @@ import { readFileSync } from 'fs'
 import type { IncomingMessage, ServerResponse } from 'http'
 import { resolve } from 'path'
 import JSZip from 'jszip'
+import sharp from 'sharp'
 import type { Plugin } from 'vite'
 import type { GenerationRequest, SubscriptionInfo } from '../shared/types'
-import { buildGenerateImagePayload } from '../main/nai/payload'
+import {
+  buildGenerateImagePayload,
+  type BuildOptions,
+  type CharacterReferenceOptions,
+  type VibeOptions
+} from '../main/nai/payload'
 import { ENDPOINTS } from '../main/nai/endpoints'
 
 const API_PREFIX = '/__nais/api/'
@@ -54,8 +60,8 @@ function json(response: ServerResponse, status: number, body: unknown): void {
   response.end(JSON.stringify(body))
 }
 
-async function subscription(token: string): Promise<Response> {
-  return fetch(ENDPOINTS.subscription, { headers: naiHeaders(token) })
+async function subscription(token: string, signal?: AbortSignal): Promise<Response> {
+  return fetch(ENDPOINTS.subscription, { headers: naiHeaders(token), signal })
 }
 
 async function extractZipImage(response: Response): Promise<Buffer> {
@@ -65,10 +71,93 @@ async function extractZipImage(response: Response): Promise<Buffer> {
   return Buffer.from(await zip.file(name)!.async('nodebuffer'))
 }
 
-async function route(path: string, body: Record<string, unknown>): Promise<unknown> {
+interface BrowserVibeInput {
+  id: number
+  imageBase64: string
+  strength: number
+  informationExtracted: number
+  encodedBase64?: string
+}
+
+interface BrowserCharRefInput {
+  imageBase64: string
+  referenceType: CharacterReferenceOptions['referenceType']
+  strength: number
+  fidelity: number
+}
+
+async function prepareVibes(
+  token: string,
+  model: string,
+  inputs: BrowserVibeInput[],
+  signal?: AbortSignal
+): Promise<{ options: VibeOptions[]; encodings: { id: number; encodedBase64: string }[] }> {
+  const options: VibeOptions[] = []
+  const encodings: { id: number; encodedBase64: string }[] = []
+  for (const input of inputs) {
+    let encoded = input.encodedBase64
+    if (!encoded) {
+      const response = await fetch(ENDPOINTS.encodeVibe, {
+        method: 'POST',
+        headers: naiHeaders(token),
+        body: JSON.stringify({
+          image: input.imageBase64,
+          information_extracted: input.informationExtracted,
+          model
+        }),
+        signal
+      })
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '')
+        throw new Error(`Vibe encoding failed ${response.status}: ${detail.slice(0, 200)}`)
+      }
+      encoded = Buffer.from(await response.arrayBuffer()).toString('base64')
+      encodings.push({ id: input.id, encodedBase64: encoded })
+    }
+    options.push({ strength: input.strength, encodedVibeBase64: encoded })
+  }
+  return { options, encodings }
+}
+
+async function prepareCharRefs(
+  inputs: BrowserCharRefInput[]
+): Promise<CharacterReferenceOptions[]> {
+  return Promise.all(
+    inputs.map(async (input) => {
+      const image = sharp(Buffer.from(input.imageBase64, 'base64'))
+      const metadata = await image.metadata()
+      const ratio = (metadata.width ?? 1) / (metadata.height ?? 1)
+      const canvas =
+        ratio > 1.2
+          ? { width: 1536, height: 1024 }
+          : ratio < 1 / 1.2
+            ? { width: 1024, height: 1536 }
+            : { width: 1472, height: 1472 }
+      const processed = await image
+        .resize(canvas.width, canvas.height, {
+          fit: 'contain',
+          background: { r: 0, g: 0, b: 0 }
+        })
+        .png()
+        .toBuffer()
+      return {
+        referenceType: input.referenceType,
+        strength: input.strength,
+        fidelity: input.fidelity,
+        imageBase64: processed.toString('base64')
+      }
+    })
+  )
+}
+
+async function route(
+  path: string,
+  body: Record<string, unknown>,
+  signal?: AbortSignal
+): Promise<unknown> {
   if (path === 'verify-token') {
     const token = String(body.token ?? '')
-    const response = await subscription(token)
+    const response = await subscription(token, signal)
     if (response.status === 401) return { valid: false, error: 'Invalid API token' }
     if (!response.ok) return { valid: false, error: `API error: ${response.status}` }
     return {
@@ -78,7 +167,7 @@ async function route(path: string, body: Record<string, unknown>): Promise<unkno
   }
 
   if (path === 'balance') {
-    const response = await subscription(String(body.token ?? ''))
+    const response = await subscription(String(body.token ?? ''), signal)
     if (!response.ok) return { anlas: null, tier: null }
     const parsed = parseSubscription((await response.json()) as SubscriptionResponse)
     return {
@@ -92,7 +181,16 @@ async function route(path: string, body: Record<string, unknown>): Promise<unkno
     const token = String(body.token ?? '')
     const request = body.request as GenerationRequest
     const source = request.source
-    const payload = buildGenerateImagePayload(request, {
+    const preparedVibes = await prepareVibes(
+      token,
+      request.model,
+      (body.vibes as BrowserVibeInput[] | undefined) ?? [],
+      signal
+    )
+    const characterReferences = await prepareCharRefs(
+      (body.characterReferences as BrowserCharRefInput[] | undefined) ?? []
+    )
+    const buildOptions: BuildOptions = {
       ...(source
         ? {
             i2i: {
@@ -105,20 +203,28 @@ async function route(path: string, body: Record<string, unknown>): Promise<unkno
             }
           }
         : {}),
-      transparentBackground: request.transparentBackground
-    })
+      transparentBackground: request.transparentBackground,
+      vibes: preparedVibes.options,
+      characterReferences
+    }
+    const payload = buildGenerateImagePayload(request, buildOptions)
     const sentPayload = JSON.stringify(payload)
     const response = await fetch(ENDPOINTS.generateImage, {
       method: 'POST',
       headers: naiHeaders(token),
-      body: sentPayload
+      body: sentPayload,
+      signal
     })
     if (!response.ok) {
       const detail = await response.text().catch(() => '')
       throw new Error(`Generation failed ${response.status}: ${detail.slice(0, 300)}`)
     }
     const png = await extractZipImage(response)
-    return { base64: png.toString('base64'), payloadJson: sentPayload }
+    return {
+      base64: png.toString('base64'),
+      payloadJson: sentPayload,
+      vibeEncodings: preparedVibes.encodings
+    }
   }
 
   if (path === 'tokens') {
@@ -167,8 +273,16 @@ export function browserGateway(): Plugin {
           return
         }
         try {
+          const controller = new AbortController()
+          response.on('close', () => {
+            if (!response.writableEnded) controller.abort()
+          })
           const body = await readJson(request)
-          json(response, 200, await route(url.slice(API_PREFIX.length).split('?')[0], body))
+          json(
+            response,
+            200,
+            await route(url.slice(API_PREFIX.length).split('?')[0], body, controller.signal)
+          )
         } catch (error) {
           json(response, 500, { error: error instanceof Error ? error.message : String(error) })
         }
