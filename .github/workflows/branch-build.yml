@@ -1,0 +1,50 @@
+name: Branch Build
+
+on:
+  push:
+    branches:
+      - 'ci/build-*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: build:win
+            arch: x64
+          - os: macos-latest
+            script: build:mac
+            arch: arm64
+          - os: macos-15-intel
+            script: build:mac
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Verify runner architecture
+        run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('runner arch ' + process.arch + ' != expected ${{ matrix.arch }}')"
+      - run: npm ci
+      - run: npm run ${{ matrix.script }} -- --publish never
+      - if: runner.os == 'macOS'
+        run: node scripts/verify-macos-native-deps.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
+            dist/*.dmg
+            dist/*-mac.zip
+          if-no-files-found: error
