@@ -45,14 +45,14 @@ NAIS3는 NAIS2의 후속작으로, NovelAI 이미지 생성을 빠르고 안정�
 ## 개발
 
 ```bash
-npm install      # 의존성 설치
-npm run dev      # 개발 모드 실행
-npm run build    # 타입체크 + 빌드
-npm test         # 테스트
+pnpm install      # 의존성 설치
+pnpm run dev      # 개발 모드 실행
+pnpm run build    # 타입체크 + 빌드
+pnpm test         # 테스트
 
 # 패키징
-npm run build:mac    # macOS (.dmg)
-npm run build:win    # Windows (.exe)
+pnpm run build:mac    # macOS (.dmg)
+pnpm run build:win    # Windows (.exe)
 ```
 
 ## 문의 · 후원

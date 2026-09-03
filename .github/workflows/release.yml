@@ -26,14 +26,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
       # 러너 라벨의 실제 CPU가 바뀌면 잘못된 네이티브 모듈을 만들기 전에 중단.
       - run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('runner arch ' + process.arch + ' != expected ${{ matrix.arch }}')"
-      - run: npm ci
-      - run: npm run ${{ matrix.script }} -- --publish never
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run ${{ matrix.script }} -- --publish never
       # macOS 네이티브 모듈(sharp/better-sqlite3)이 앱 실행 파일과 같은 아키텍처인지 검증.
       # arm64 runner에서 x64까지 한 번에 만들면 optional dependency가 arm64로 섞이는 사고를 막는다.
       - if: runner.os == 'macOS'
