@@ -36,7 +36,7 @@ jobs:
       - name: Verify runner architecture
         run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('runner arch ' + process.arch + ' != expected ${{ matrix.arch }}')"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run ${{ matrix.script }} -- --publish never
+      - run: pnpm run ${{ matrix.script }} --publish never
       - if: runner.os == 'macOS'
         run: node scripts/verify-macos-native-deps.mjs
       - uses: actions/upload-artifact@v4
