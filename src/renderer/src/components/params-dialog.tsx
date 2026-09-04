@@ -52,7 +52,7 @@ export function ParamsDialog({
               value={request.model}
               onValueChange={(model) => patch({ model, ...generationDefaultsForModel(model) })}
             >
-              <SelectTrigger className="w-52">
+              <SelectTrigger className="w-52" aria-label={t('모델')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -68,6 +68,7 @@ export function ParamsDialog({
               className="w-52"
               width={request.width}
               height={request.height}
+              ariaLabel={t('해상도')}
               onPick={(width, height) => patch({ width, height })}
             />
           </Row>
@@ -76,6 +77,7 @@ export function ParamsDialog({
             <div className="flex w-52 items-center gap-1.5">
               <Input
                 className="font-mono"
+                aria-label={t('시드')}
                 value={request.seed < 0 ? '' : String(request.seed)}
                 placeholder={t('랜덤')}
                 onChange={(e) => {
@@ -105,6 +107,7 @@ export function ParamsDialog({
           <Row label={t('스텝 {0}', request.steps)}>
             <Slider
               className="w-52"
+              aria-label={t('스텝 {0}', request.steps)}
               min={1}
               max={50}
               step={1}
@@ -116,6 +119,7 @@ export function ParamsDialog({
           <Row label={`CFG ${request.cfgScale}`}>
             <Slider
               className="w-52"
+              aria-label={`CFG ${request.cfgScale}`}
               min={1}
               max={10}
               step={0.1}
@@ -127,6 +131,7 @@ export function ParamsDialog({
           <Row label={`Rescale ${request.cfgRescale}`}>
             <Slider
               className="w-52"
+              aria-label={`Rescale ${request.cfgRescale}`}
               min={0}
               max={1}
               step={0.02}
@@ -137,7 +142,7 @@ export function ParamsDialog({
 
           <Row label={t('샘플러')}>
             <Select value={request.sampler} onValueChange={(v) => patch({ sampler: v })}>
-              <SelectTrigger className="w-52">
+              <SelectTrigger className="w-52" aria-label={t('샘플러')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -156,7 +161,7 @@ export function ParamsDialog({
                 value={request.noiseSchedule}
                 onValueChange={(v) => patch({ noiseSchedule: v })}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="w-52" aria-label={t('노이즈 스케줄')}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -175,7 +180,7 @@ export function ParamsDialog({
               value={String(request.ucPreset)}
               onValueChange={(v) => patch({ ucPreset: Number(v) as UcPresetIndex })}
             >
-              <SelectTrigger className="w-52">
+              <SelectTrigger className="w-52" aria-label={t('UC 프리셋')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -190,6 +195,7 @@ export function ParamsDialog({
 
           <Row label={t('퀄리티 태그')}>
             <Switch
+              aria-label={t('퀄리티 태그')}
               checked={request.qualityToggle}
               onCheckedChange={(v) => patch({ qualityToggle: v })}
             />
@@ -197,13 +203,18 @@ export function ParamsDialog({
 
           {capabilities.variety && (
             <Row label="Variety+">
-              <Switch checked={request.variety} onCheckedChange={(v) => patch({ variety: v })} />
+              <Switch
+                aria-label="Variety+"
+                checked={request.variety}
+                onCheckedChange={(v) => patch({ variety: v })}
+              />
             </Row>
           )}
 
           {supportsTransparency && (
             <Row label={t('투명 배경')}>
               <Switch
+                aria-label={t('투명 배경')}
                 checked={request.transparentBackground ?? false}
                 onCheckedChange={(v) => patch({ transparentBackground: v })}
               />
