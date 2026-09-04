@@ -182,6 +182,7 @@ function PageToggles(): React.JSX.Element {
           <button
             key={p.id}
             onClick={() => setPageHidden(p.id, on)}
+            aria-pressed={on}
             className={cn(
               'rounded-full border px-2.5 py-1 text-[12px] transition-colors',
               on
@@ -928,7 +929,10 @@ export function SettingsDialog({
           className="flex h-full w-full min-h-0 min-w-0 overflow-hidden"
           orientation="vertical"
         >
-          <nav className="flex w-40 shrink-0 flex-col border-r border-line bg-surface-2/50 p-2">
+          <nav
+            aria-label={t('설정')}
+            className="flex w-40 shrink-0 flex-col border-r border-line bg-surface-2/50 p-2"
+          >
             <TabsList className="flex flex-col items-stretch gap-0.5 bg-transparent p-0">
               {NAV.map(({ id, label, icon: Icon }) => (
                 <TabsTrigger

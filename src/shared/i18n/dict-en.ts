@@ -76,6 +76,7 @@ export const EN: Record<string, string> = {
   '가로 소형 (768×512)': 'Small Landscape (768×512)',
   '정사각 소형 (640×640)': 'Small Square (640×640)',
   설정: 'Settings',
+  페이지: 'Pages',
   // settings dialog (language selector)
   언어: 'Language',
   '색상 모드': 'Color Mode',

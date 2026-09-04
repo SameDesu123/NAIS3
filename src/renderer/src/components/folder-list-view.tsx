@@ -79,6 +79,7 @@ function GridItem({
       style={dndStyle(sortable, true)}
       className={cn('touch-none', sortable.isDragging && 'z-20 opacity-70')}
       {...sortable.attributes}
+      aria-disabled={undefined}
       {...sortable.listeners}
     >
       {children}
@@ -124,6 +125,7 @@ function FolderRowInner({
             sortable.isDragging && 'relative z-20 opacity-75'
           )}
           {...sortable.attributes}
+          aria-disabled={undefined}
           {...sortable.listeners}
         >
           <button className="text-muted" onClick={() => actions.toggleCollapse(folder.id)}>
@@ -288,6 +290,7 @@ function ItemRow({
         sortable.isDragging && 'relative z-20 opacity-75'
       )}
       {...sortable.attributes}
+      aria-disabled={undefined}
       {...sortable.listeners}
     >
       {children}
