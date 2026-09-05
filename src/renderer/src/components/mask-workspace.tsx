@@ -142,9 +142,8 @@ export function MaskWorkspace({
     if (initialMask.current) ctx.putImageData(initialMask.current, 0, 0)
     for (let i = 0; i < historyIndex.current; i++)
       applyAction(ctx, actions.current[i], width, height)
-    renderDisplay()
     setHistoryVersion((version) => version + 1)
-  }, [height, renderDisplay, width])
+  }, [height, width])
 
   useEffect(() => {
     const canvas = document.createElement('canvas')
@@ -154,13 +153,13 @@ export function MaskWorkspace({
     actions.current = []
     historyIndex.current = 0
     initialMask.current = null
+    setHistoryVersion((version) => version + 1)
 
-    if (!initialMaskBase64) {
-      renderDisplay()
-      return
-    }
+    if (!initialMaskBase64) return
+    let cancelled = false
     const image = new Image()
     image.onload = () => {
+      if (cancelled) return
       const offscreen = document.createElement('canvas')
       offscreen.width = width
       offscreen.height = height
@@ -177,12 +176,15 @@ export function MaskWorkspace({
       }
       initialMask.current = restored
       canvas.getContext('2d')!.putImageData(restored, 0, 0)
-      renderDisplay()
+      setHistoryVersion((version) => version + 1)
     }
     image.src = `data:image/png;base64,${initialMaskBase64}`
-  }, [height, imageBase64, initialMaskBase64, renderDisplay, width])
+    return () => {
+      cancelled = true
+    }
+  }, [height, imageBase64, initialMaskBase64, width])
 
-  useEffect(() => renderDisplay(), [renderDisplay])
+  useEffect(() => renderDisplay(), [historyVersion, renderDisplay])
 
   useEffect(() => {
     void Promise.all([
