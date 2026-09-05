@@ -1,10 +1,15 @@
 import { create } from 'zustand'
+import { applySceneRequest } from '@shared/scene-request'
+import { toast } from './toast-store'
 import { recordNav } from '../lib/nav-history'
 import type { GenerationRequest, Scene, SceneCast, SceneImage, ScenePreset } from '@shared/types'
 import { enabledCharacters, useCharactersStore } from './characters-store'
 import { randomSeed, useGenerationStore } from './generation-store'
 
+export { appendPrompt } from '@shared/scene-request'
+
 const PAGE = 80 // 씬 상세 이미지 페이지 크기 (수만 장 대비: 한 번에 전부 로드 금지)
+let reserving = false
 let loadSeq = 0 // load() 비동기 응답 순서 보장용
 let imagesSeq = 0 // loadImages() 비동기 응답 순서 보장용
 let selectionAnchor: number | null = null // 쉬프트 범위 선택 기준점 (마지막 일반 클릭 씬)
@@ -99,15 +104,6 @@ interface ScenesState {
   generateOne: (sceneId: number) => Promise<void>
 }
 
-/** 씬 프롬프트를 기본 프롬프트 뒤에 이어붙임 (콤마 정리) */
-export function appendPrompt(base: string, add: string): string {
-  const b = base.trim().replace(/,\s*$/, '')
-  const a = add.trim().replace(/^,\s*/, '')
-  if (!b) return a
-  if (!a) return b
-  return `${b}, ${a}`
-}
-
 /**
  * 출연의 캐릭터 카드 해석 — 출연이 있으면 그 카드들(enabled 무시),
  * 사이드바 출연(null)이면 켜둔 캐릭터. 삭제된 카드 id는 건너뛴다.
@@ -118,14 +114,10 @@ function resolveCharacters(cast: SceneCast | null): ReturnType<typeof enabledCha
   return cast.characterIds.map((id) => byId.get(id)).filter((c) => c != null)
 }
 
-/**
- * 씬 → 생성 요청. 사이드바의 모든 것(기본/네거 프롬프트·캐릭터·조각·바이브·레퍼런스·
- * 파라미터)을 그대로 쓰고, 씬 프롬프트는 기본/네거 프롬프트 "뒤에 이어붙인다".
- * 해상도만 씬 것을 사용 (소스가 있으면 소스 해상도가 우선). 바이브/레퍼런스/조각은
- * 메인 프로세스가 DB·와일드카드에서 읽어 적용하므로 여기선 프롬프트·캐릭터·파라미터만 구성.
- * 출연 예약이면 캐릭터/바이브/캐릭레퍼를 출연 구성으로 완전 교체 (사이드바 무시).
+/** Capture the renderer-owned parameters for one cast; scene fields are applied separately.
+ * Reference data and wildcard expansion keep their existing generation-time behavior.
  */
-function buildSceneRequest(scene: Scene, cast: SceneCast | null): GenerationRequest {
+function buildCastRequest(cast: SceneCast | null): GenerationRequest {
   const base = useGenerationStore.getState().request
   const src = useGenerationStore.getState().source
   // 3분할 꺼진 상태면 promptParts를 요청/메타데이터에 싣지 않는다
@@ -138,18 +130,12 @@ function buildSceneRequest(scene: Scene, cast: SceneCast | null): GenerationRequ
   }))
   return {
     ...base,
-    prompt: appendPrompt(base.prompt, scene.prompt),
-    promptParts:
-      splitEnabled && base.promptParts
-        ? { ...base.promptParts, detail: appendPrompt(base.promptParts.detail, scene.prompt) }
-        : undefined,
-    negativePrompt: appendPrompt(base.negativePrompt, scene.negativePrompt),
-    width: src ? src.width : scene.width,
-    height: src ? src.height : scene.height,
+    promptParts: splitEnabled ? base.promptParts : undefined,
+    width: src ? src.width : base.width,
+    height: src ? src.height : base.height,
     characterPrompts,
     // 출연 예약이면 바이브/캐릭레퍼도 출연 것으로 (빈 배열 = 없이 생성)
     ...(cast ? { vibeIds: cast.vibeIds, charRefIds: cast.charRefIds } : {}),
-    sceneId: scene.id,
     source: src
       ? {
           imageBase64: src.imageBase64,
@@ -479,42 +465,29 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
   },
 
   generateReserved: async () => {
-    // 예약 = 생성 (1:1). 실행 순서는 출연별 묶음 — 사이드바 예약 전부 → 출연1 예약 전부 → …
-    // (프리셋 순서는 그 안에서 유지). 예약을 큐에 넣는 즉시 소진(0).
-    const castOrder = ['', ...get().casts.map((c) => c.id)]
-    const castById = new Map(get().casts.map((c) => [c.id, c]))
-
-    // 프리셋별 예약 씬 수집 + 소진
-    const reservedScenes: Scene[] = []
-    for (const preset of get().presets) {
-      const { items } = await window.nais.invoke('scenes:list', { presetId: preset.id })
-      const reserved = items.filter((s) => s.reserveCount > 0)
-      if (reserved.length === 0) continue
-      if (preset.id === get().activePresetId) {
-        set({
-          scenes: get().scenes.map((s) =>
-            s.reserveCount > 0 ? { ...s, reserveCount: 0, reserves: {} } : s
-          )
-        })
-      }
-      void window.nais.invoke('scenes:setReserveAll', { presetId: preset.id, count: 0 })
-      reservedScenes.push(...reserved)
-    }
-
-    for (const castId of castOrder) {
-      const cast = castId === '' ? null : (castById.get(castId) ?? null)
-      if (castId !== '' && !cast) continue // 삭제된 출연의 예약은 건너뜀
-      for (const scene of reservedScenes) {
-        const count = scene.reserves[castId] ?? 0
-        for (let i = 0; i < count; i++) {
-          await window.nais.invoke('queue:enqueue', {
-            request: { ...buildSceneRequest(scene, cast), seed: sceneSeed(i) },
-            count: 1
-          })
-        }
+    if (reserving) return
+    reserving = true
+    try {
+      // Capture all renderer-owned settings before the first asynchronous boundary.
+      const casts = [null, ...get().casts].map((cast) => ({
+        castId: cast?.id ?? '',
+        request: buildCastRequest(cast)
+      }))
+      await window.nais.invoke('scenes:enqueueReserved', {
+        casts,
+        seedLocked: useGenerationStore.getState().seedLocked
+      })
+    } catch (error) {
+      toast(error instanceof Error ? error.message : String(error), 'error')
+    } finally {
+      try {
+        await Promise.all([get().load(), get().refreshReservedTotal()])
+      } catch (error) {
+        toast(error instanceof Error ? error.message : String(error), 'error')
+      } finally {
+        reserving = false
       }
     }
-    set({ reservedTotal: 0 })
   },
 
   generateOne: async (sceneId) => {
@@ -524,7 +497,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     const castId = get().activeCastId
     const cast = castId === '' ? null : (get().casts.find((c) => c.id === castId) ?? null)
     await window.nais.invoke('queue:enqueue', {
-      request: { ...buildSceneRequest(scene, cast), seed: sceneSeed(0) },
+      request: { ...applySceneRequest(buildCastRequest(cast), scene), seed: sceneSeed(0) },
       count: 1
     })
   },

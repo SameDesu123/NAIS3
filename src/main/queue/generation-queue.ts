@@ -47,6 +47,27 @@ export class GenerationQueue extends EventEmitter {
     return ids
   }
 
+  /** Publish a batch only after its synchronous reservation commit succeeds. */
+  enqueueRequests(requests: GenerationRequest[], commit: () => void): string[] {
+    const entries = requests.map((request): QueueItem => ({
+      id: randomUUID(),
+      state: 'pending',
+      request
+    }))
+    try {
+      for (const item of entries) this.items.set(item.id, item)
+      commit()
+    } catch (error) {
+      for (const item of entries) this.items.delete(item.id)
+      throw error
+    }
+    if (entries.length > 0) {
+      this.emitChanged()
+      void this.run()
+    }
+    return entries.map((item) => item.id)
+  }
+
   cancel(ids: string[]): void {
     for (const id of ids) {
       const item = this.items.get(id)
