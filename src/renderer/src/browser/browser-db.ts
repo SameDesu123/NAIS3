@@ -106,7 +106,7 @@ async function transaction<T>(
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, mode)
     const request = run(tx.objectStore(STORE_NAME))
-    request.onsuccess = () => resolve(request.result)
+    tx.oncomplete = () => resolve(request.result)
     request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'))
     tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'))
   })
