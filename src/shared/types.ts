@@ -422,6 +422,10 @@ export interface IpcInvokeMap {
     }
   }
   'nai:anlasUsage': { req: void; res: { today: number; week: number } }
+  'scenes:enqueueReserved': {
+    req: { casts: { castId: string; request: GenerationRequest }[]; seedLocked: boolean }
+    res: { ids: string[] }
+  }
   'queue:enqueue': { req: { request: GenerationRequest; count: number }; res: { ids: string[] } }
   'queue:cancel': { req: { ids: string[] }; res: void }
   'queue:status': { req: void; res: QueueStatus }

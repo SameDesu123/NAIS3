@@ -65,6 +65,7 @@ import { fetchAnlasBalance } from './nai/client'
 import { listImages, getImagePayload, saveGeneratedImage } from './images/storage'
 import { augmentImage, upscaleImage } from './nai/client'
 import {
+  enqueueReservedScenes,
   listPresets,
   createPreset,
   renamePreset,
@@ -253,6 +254,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   })
   handle('nai:anlasUsage', () => anlasUsage())
 
+  handle('scenes:enqueueReserved', (request) => ({
+    ids: enqueueReservedScenes(ctx.queue, request)
+  }))
   handle('queue:enqueue', ({ request, count }) => ({ ids: ctx.queue.enqueue(request, count) }))
   handle('queue:cancel', ({ ids }) => {
     ctx.queue.cancel(ids)

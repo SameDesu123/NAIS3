@@ -2,7 +2,9 @@ import { BrowserWindow, dialog } from 'electron'
 import { readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { extname, isAbsolute, relative } from 'path'
 import JSZip from 'jszip'
-import type { Scene, SceneImage, ScenePreset } from '../../shared/types'
+import { planSceneReservations } from '../../shared/scene-request'
+import type { GenerationQueue } from '../queue/generation-queue'
+import type { IpcInvokeMap, Scene, SceneImage, ScenePreset } from '../../shared/types'
 import { getDb } from '../db'
 import { dropMemoryImage, isMemoryPath, libraryRoot } from '../images/storage'
 import { t } from '../i18n'
@@ -264,6 +266,34 @@ export function setReserveAll(presetId: number, count: number): void {
   getDb()
     .prepare('UPDATE gen_scenes SET reserve_count = ?, reserve_json = NULL WHERE preset_id = ?')
     .run(count, presetId)
+}
+
+/** No asynchronous boundary may separate the reservation snapshot and queue commit. */
+export function enqueueReservedScenes(
+  queue: GenerationQueue,
+  { casts, seedLocked }: IpcInvokeMap['scenes:enqueueReserved']['req']
+): string[] {
+  const db = getDb()
+  const rows = db
+    .prepare(
+      `
+    SELECT s.* FROM gen_scenes s
+    JOIN scene_presets p ON p.id = s.preset_id
+    WHERE s.reserve_count > 0
+    ORDER BY p.sort_order, p.id, s.sort_order, s.id
+  `
+    )
+    .all() as Row[]
+  const scenes = rows.map((row) => toScene({ ...row, image_count: 0 }))
+  const { requests, remaining } = planSceneReservations(scenes, casts, seedLocked, () =>
+    Math.floor(Math.random() * 4294967295)
+  )
+  return queue.enqueueRequests(
+    requests,
+    db.transaction(() => {
+      for (const [id, reserves] of remaining) setSceneReserves(id, reserves)
+    })
+  )
 }
 
 /** 모든 프리셋의 예약 총합 */
