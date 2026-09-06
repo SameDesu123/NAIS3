@@ -228,6 +228,7 @@ export function LibraryMode(): React.JSX.Element {
             <button
               className="grid size-6 place-items-center rounded text-faint transition-colors hover:text-ink"
               title={t('스택 이름 변경')}
+              aria-label={t('스택 이름 변경')}
               onClick={async () => {
                 const name = await askText(t('스택 이름'), currentStack.name)
                 if (name) void renameStack(currentStack.id, name)
@@ -274,11 +275,17 @@ export function LibraryMode(): React.JSX.Element {
           }
         />
         {/* 열 수 (2~5) */}
-        <div className="flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5">
+        <div
+          role="group"
+          aria-label={t('카드 열 수')}
+          className="flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
+        >
           {[2, 3, 4, 5].map((n) => (
             <button
               key={n}
               onClick={() => setColumns(n)}
+              aria-label={t('{0}열', n)}
+              aria-pressed={columns === n}
               className={cn(
                 'grid size-6 place-items-center rounded text-[11.5px] font-medium transition-colors',
                 columns === n ? 'bg-paper text-ink shadow-sm' : 'text-faint hover:text-ink'
@@ -668,6 +675,8 @@ function IconBtn({
       <TooltipTrigger asChild>
         <button
           onClick={onClick}
+          aria-label={tip}
+          aria-pressed={active === undefined ? undefined : active}
           className={cn(
             'grid size-8 place-items-center rounded-md transition-colors',
             active ? 'bg-accent text-white' : 'text-muted hover:bg-surface-2 hover:text-fg'

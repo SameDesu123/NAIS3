@@ -78,8 +78,8 @@ function GridItem({
       ref={sortable.setNodeRef}
       style={dndStyle(sortable, true)}
       className={cn('touch-none', sortable.isDragging && 'z-20 opacity-70')}
-      {...sortable.attributes}
-      {...sortable.listeners}
+      {...(disabled ? {} : sortable.attributes)}
+      {...(disabled ? {} : sortable.listeners)}
     >
       {children}
     </div>
@@ -123,8 +123,8 @@ function FolderRowInner({
             !folder.color && 'bg-surface-2',
             sortable.isDragging && 'relative z-20 opacity-75'
           )}
-          {...sortable.attributes}
-          {...sortable.listeners}
+          {...(searching || editing ? {} : sortable.attributes)}
+          {...(searching || editing ? {} : sortable.listeners)}
         >
           <button className="text-muted" onClick={() => actions.toggleCollapse(folder.id)}>
             {folder.collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
@@ -287,8 +287,8 @@ function ItemRow({
         indent && 'ml-5',
         sortable.isDragging && 'relative z-20 opacity-75'
       )}
-      {...sortable.attributes}
-      {...sortable.listeners}
+      {...(disabled ? {} : sortable.attributes)}
+      {...(disabled ? {} : sortable.listeners)}
     >
       {children}
     </motion.div>

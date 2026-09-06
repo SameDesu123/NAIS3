@@ -132,6 +132,7 @@ function PresetDropdown(): React.JSX.Element {
                       if (name) void renamePreset(p.id, name)
                     }}
                     title={t('이름 변경')}
+                    aria-label={t('이름 변경')}
                   >
                     <Pencil size={12} />
                   </button>
@@ -149,6 +150,7 @@ function PresetDropdown(): React.JSX.Element {
                           void deletePreset(p.id)
                       }}
                       title={t('삭제')}
+                      aria-label={t('삭제')}
                     >
                       <Trash2 size={12} />
                     </button>
@@ -273,6 +275,7 @@ function CastSelector(): React.JSX.Element {
                         removeCast(c.id)
                     }}
                     title={t('출연 삭제')}
+                    aria-label={t('출연 삭제')}
                   >
                     <Trash2 size={12} />
                   </button>
@@ -314,6 +317,8 @@ function IconBtn({
       <TooltipTrigger asChild>
         <button
           onClick={onClick}
+          aria-label={tip}
+          aria-pressed={active === undefined ? undefined : active}
           className={cn(
             'grid size-8 place-items-center rounded-md transition-colors',
             active ? 'bg-accent text-white' : 'text-muted hover:bg-surface-2 hover:text-fg'
@@ -458,11 +463,17 @@ function SceneGrid(): React.JSX.Element {
           }
         />
         {/* 열 수 (2~5) */}
-        <div className="flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5">
+        <div
+          role="group"
+          aria-label={t('카드 열 수')}
+          className="flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
+        >
           {[2, 3, 4, 5].map((n) => (
             <button
               key={n}
               onClick={() => setColumns(n)}
+              aria-label={t('{0}열', n)}
+              aria-pressed={columns === n}
               className={cn(
                 'grid h-6 w-6 place-items-center rounded text-[12px] font-medium transition-colors',
                 columns === n ? 'bg-paper text-ink shadow-sm' : 'text-muted hover:text-ink'
@@ -618,6 +629,7 @@ function BulkBar(): React.JSX.Element {
           className="grid size-5 place-items-center rounded-full text-fg hover:bg-surface-2 disabled:opacity-30"
           disabled={disabled}
           title={reserveTip(-1)}
+          aria-label={reserveTip(-1)}
           onClick={() => void bulkAdjustReserve(-1)}
         >
           <Minus size={13} />
@@ -626,6 +638,7 @@ function BulkBar(): React.JSX.Element {
           className="grid size-5 place-items-center rounded-full text-fg hover:bg-surface-2 disabled:opacity-30"
           disabled={disabled}
           title={reserveTip(1)}
+          aria-label={reserveTip(1)}
           onClick={() => void bulkAdjustReserve(1)}
         >
           <Plus size={13} />
@@ -909,6 +922,7 @@ const SceneCard = memo(function SceneCard({
               <PopoverTrigger asChild>
                 <button
                   className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-black/55 text-white opacity-0 transition hover:bg-black/70 group-hover:opacity-100"
+                  aria-label={t('"{0}" 메뉴', scene.name)}
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
@@ -949,6 +963,7 @@ const SceneCard = memo(function SceneCard({
                   <input
                     className="w-full truncate rounded bg-white/15 px-1 py-0.5 text-[13px] font-medium text-white outline-none placeholder:text-white/50 focus:bg-white/25"
                     value={scene.name}
+                    aria-label={t('씬 이름')}
                     onClick={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
                     onChange={(e) => void update(scene.id, { name: e.target.value })}
@@ -968,6 +983,7 @@ const SceneCard = memo(function SceneCard({
                 <button
                   className="grid size-5 place-items-center rounded-full text-white hover:bg-white/20 disabled:opacity-30"
                   disabled={ctxCount === 0}
+                  aria-label={t('"{0}" 예약 감소', scene.name)}
                   onClick={() => void adjustReserve(scene.id, -1)}
                 >
                   <Minus size={13} />
@@ -988,6 +1004,7 @@ const SceneCard = memo(function SceneCard({
                 />
                 <button
                   className="grid size-5 place-items-center rounded-full text-white hover:bg-white/20"
+                  aria-label={t('"{0}" 예약 증가', scene.name)}
                   onClick={() => void adjustReserve(scene.id, 1)}
                 >
                   <Plus size={13} />

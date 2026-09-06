@@ -18,12 +18,14 @@ export function ResolutionPicker({
   height,
   onPick,
   disabled,
+  ariaLabel,
   className
 }: {
   width: number
   height: number
   onPick: (width: number, height: number) => void
   disabled?: boolean
+  ariaLabel?: string
   className?: string
 }): React.JSX.Element {
   const t = useT()
@@ -66,6 +68,7 @@ export function ResolutionPicker({
       <PopoverTrigger asChild>
         <button
           disabled={disabled}
+          aria-label={ariaLabel}
           className={cn(
             'flex h-8 items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 text-[13px] disabled:opacity-50',
             className

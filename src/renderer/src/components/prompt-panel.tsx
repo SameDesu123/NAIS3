@@ -391,6 +391,7 @@ export function PromptPanel(): React.JSX.Element {
             size="icon"
             variant="ghost"
             className="h-full w-7 rounded-r-none"
+            aria-label={t('배치 수 감소')}
             onClick={() => setBatchCount(batchCount - 1)}
           >
             <Minus size={13} />
@@ -399,6 +400,7 @@ export function PromptPanel(): React.JSX.Element {
           <input
             className="w-8 bg-transparent text-center font-mono text-[13px] text-ink outline-none"
             value={batchCount}
+            aria-label={t('배치 수')}
             inputMode="numeric"
             onChange={(e) => {
               const n = parseInt(e.target.value.replace(/[^0-9]/g, ''), 10)
@@ -410,6 +412,7 @@ export function PromptPanel(): React.JSX.Element {
             size="icon"
             variant="ghost"
             className="h-full w-7 rounded-l-none"
+            aria-label={t('배치 수 증가')}
             onClick={() => setBatchCount(batchCount + 1)}
           >
             <Plus size={13} />

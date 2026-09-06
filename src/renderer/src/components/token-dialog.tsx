@@ -99,7 +99,7 @@ function AppearanceSection(): React.JSX.Element {
     <div className="divide-y divide-line">
       <Row label={t('언어')}>
         <Select value={lang} onValueChange={(v) => setLang(v as Lang)}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-44" aria-label={t('언어')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -113,7 +113,7 @@ function AppearanceSection(): React.JSX.Element {
       </Row>
       <Row label={t('테마 프리셋')}>
         <Select value={presetId} onValueChange={setPreset}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-44" aria-label={t('테마 프리셋')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -128,6 +128,7 @@ function AppearanceSection(): React.JSX.Element {
       <Row label={t('UI 폰트')} hint={t('비우면 기본 폰트')}>
         <Input
           className="w-44"
+          aria-label={t('UI 폰트')}
           value={uiFont}
           placeholder="Pretendard"
           onChange={(e) => setUiFont(e.target.value)}
@@ -136,6 +137,7 @@ function AppearanceSection(): React.JSX.Element {
       <Row label={t('UI 크기 — {0}px', uiSize)}>
         <Slider
           className="w-44"
+          aria-label={t('UI 크기 — {0}px', uiSize)}
           min={11}
           max={18}
           step={0.5}
@@ -149,6 +151,7 @@ function AppearanceSection(): React.JSX.Element {
       >
         <Slider
           className="w-44"
+          aria-label={t('프롬프트 폰트 크기 — {0}px', promptSize)}
           min={12}
           max={22}
           step={0.5}
@@ -182,6 +185,7 @@ function PageToggles(): React.JSX.Element {
           <button
             key={p.id}
             onClick={() => setPageHidden(p.id, on)}
+            aria-pressed={on}
             className={cn(
               'rounded-full border px-2.5 py-1 text-[12px] transition-colors',
               on
@@ -225,6 +229,7 @@ function GenerationSection(): React.JSX.Element {
     <div className="divide-y divide-line">
       <Row label={t('스트리밍 생성')} hint={t('생성 과정을 실시간 미리보기')}>
         <Switch
+          aria-label={t('스트리밍 생성')}
           checked={streaming}
           onCheckedChange={(v) => {
             setStreaming(v)
@@ -233,11 +238,16 @@ function GenerationSection(): React.JSX.Element {
         />
       </Row>
       <Row label={t('프롬프트 3분할')} hint={t('고정 / 가변 / 디테일 칸으로 나누기')}>
-        <Switch checked={promptSplitEnabled} onCheckedChange={setPromptSplitEnabled} />
+        <Switch
+          aria-label={t('프롬프트 3분할')}
+          checked={promptSplitEnabled}
+          onCheckedChange={setPromptSplitEnabled}
+        />
       </Row>
       <Row label={t('생성 지연 — {0}초', (delay / 1000).toFixed(1))} hint={t('연속 생성 간격')}>
         <Slider
           className="w-44"
+          aria-label={t('생성 지연 — {0}초', (delay / 1000).toFixed(1))}
           min={0}
           max={5000}
           step={100}
@@ -248,6 +258,7 @@ function GenerationSection(): React.JSX.Element {
       </Row>
       <Row label={t('완료 알림음')} hint={t('큐가 다 끝나면 알림음 재생')}>
         <Switch
+          aria-label={t('완료 알림음')}
           checked={alertSound}
           onCheckedChange={(v) => {
             setAlertSound(v)
@@ -261,6 +272,7 @@ function GenerationSection(): React.JSX.Element {
         hint={t('다른 창을 보고 있을 때 macOS/Windows 알림 표시')}
       >
         <Switch
+          aria-label={t('완료 알림 (시스템)')}
           checked={alertNative}
           onCheckedChange={(v) => {
             setAlertNative(v)
@@ -364,6 +376,7 @@ function StorageSection(): React.JSX.Element {
           )}
         >
           <Switch
+            aria-label={t('자동 저장')}
             checked={autoSave}
             onCheckedChange={(v) => {
               setAutoSave(v)
@@ -373,6 +386,7 @@ function StorageSection(): React.JSX.Element {
         </Row>
         <Row label={t('날짜별 폴더')} hint={t('메인 저장 폴더 안을 YYYY-MM으로 정리')}>
           <Switch
+            aria-label={t('날짜별 폴더')}
             checked={dateFolders}
             onCheckedChange={(v) => {
               setDateFolders(v)
@@ -385,6 +399,7 @@ function StorageSection(): React.JSX.Element {
           hint={t('끄면 기록만 지우고 저장된 파일은 보존')}
         >
           <Switch
+            aria-label={t('히스토리 삭제 시 파일도 삭제')}
             checked={historyDeleteFile}
             onCheckedChange={(v) => {
               setHistoryDeleteFile(v)
@@ -403,7 +418,7 @@ function StorageSection(): React.JSX.Element {
               void window.nais.invoke('settings:set', { key: 'image_format', value: v })
             }}
           >
-            <SelectTrigger className="w-28">
+            <SelectTrigger className="w-28" aria-label={t('이미지 포맷')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -928,7 +943,10 @@ export function SettingsDialog({
           className="flex h-full w-full min-h-0 min-w-0 overflow-hidden"
           orientation="vertical"
         >
-          <nav className="flex w-40 shrink-0 flex-col border-r border-line bg-surface-2/50 p-2">
+          <nav
+            aria-label={t('설정')}
+            className="flex w-40 shrink-0 flex-col border-r border-line bg-surface-2/50 p-2"
+          >
             <TabsList className="flex flex-col items-stretch gap-0.5 bg-transparent p-0">
               {NAV.map(({ id, label, icon: Icon }) => (
                 <TabsTrigger

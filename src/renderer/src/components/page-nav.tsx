@@ -26,13 +26,17 @@ export function PageNav(): React.JSX.Element {
   const visible = PAGES.filter((p) => p.id === 'main' || !hiddenPages.includes(p.id))
 
   return (
-    <nav className="no-drag pointer-events-auto flex items-center gap-1 rounded-full border border-line/70 bg-surface/95 p-1 shadow-md backdrop-blur">
+    <nav
+      aria-label={t('페이지')}
+      className="no-drag pointer-events-auto flex items-center gap-1 rounded-full border border-line/70 bg-surface/95 p-1 shadow-md backdrop-blur"
+    >
       {visible.map((page) => {
         const active = centerMode === page.id
         return (
           <button
             key={page.id}
             onClick={() => setCenterMode(page.id)}
+            aria-current={active ? 'page' : undefined}
             className={cn(
               'relative z-0 rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors',
               active ? 'text-ink' : 'text-muted hover:text-ink'

@@ -57,6 +57,10 @@ export default function App(): React.JSX.Element {
   }
 
   useEffect(() => {
+    document.documentElement.lang = lang
+  }, [lang])
+
+  useEffect(() => {
     // 초기 하이드레이션 — 완료되면 로딩 스플래시 해제
     void (async () => {
       await Promise.allSettled([
@@ -126,17 +130,19 @@ export default function App(): React.JSX.Element {
               </motion.div>
             )}
           </AnimatePresence>
-          {centerMode === 'scene' ? (
-            <SceneMode />
-          ) : centerMode === 'director' ? (
-            <DirectorMode />
-          ) : centerMode === 'library' ? (
-            <LibraryMode />
-          ) : centerMode === 'websearch' ? (
-            <WebSearchMode />
-          ) : (
-            <PreviewPane />
-          )}
+          <main className="flex min-h-0 min-w-0 flex-1">
+            {centerMode === 'scene' ? (
+              <SceneMode />
+            ) : centerMode === 'director' ? (
+              <DirectorMode />
+            ) : centerMode === 'library' ? (
+              <LibraryMode />
+            ) : centerMode === 'websearch' ? (
+              <WebSearchMode />
+            ) : (
+              <PreviewPane />
+            )}
+          </main>
           <AnimatePresence initial={false}>
             {rightOpen && (
               <motion.div
