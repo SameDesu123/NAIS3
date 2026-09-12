@@ -29,7 +29,6 @@ import { useLayoutStore } from './stores/layout-store'
 import { useThemeStore } from './stores/theme-store'
 
 export default function App(): React.JSX.Element {
-  const lang = useLanguageStore((s) => s.lang)
   const leftOpen = useLayoutStore((s) => s.leftOpen)
   const rightOpen = useLayoutStore((s) => s.rightOpen)
   const settingsOpen = useLayoutStore((s) => s.settingsOpen)
@@ -55,10 +54,6 @@ export default function App(): React.JSX.Element {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }
-
-  useEffect(() => {
-    document.documentElement.lang = lang
-  }, [lang])
 
   useEffect(() => {
     // 초기 하이드레이션 — 완료되면 로딩 스플래시 해제

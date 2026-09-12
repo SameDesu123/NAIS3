@@ -607,7 +607,9 @@ function BulkBar(): React.JSX.Element {
 
   function reserveTip(delta: number): string {
     const step = Math.abs(delta) * (batchCount || 1)
-    const who = activeCast ? t('ui.namedCast', activeCast.name) : t('ui.sidebarSettings')
+    const who = activeCast
+      ? t('ui.namedCast', activeCast.name || t('ui.unnamed'))
+      : t('ui.sidebarSettings')
     return t('ui.adjustQueueForSelectedScenes', n, who, delta > 0 ? '+' : '-', step)
   }
 
@@ -759,20 +761,35 @@ function dndStyle(sortable: ReturnType<typeof useSortable>): CSSProperties {
  * 예약 배지 목록 — 사이드바('') 예약은 빨강(color: null → bg-danger), 출연 예약은 출연 고유색.
  * 삭제된 출연의 잔여 예약은 회색으로 표시해 정리할 수 있게 한다.
  */
+function reserveBadgeLabel(
+  b: { key: string; name: string; deleted?: boolean },
+  t: ReturnType<typeof useT>
+): string {
+  if (b.key === '') return t('ui.sidebarSettings')
+  if (b.deleted) return t('ui.deletedCast')
+  return b.name || t('ui.unnamed')
+}
+
 function reserveBadges(
   scene: Scene,
   casts: SceneCast[]
-): { key: string; name: string; count: number; color: string | null }[] {
-  const out: { key: string; name: string; count: number; color: string | null }[] = []
+): { key: string; name: string; count: number; color: string | null; deleted?: boolean }[] {
+  const out: {
+    key: string
+    name: string
+    count: number
+    color: string | null
+    deleted?: boolean
+  }[] = []
   const sidebar = scene.reserves[''] ?? 0
-  if (sidebar > 0) out.push({ key: '', name: '사이드바 설정', count: sidebar, color: null })
+  if (sidebar > 0) out.push({ key: '', name: '', count: sidebar, color: null })
   for (const c of casts) {
     const n = scene.reserves[c.id] ?? 0
-    if (n > 0) out.push({ key: c.id, name: c.name || '이름 없음', count: n, color: c.color })
+    if (n > 0) out.push({ key: c.id, name: c.name, count: n, color: c.color })
   }
   for (const [id, n] of Object.entries(scene.reserves)) {
     if (id !== '' && n > 0 && !casts.some((c) => c.id === id))
-      out.push({ key: id, name: '삭제된 출연', count: n, color: '#6b7280' })
+      out.push({ key: id, name: '', count: n, color: '#6b7280', deleted: true })
   }
   return out
 }
@@ -898,7 +915,7 @@ const SceneCard = memo(function SceneCard({
                         b.color === null && 'bg-danger'
                       )}
                       style={b.color ? { backgroundColor: b.color } : undefined}
-                      title={t('ui.valueValueImages', b.name, b.count)}
+                      title={t('ui.valueValueImages', reserveBadgeLabel(b, t), b.count)}
                     >
                       {b.count}
                     </span>
@@ -906,7 +923,9 @@ const SceneCard = memo(function SceneCard({
                   {rest.length > 0 && (
                     <span
                       className="grid h-6 min-w-6 place-items-center rounded-full bg-black/60 px-1.5 text-[11px] font-bold text-white shadow"
-                      title={rest.map((b) => t('ui.valueValueImages', b.name, b.count)).join('\n')}
+                      title={rest
+                        .map((b) => t('ui.valueValueImages', reserveBadgeLabel(b, t), b.count))
+                        .join('\n')}
                     >
                       +{rest.length}
                     </span>

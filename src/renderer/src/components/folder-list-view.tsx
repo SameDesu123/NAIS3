@@ -62,6 +62,9 @@ function dndStyle(sortable: ReturnType<typeof useSortable>, grid: boolean): CSSP
   }
 }
 
+// dnd-kit supplies callback refs and render-time state through useSortable.
+// react-hooks/refs currently treats that entire return object as a ref.
+/* eslint-disable react-hooks/refs */
 /** 그리드 모드 아이템 타일 (이미지 중심 레퍼런스용) */
 function GridItem({
   id,
@@ -294,6 +297,8 @@ function ItemRow({
     </motion.div>
   )
 }
+
+/* eslint-enable react-hooks/refs */
 
 /**
  * 행 카드 — memo로 "자기 item이 바뀔 때만" 리렌더. 스토어가 items 배열을 통째로 갈아도

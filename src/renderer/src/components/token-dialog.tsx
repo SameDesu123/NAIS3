@@ -16,13 +16,12 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { displayOpusUsagePercent, opusUsagePercentSegments } from '@shared/anlas'
-import type { MessageId } from '@shared/i18n'
+import { isLang, LANGUAGES, SUPPORTED_LANGUAGES, type MessageId } from '@shared/i18n'
 import type { NaiAccountInfo } from '@shared/types'
 import discordSvg from '../assets/discord.svg'
 import nais3Logo from '../assets/nais3-logo.svg'
 import { playChime } from '../lib/completion-alert'
 import { useLanguageStore, useT } from '../lib/i18n'
-import type { Lang } from '@shared/i18n'
 import { cn } from '../lib/utils'
 import { THEME_PRESETS } from '../lib/theme-presets'
 import { useGenerationStore } from '../stores/generation-store'
@@ -99,13 +98,21 @@ function AppearanceSection(): React.JSX.Element {
   return (
     <div className="divide-y divide-line">
       <Row label={t('ui.language')}>
-        <Select value={lang} onValueChange={(v) => setLang(v as Lang)}>
+        <Select
+          value={lang}
+          onValueChange={(v) => {
+            if (isLang(v)) setLang(v)
+          }}
+        >
           <SelectTrigger className="w-44" aria-label={t('ui.language')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ko">한국어</SelectItem>
-            <SelectItem value="en">English</SelectItem>
+            {SUPPORTED_LANGUAGES.map((code) => (
+              <SelectItem key={code} value={code}>
+                {LANGUAGES[code].label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </Row>

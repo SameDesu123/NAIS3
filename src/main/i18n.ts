@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { isLang, translate, type Lang, type MessageId } from '../shared/i18n'
+import { isLang, localeToLang, translate, type Lang, type MessageId } from '../shared/i18n'
 import { getDb } from './db'
 import { getSetting, setSetting } from './db/settings'
 
@@ -38,7 +38,7 @@ export function resolveInitialLanguage(): Lang {
     const row = getDb().prepare('SELECT 1 AS x FROM settings LIMIT 1').get() as
       { x: number } | undefined
     const freshInstall = row === undefined
-    if (freshInstall) lang = app.getLocale().toLowerCase().startsWith('ko') ? 'ko' : 'en'
+    if (freshInstall) lang = localeToLang(app.getLocale())
   } catch {
     // 판정 불가 = 안전한 쪽(한국어)으로
   }

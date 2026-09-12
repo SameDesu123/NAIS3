@@ -1,21 +1,11 @@
 import { EN } from './catalog-en'
-import { KO, type MessageCatalog, type MessageId } from './catalog-ko'
+import { KO, type MessageId } from './catalog-ko'
+import { isLang, LANGUAGES, type Lang } from './locales'
 
 export type { MessageCatalog, MessageId } from './catalog-ko'
+export { LANGUAGES, SUPPORTED_LANGUAGES, isLang, localeToLang, type Lang } from './locales'
 
-export type Lang = 'ko' | 'en'
-
-const CATALOGS: Record<Lang, MessageCatalog> = { ko: KO, en: EN }
-
-export function isLang(value: unknown): value is Lang {
-  return value === 'ko' || value === 'en'
-}
-
-/**
- * {0}, {1}, ... 플레이스홀더를 args로 치환.
- * 영어 복수형은 {0|image|images} 형태로 args[0]이 1인지에 따라 고른다.
- * Korean messages do not use the plural form syntax.
- */
+/** Positional arguments and the existing two-form plural syntax used by the English catalog. */
 export function format(template: string, args: readonly (string | number)[]): string {
   if (args.length === 0) return template
   return template
@@ -30,5 +20,7 @@ export function format(template: string, args: readonly (string | number)[]): st
 }
 
 export function translate(lang: Lang, id: MessageId, args: readonly (string | number)[]): string {
-  return format(CATALOGS[lang][id], args)
+  // Catalog completeness is checked before merge; a stale runtime must still render usable text.
+  const translated = isLang(lang) ? LANGUAGES[lang].catalog[id] : undefined
+  return format(translated ?? EN[id] ?? KO[id] ?? id, args)
 }
