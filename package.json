@@ -1,6 +1,6 @@
 {
   "name": "nais3",
-  "version": "1.0.25",
+  "version": "1.0.26",
   "description": "NAIS3 - NovelAI Image Studio 3",
   "main": "./out/main/index.js",
   "author": "sunanakgo",
@@ -29,9 +29,10 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "pnpm run build && electron-builder --dir",
     "build:win": "pnpm run build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac",
+    "build:mac": "pnpm run build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
-    "test": "vitest run",
+    "test": "vitest run && pnpm run test:db",
+    "test:db": "node scripts/run-db-tests.mjs",
     "i18n:check": "vitest run tests/i18n.test.ts tests/i18n-source.test.ts tests/i18n-renderer.test.ts",
     "test:watch": "vitest"
   },
@@ -91,6 +92,7 @@
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
     "vitest": "^3.2.4",
+    "yaml": "^2.9.1",
     "zustand": "^5.0.8"
   }
 }

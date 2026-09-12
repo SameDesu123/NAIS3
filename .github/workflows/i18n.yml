@@ -4,21 +4,29 @@ on:
   pull_request:
     paths:
       - 'src/**'
-      - 'tests/i18n*.test.ts'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'electron-builder.yml'
+      - '.github/workflows/release.yml'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'tsconfig*.json'
       - 'vitest.config.ts'
+      - 'vitest.db.config.ts'
       - '.github/workflows/i18n.yml'
   push:
     branches: [main]
     paths:
       - 'src/**'
-      - 'tests/i18n*.test.ts'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'electron-builder.yml'
+      - '.github/workflows/release.yml'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'tsconfig*.json'
       - 'vitest.config.ts'
+      - 'vitest.db.config.ts'
       - '.github/workflows/i18n.yml'
 
 permissions:
@@ -36,5 +44,5 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm i18n:check
+      - run: pnpm test
       - run: pnpm run typecheck

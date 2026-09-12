@@ -126,9 +126,10 @@ app.whenReady().then(() => {
 
   let dbVersion: number
   try {
-    dbVersion = initDb().version
+    const initialized = initDb()
+    dbVersion = initialized.version
     // DB가 열린 직후 언어를 1회 확정·고정 (기존 설치는 한국어 유지)
-    resolveInitialLanguage()
+    resolveInitialLanguage(initialized.isNewDatabase)
   } catch (e) {
     // DB를 못 열면 조용히 빈 상태로 시작하지 않는다 — 세이브 유실로 오인되는 최악의 UX
     const raw = e instanceof Error ? e.message : String(e)

@@ -1,6 +1,5 @@
 import { app } from 'electron'
 import { isLang, localeToLang, translate, type Lang, type MessageId } from '../shared/i18n'
-import { getDb } from './db'
 import { getSetting, setSetting } from './db/settings'
 
 /** DB가 아직 없거나 실패해도 안전하게 현재 언어를 결정 */
@@ -26,19 +25,16 @@ export function t(id: MessageId, ...args: (string | number)[]): string {
  * 기존 사용자 방어: ui_language가 없는 설치는 두 가지다 —
  *   (a) 이 기능 이전부터 쓰던 기존 사용자 → 지금까지 한국어로 써왔으므로 무조건 'ko'.
  *       OS 로케일로 넘기면 영어 OS를 쓰는 한국 사용자가 업데이트만 했는데 UI가 뒤집힌다.
- *   (b) 완전 새 설치(settings 테이블이 빔) → 그때만 OS 로케일을 따른다.
+ *   (b) 완전 새 설치(DB 파일을 이번 실행에 생성함) → 그때만 OS 로케일을 따른다.
  * 한 번 정해지면 값이 남으므로 이 판정은 다시 실행되지 않는다.
  */
-export function resolveInitialLanguage(): Lang {
+export function resolveInitialLanguage(isNewDatabase = false): Lang {
   const existing = getSetting('ui_language')
   if (isLang(existing)) return existing
 
   let lang: Lang = 'ko'
   try {
-    const row = getDb().prepare('SELECT 1 AS x FROM settings LIMIT 1').get() as
-      { x: number } | undefined
-    const freshInstall = row === undefined
-    if (freshInstall) lang = localeToLang(app.getLocale())
+    if (isNewDatabase) lang = localeToLang(app.getLocale())
   } catch {
     // 판정 불가 = 안전한 쪽(한국어)으로
   }

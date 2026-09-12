@@ -50,6 +50,7 @@ pnpm run dev      # 개발 모드 실행
 pnpm run dev:web  # 브라우저 개발 모드 (127.0.0.1:5173)
 pnpm run build    # 타입체크 + 빌드
 pnpm test         # 테스트
+pnpm run test:db  # 실제 SQLite 업그레이드·백업 검증 (Electron Node 모드)
 
 # 패키징
 pnpm run build:mac    # macOS (.dmg)
@@ -60,6 +61,8 @@ pnpm run build:win    # Windows (.exe)
 API 토큰은 개발용 브라우저 프로필에 저장되며, 작업 데이터 JSON 백업에는 포함되지 않습니다.
 브라우저 백업은 브라우저 모드에서 복원하며, 복원 시 현재 등록된 계정은 유지됩니다.
 씬/조각 ZIP 처리 및 내장 웹뷰는 Electron 전용입니다.
+
+태그 빌드·Draft 검증·정식 공개 절차는 [릴리즈 안내](RELEASING.md)를 참고하세요.
 
 ## 번역 기여
 
