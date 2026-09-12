@@ -91,6 +91,11 @@ and mismatched or malformed placeholders. It also checks literal translation cal
 for valid IDs and argument counts, plus live language switching and preservation of
 unsaved card inputs. Pull requests run these checks in the i18n workflow.
 
+`pnpm test` also runs the SQLite integration suite. It uses Electron's Node mode
+to match the native database module installed by `postinstall`, and creates isolated
+temporary databases rather than opening an existing user workspace. Run it separately
+with `pnpm test:db` when changing migrations, backups, or initial language selection.
+
 When submitting a translation, name the language and describe any terminology
 choices or screenshots needing review. Credit existing translators when adapting
 their work. The Simplified Chinese catalog incorporates the contribution in PR #18;
