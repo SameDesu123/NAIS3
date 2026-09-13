@@ -45,15 +45,31 @@ NAIS3는 NAIS2의 후속작으로, NovelAI 이미지 생성을 빠르고 안정�
 ## 개발
 
 ```bash
-npm install      # 의존성 설치
-npm run dev      # 개발 모드 실행
-npm run build    # 타입체크 + 빌드
-npm test         # 테스트
+pnpm install      # 의존성 설치
+pnpm run dev      # 개발 모드 실행
+pnpm run dev:web  # 브라우저 개발 모드 (127.0.0.1:5173)
+pnpm run build    # 타입체크 + 빌드
+pnpm test         # 테스트
+pnpm run test:db  # 실제 SQLite 업그레이드·백업 검증 (Electron Node 모드)
 
 # 패키징
-npm run build:mac    # macOS (.dmg)
-npm run build:win    # Windows (.exe)
+pnpm run build:mac    # macOS (.dmg)
+pnpm run build:win    # Windows (.exe)
 ```
+
+브라우저 개발 모드는 Electron과 별도의 IndexedDB 작업 공간을 사용합니다.
+API 토큰은 개발용 브라우저 프로필에 저장되며, 작업 데이터 JSON 백업에는 포함되지 않습니다.
+브라우저 백업은 브라우저 모드에서 복원하며, 복원 시 현재 등록된 계정은 유지됩니다.
+씬/조각 ZIP 처리 및 내장 웹뷰는 Electron 전용입니다.
+
+태그 빌드·Draft 검증·정식 공개 절차는 [릴리즈 안내](RELEASING.md)를 참고하세요.
+
+## 번역 기여
+
+한국어·영어·간체 중국어 UI를 지원합니다. 설정 → 모양 → 언어에서 변경할 수 있습니다.
+번역은 고정 메시지 ID를 사용하는 언어별 카탈로그로 관리합니다.
+문구 수정·새 언어 추가 방법은 [번역 기여 안내](CONTRIBUTING.md)를 참고하세요.
+번역 변경은 `pnpm i18n:check`로 검증할 수 있습니다.
 
 ## 문의 · 후원
 

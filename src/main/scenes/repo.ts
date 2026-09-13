@@ -2,7 +2,9 @@ import { BrowserWindow, dialog } from 'electron'
 import { readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { extname, isAbsolute, relative } from 'path'
 import JSZip from 'jszip'
-import type { Scene, SceneImage, ScenePreset } from '../../shared/types'
+import { planSceneReservations } from '../../shared/scene-request'
+import type { GenerationQueue } from '../queue/generation-queue'
+import type { IpcInvokeMap, Scene, SceneImage, ScenePreset } from '../../shared/types'
 import { getDb } from '../db'
 import { dropMemoryImage, isMemoryPath, libraryRoot } from '../images/storage'
 import { t } from '../i18n'
@@ -214,7 +216,7 @@ export function duplicateScene(id: number): number {
       )
       .run(
         s.preset_id,
-        t('{0} 복제', s.name),
+        t('ui.valueCopy', s.name),
         s.prompt,
         s.negative_prompt,
         s.width,
@@ -264,6 +266,34 @@ export function setReserveAll(presetId: number, count: number): void {
   getDb()
     .prepare('UPDATE gen_scenes SET reserve_count = ?, reserve_json = NULL WHERE preset_id = ?')
     .run(count, presetId)
+}
+
+/** No asynchronous boundary may separate the reservation snapshot and queue commit. */
+export function enqueueReservedScenes(
+  queue: GenerationQueue,
+  { casts, seedLocked }: IpcInvokeMap['scenes:enqueueReserved']['req']
+): string[] {
+  const db = getDb()
+  const rows = db
+    .prepare(
+      `
+    SELECT s.* FROM gen_scenes s
+    JOIN scene_presets p ON p.id = s.preset_id
+    WHERE s.reserve_count > 0
+    ORDER BY p.sort_order, p.id, s.sort_order, s.id
+  `
+    )
+    .all() as Row[]
+  const scenes = rows.map((row) => toScene({ ...row, image_count: 0 }))
+  const { requests, remaining } = planSceneReservations(scenes, casts, seedLocked, () =>
+    Math.floor(Math.random() * 4294967295)
+  )
+  return queue.enqueueRequests(
+    requests,
+    db.transaction(() => {
+      for (const [id, reserves] of remaining) setSceneReserves(id, reserves)
+    })
+  )
 }
 
 /** 모든 프리셋의 예약 총합 */
@@ -476,7 +506,7 @@ export async function exportScenesJson(presetId: number): Promise<boolean> {
     .all(presetId) as Row[]
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showSaveDialog(win, {
-    title: t('씬 내보내기'),
+    title: t('ui.exportScenes'),
     defaultPath: 'nais3-scenes.json',
     filters: [{ name: 'JSON', extensions: ['json'] }]
   })
@@ -495,7 +525,7 @@ export async function exportScenesJson(presetId: number): Promise<boolean> {
 export async function importScenesJson(presetId: number): Promise<number> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showOpenDialog(win, {
-    title: t('씬 불러오기'),
+    title: t('ui.importScenes'),
     properties: ['openFile'],
     filters: [{ name: 'JSON', extensions: ['json'] }]
   })
@@ -524,7 +554,7 @@ export async function importScenesJson(presetId: number): Promise<number> {
     for (const s of scenes) {
       stmt.run(
         presetId,
-        s.name ?? t('씬'),
+        s.name ?? t('ui.scene'),
         s.prompt ?? s.scenePrompt ?? '', // NAIS2 파일은 scenePrompt
         s.negativePrompt ?? '',
         s.width ?? 832,
@@ -542,7 +572,7 @@ async function zipFiles(entries: ZipEntry[], defaultName: string): Promise<numbe
   if (entries.length === 0) return 0
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showSaveDialog(win, {
-    title: t('ZIP 내보내기'),
+    title: t('ui.exportZip'),
     defaultPath: defaultName,
     filters: [{ name: 'ZIP', extensions: ['zip'] }]
   })

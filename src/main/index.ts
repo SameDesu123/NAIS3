@@ -6,8 +6,7 @@ import sharp from 'sharp'
 import icon from '../../resources/icon.png?asset'
 import { closeDb, initDb } from './db'
 import { getSetting } from './db/settings'
-import { processWildcards } from './fragments/processor'
-import { removeComments } from '../shared/nai-presets'
+import { preprocessRequest } from './fragments/request'
 import { inpaintingModelFor, modelCapabilities } from '../shared/nai-models'
 import { snapNaiResolution } from '../shared/nai-resolution'
 import { fragmentSource } from './fragments/repo'
@@ -127,12 +126,20 @@ app.whenReady().then(() => {
 
   let dbVersion: number
   try {
-    dbVersion = initDb().version
+    const initialized = initDb()
+    dbVersion = initialized.version
     // DB가 열린 직후 언어를 1회 확정·고정 (기존 설치는 한국어 유지)
-    resolveInitialLanguage()
+    resolveInitialLanguage(initialized.isNewDatabase)
   } catch (e) {
     // DB를 못 열면 조용히 빈 상태로 시작하지 않는다 — 세이브 유실로 오인되는 최악의 UX
-    dialog.showErrorBox(t('NAIS3 데이터베이스 오류'), e instanceof Error ? e.message : String(e))
+    const raw = e instanceof Error ? e.message : String(e)
+    const body = raw.includes('NAIS3를 최신 버전으로 업데이트하세요.')
+      ? raw.replace(
+          'NAIS3를 최신 버전으로 업데이트하세요.',
+          t('ui.pleaseUpdateNais3ToTheLatestVersion')
+        )
+      : raw
+    dialog.showErrorBox(t('ui.nais3DatabaseError'), body)
     app.quit()
     return
   }
@@ -140,7 +147,7 @@ app.whenReady().then(() => {
   // 생성 파이프라인: 큐 → 조각/와일드카드 치환 → 바이브/캐릭레퍼 준비 → 스트리밍 생성 → 저장
   const queue = new GenerationQueue(async (rawRequest, id, signal) => {
     const selection = await resolveNaiAccountForGeneration(requestUsesV5Usage(rawRequest))
-    if (!selection) throw new Error(t('NAI 토큰이 설정되지 않았습니다'))
+    if (!selection) throw new Error(t('ui.naiTokenIsNotConfigured'))
     const token = selection.account.token
     if (selection.rotated) {
       broadcast('nai:accountChanged', {
@@ -160,32 +167,7 @@ app.whenReady().then(() => {
     // 배치 항목마다 여기서 치환 — 매 장 다른 와일드카드 결과가 나온다.
     // 주석 제거가 반드시 먼저 — 주석 줄이 조각을 소모하거나(순차 카운터),
     // 와일드카드 처리의 재조립이 개행을 지워 주석 범위가 전체로 번지는 것 방지 (NAIS2와 동일 순서)
-    const fragSource = fragmentSource()
-    const sub = (text: string): string => processWildcards(removeComments(text), fragSource)
-    // 3분할이면 각 조각을 개별 치환 후 병합 — 전송 프롬프트와 메타데이터(promptParts)가
-    // 같은 치환 결과를 공유한다 (병합본만 치환하면 메타데이터에 <조각> 원문이 남는 버그)
-    const subbedParts = rawRequest.promptParts
-      ? {
-          base: sub(rawRequest.promptParts.base),
-          additional: sub(rawRequest.promptParts.additional),
-          detail: sub(rawRequest.promptParts.detail)
-        }
-      : undefined
-    let request = {
-      ...rawRequest,
-      prompt: subbedParts
-        ? [subbedParts.base, subbedParts.additional, subbedParts.detail]
-            .filter((p) => p.trim())
-            .join(', ')
-        : sub(rawRequest.prompt),
-      negativePrompt: sub(rawRequest.negativePrompt),
-      promptParts: subbedParts,
-      characterPrompts: rawRequest.characterPrompts.map((c) => ({
-        ...c,
-        prompt: sub(c.prompt),
-        negativePrompt: sub(c.negativePrompt)
-      }))
-    }
+    let request = preprocessRequest(rawRequest, fragmentSource())
 
     // 바이브/캐릭레퍼 준비 — 요청이 id를 지정하면(출연 예약) 그것으로, 아니면 DB enabled 항목
     // (바이브는 필요 시 인코딩 — 2 Anlas, 캐시됨)

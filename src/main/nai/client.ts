@@ -72,8 +72,8 @@ export async function verifyToken(
   token: string
 ): Promise<{ valid: boolean; subscription?: SubscriptionInfo; error?: string }> {
   const res = await fetch(ENDPOINTS.subscription, { headers: headers(token) })
-  if (res.status === 401) return { valid: false, error: t('유효하지 않은 API 토큰') }
-  if (!res.ok) return { valid: false, error: t('API 오류: {0}', res.status) }
+  if (res.status === 401) return { valid: false, error: t('ui.invalidApiToken') }
+  if (!res.ok) return { valid: false, error: t('ui.apiErrorValue', res.status) }
 
   const data = (await res.json()) as NaiSubscriptionResponse
   return {
@@ -125,12 +125,12 @@ export async function generateImageStream(
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new NaiHttpError(
-      t('생성 실패 {0}: {1}', res.status, text.slice(0, 300)),
+      t('ui.generationFailedValueValue', res.status, text.slice(0, 300)),
       res.status,
       parseRetryAfterMs(res)
     )
   }
-  if (!res.body) throw new Error(t('스트리밍 응답 없음'))
+  if (!res.body) throw new Error(t('ui.noStreamingResponse'))
 
   const png = await readImageStream(res.body as ReadableStream<Uint8Array>, { onProgress, signal })
   return { png, sentPayload }
@@ -168,7 +168,7 @@ export async function augmentImage(
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new NaiHttpError(
-      t('디렉터 툴 실패 {0}: {1}', res.status, text.slice(0, 300)),
+      t('ui.directorToolsFailedValueValue', res.status, text.slice(0, 300)),
       res.status,
       parseRetryAfterMs(res)
     )
@@ -176,39 +176,27 @@ export async function augmentImage(
   const zip = await JSZip.loadAsync(await res.arrayBuffer())
   const names = Object.keys(zip.files)
   const entry = names[names.length - 1] // 마지막 엔트리가 결과
-  if (!entry) throw new Error(t('디렉터 툴 응답에 이미지가 없음'))
+  if (!entry) throw new Error(t('ui.noImageInDirectorToolsResponse'))
   return Buffer.from(await zip.file(entry)!.async('nodebuffer'))
 }
 
-/**
- * 업스케일. 주의: api.novelai.net 호스트(예외). ZIP 응답에서 PNG 추출.
- */
-export async function upscaleImage(
-  token: string,
-  opts: { imageBase64: string; width: number; height: number; scale: number }
-): Promise<Buffer> {
-  const res = await fetch(ENDPOINTS.upscale, {
-    method: 'POST',
-    headers: headers(token),
-    body: JSON.stringify({
-      image: opts.imageBase64,
-      width: opts.width,
-      height: opts.height,
-      scale: opts.scale
-    })
-  })
+export { UPSCALE_MODEL, UPSCALE_SCALE } from './upscale-request'
+import { upscaleRequest } from './upscale-request'
+
+/** V5 Curated 기반 2x 업스케일. 현재 생성 모델과 무관한 공통 전용 모델을 사용한다. */
+export async function upscaleImage(token: string, imageBase64: string): Promise<Buffer> {
+  const res = await fetch(ENDPOINTS.upscale, upscaleRequest(token, imageBase64))
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new NaiHttpError(
-      t('업스케일 실패 {0}: {1}', res.status, text.slice(0, 300)),
+      t('ui.upscaleFailedValueValue', res.status, text.slice(0, 300)),
       res.status,
       parseRetryAfterMs(res)
     )
   }
   const zip = await JSZip.loadAsync(await res.arrayBuffer())
-  const names = Object.keys(zip.files)
-  const entry = names[names.length - 1]
-  if (!entry) throw new Error(t('업스케일 응답에 이미지가 없음'))
+  const entry = Object.keys(zip.files).find((name) => /^image.*\.png$/i.test(name))
+  if (!entry) throw new Error(t('ui.noImageInUpscaleResponse'))
   return Buffer.from(await zip.file(entry)!.async('nodebuffer'))
 }
 
@@ -234,14 +222,14 @@ export async function generateImageZip(
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new NaiHttpError(
-      t('생성 실패 {0}: {1}', res.status, text.slice(0, 300)),
+      t('ui.generationFailedValueValue', res.status, text.slice(0, 300)),
       res.status,
       parseRetryAfterMs(res)
     )
   }
   const zip = await JSZip.loadAsync(await res.arrayBuffer())
   const entryName = Object.keys(zip.files)[0]
-  if (!entryName) throw new Error(t('zip 응답에 이미지가 없음'))
+  if (!entryName) throw new Error(t('ui.noImageInZipResponse'))
   const png = Buffer.from(await zip.file(entryName)!.async('nodebuffer'))
   return { png, sentPayload }
 }

@@ -1,5 +1,6 @@
 import { Check, Grid3X3, Move } from 'lucide-react'
 import { useState } from 'react'
+import type { MessageId } from '@shared/i18n'
 import type { CharacterCard } from '@shared/types'
 import {
   nudgePosition,
@@ -13,11 +14,11 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dial
 
 type GuideMode = 'none' | 'thirds' | 'phi' | 'grid'
 
-const GUIDE_OPTIONS: { value: GuideMode; label: string }[] = [
-  { value: 'none', label: '없음' },
-  { value: 'thirds', label: '3분할' },
-  { value: 'phi', label: '황금비' },
-  { value: 'grid', label: '격자' }
+const GUIDE_OPTIONS: { value: GuideMode; label: MessageId }[] = [
+  { value: 'none', label: 'ui.positionGuideNone' },
+  { value: 'thirds', label: 'ui.positionGuideThirds' },
+  { value: 'phi', label: 'ui.positionGuideGoldenRatio' },
+  { value: 'grid', label: 'ui.positionGuideGrid' }
 ]
 
 const divisions = (count: number): number[] =>
@@ -83,12 +84,10 @@ export function CharacterPositionEditor({
       <DialogContent className="flex max-h-[calc(100vh-2rem)] max-w-[min(900px,calc(100vw-2rem))] flex-col p-4">
         <div className="pr-8">
           <DialogTitle className="flex items-center gap-2">
-            <Move size={16} /> {t('V5 캐릭터 위치 편집')}
+            <Move size={16} /> {t('ui.v5CharacterPositionEditor')}
           </DialogTitle>
           <DialogDescription className="mt-1">
-            {t(
-              '캐릭터를 고른 뒤 출력 화면에서 원하는 위치를 누르세요. 드래그와 방향키도 사용할 수 있습니다.'
-            )}
+            {t('ui.characterPositionInstructions')}
           </DialogDescription>
         </div>
 
@@ -112,7 +111,7 @@ export function CharacterPositionEditor({
                 >
                   {index + 1}
                 </span>
-                <span className="truncate">{char.name || t('캐릭터 {0}', index + 1)}</span>
+                <span className="truncate">{char.name || t('ui.characterValue', index + 1)}</span>
                 {active && <Check size={12} />}
               </Button>
             )
@@ -124,7 +123,10 @@ export function CharacterPositionEditor({
             <div
               role="application"
               tabIndex={0}
-              aria-label={t('{0} 위치 캔버스', selected.name || t('선택한 캐릭터'))}
+              aria-label={t(
+                'ui.characterPositionCanvas',
+                selected.name || t('ui.selectedCharacter')
+              )}
               className="relative shrink-0 cursor-crosshair touch-none overflow-hidden rounded-md border border-line bg-paper shadow-inner outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
               style={
                 isPortrait
@@ -183,7 +185,7 @@ export function CharacterPositionEditor({
               })}
             </div>
           ) : (
-            <p className="p-8 text-[12px] text-muted">{t('활성 캐릭터 프롬프트가 없습니다.')}</p>
+            <p className="p-8 text-[12px] text-muted">{t('ui.noActiveCharacterPrompts')}</p>
           )}
         </div>
 
@@ -201,9 +203,17 @@ export function CharacterPositionEditor({
           ))}
           {guide === 'grid' && (
             <div className="ml-1 flex items-center gap-1 rounded-md border border-line bg-paper p-0.5 font-mono text-[11px]">
-              <GridSizeControl label={t('열')} value={gridColumns} onChange={setGridColumns} />
+              <GridSizeControl
+                label={t('ui.positionGridColumns')}
+                value={gridColumns}
+                onChange={setGridColumns}
+              />
               <span className="text-faint">×</span>
-              <GridSizeControl label={t('행')} value={gridRows} onChange={setGridRows} />
+              <GridSizeControl
+                label={t('ui.positionGridRows')}
+                value={gridRows}
+                onChange={setGridRows}
+              />
             </div>
           )}
           <div className="flex-1" />
@@ -213,7 +223,7 @@ export function CharacterPositionEditor({
             </span>
           )}
           <Button variant="accent" onClick={onClose}>
-            {t('위치 편집 완료')}
+            {t('ui.finishPositionEditing')}
           </Button>
         </div>
       </DialogContent>
@@ -232,7 +242,7 @@ function GridSizeControl({
 }): React.JSX.Element {
   const t = useT()
   return (
-    <div className="flex items-center gap-0.5" title={t('{0} 개수', label)}>
+    <div className="flex items-center gap-0.5" title={t('ui.positionGridCount', label)}>
       <button
         className="grid size-6 place-items-center rounded text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-35"
         disabled={value <= 2}

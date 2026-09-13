@@ -37,6 +37,7 @@ import {
   removeComments
 } from '../../shared/nai-presets'
 import { isV5Model, modelCapabilities } from '../../shared/nai-models'
+import { applyAutoText } from '../../shared/nai-auto-text'
 
 /**
  * Variety+(skip_cfg_above_sigma) 값.
@@ -141,7 +142,7 @@ export function buildGenerateImagePayload(
   const transparent = v5 && (opts.transparentBackground ?? req.transparentBackground ?? false)
   const userPrompt = removeComments(req.prompt)
   const qualityPrompt = mergeQualityTags(userPrompt, req.qualityToggle)
-  const prompt = transparent
+  const promptWithQuality = transparent
     ? mergeQualityTags(
         userPrompt ? `${userPrompt}, transparent background` : 'transparent background',
         req.qualityToggle
@@ -161,6 +162,8 @@ export function buildGenerateImagePayload(
     .filter((c) => c.enabled && c.prompt.trim())
     .slice(0, capabilities.maxCharacters)
   const useCoords = req.useCoords && activeChars.length >= 2
+  // Auto Text must use the same effective positioning mode as the payload centers.
+  const prompt = v5 ? applyAutoText(promptWithQuality, activeChars, useCoords) : promptWithQuality
   const center = (c: (typeof activeChars)[number]): { x: number; y: number } =>
     useCoords ? (c.center ?? { x: 0.5, y: 0.5 }) : { x: 0.5, y: 0.5 }
 
