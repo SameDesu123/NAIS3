@@ -63,7 +63,6 @@ export function CharacterPositionEditor({
           : [[], []]
   const safeWidth = Math.max(1, width)
   const safeHeight = Math.max(1, height)
-  const isPortrait = safeWidth <= safeHeight
 
   const setPositionFromPointer = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (!selected) return
@@ -81,7 +80,7 @@ export function CharacterPositionEditor({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="flex max-h-[calc(100vh-2rem)] max-w-[min(900px,calc(100vw-2rem))] flex-col p-4">
+      <DialogContent className="flex max-h-[calc(100vh-2rem)] max-w-[min(900px,calc(100vw-2rem))] flex-col overflow-y-auto p-4">
         <div className="pr-8">
           <DialogTitle className="flex items-center gap-2">
             <Move size={16} /> {t('ui.v5CharacterPositionEditor')}
@@ -91,7 +90,7 @@ export function CharacterPositionEditor({
           </DialogDescription>
         </div>
 
-        <div className="mt-3 flex min-h-9 flex-wrap items-center gap-1.5 overflow-y-auto">
+        <div className="mt-3 flex max-h-28 min-h-9 shrink-0 flex-wrap items-center gap-1.5 overflow-y-auto">
           {characters.map((char, index) => {
             const active = char.id === selected?.id
             return (
@@ -101,6 +100,7 @@ export function CharacterPositionEditor({
                 variant={active ? 'accent' : 'default'}
                 className="max-w-48 gap-1.5"
                 title={char.name || char.prompt}
+                aria-pressed={active}
                 onClick={() => onSelect(char.id)}
               >
                 <span
@@ -118,7 +118,7 @@ export function CharacterPositionEditor({
           })}
         </div>
 
-        <div className="mt-3 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl bg-surface-2 p-2">
+        <div className="mt-3 flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-2 p-2">
           {selected ? (
             <div
               role="application"
@@ -128,20 +128,13 @@ export function CharacterPositionEditor({
                 selected.name || t('ui.selectedCharacter')
               )}
               className="relative shrink-0 cursor-crosshair touch-none overflow-hidden rounded-md border border-line bg-paper shadow-inner outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-              style={
-                isPortrait
-                  ? {
-                      height: 'min(62vh, 640px)',
-                      maxWidth: '100%',
-                      aspectRatio: `${safeWidth} / ${safeHeight}`
-                    }
-                  : {
-                      width: 'min(100%, 820px)',
-                      maxHeight: '62vh',
-                      aspectRatio: `${safeWidth} / ${safeHeight}`
-                    }
-              }
+              style={{
+                width: `min(100%, ${62 * (safeWidth / safeHeight)}vh, 820px)`,
+                aspectRatio: `${safeWidth} / ${safeHeight}`
+              }}
               onPointerDown={(event) => {
+                if (event.button !== 0 || !event.isPrimary) return
+                event.currentTarget.focus()
                 event.currentTarget.setPointerCapture(event.pointerId)
                 setPositionFromPointer(event)
               }}
@@ -189,13 +182,14 @@ export function CharacterPositionEditor({
           )}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <div className="mt-3 flex shrink-0 flex-wrap items-center gap-1.5">
           <Grid3X3 size={14} className="mr-0.5 text-muted" />
           {GUIDE_OPTIONS.map((option) => (
             <Button
               key={option.value}
               size="sm"
               variant={guide === option.value ? 'accent' : 'ghost'}
+              aria-pressed={guide === option.value}
               onClick={() => setGuide(option.value)}
             >
               {t(option.label)}
@@ -245,6 +239,7 @@ function GridSizeControl({
     <div className="flex items-center gap-0.5" title={t('ui.positionGridCount', label)}>
       <button
         className="grid size-6 place-items-center rounded text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-35"
+        aria-label={t('ui.decreasePositionGridCount', label)}
         disabled={value <= 2}
         onClick={() => onChange(value - 1)}
       >
@@ -253,6 +248,7 @@ function GridSizeControl({
       <span className="w-5 text-center">{value}</span>
       <button
         className="grid size-6 place-items-center rounded text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-35"
+        aria-label={t('ui.increasePositionGridCount', label)}
         disabled={value >= 12}
         onClick={() => onChange(value + 1)}
       >

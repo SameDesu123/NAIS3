@@ -1,3 +1,6 @@
+import { modelCapabilities } from '@shared/nai-models'
+import { removeComments } from '@shared/nai-presets'
+
 export interface NormalizedPosition {
   x: number
   y: number
@@ -41,4 +44,14 @@ export function nudgePosition(
     x: Math.round(clamp01(center.x + xDelta) * 1000) / 1000,
     y: Math.round(clamp01(center.y + yDelta) * 1000) / 1000
   }
+}
+
+/** Limit placement controls to nonempty prompts within the selected model's capacity. */
+export function getPositionableCharacters<T extends { enabled: boolean; prompt: string }>(
+  characters: T[],
+  model: string
+): T[] {
+  return characters
+    .filter((character) => character.enabled && removeComments(character.prompt).trim())
+    .slice(0, modelCapabilities(model).maxCharacters)
 }

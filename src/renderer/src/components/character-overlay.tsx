@@ -21,7 +21,7 @@ import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { applyClickSelection, useSelectAllShortcut } from '../lib/edit-selection'
 import { buildDisplayRows } from '../lib/folder-list'
-import { positionPercent } from '../lib/character-position'
+import { getPositionableCharacters, positionPercent } from '../lib/character-position'
 import { useCharactersStore } from '../stores/characters-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { askConfirm, askText } from '../stores/dialog-store'
@@ -138,8 +138,8 @@ export function CharacterOverlay(): React.JSX.Element {
 
   const enabledCount = items.filter((c) => c.enabled && c.prompt.trim()).length
   const positionableCharacters = useMemo(
-    () => items.filter((c) => c.enabled && c.prompt.trim()),
-    [items]
+    () => getPositionableCharacters(items, model),
+    [items, model]
   )
   const canPositionCharacters = positionableCharacters.length >= 2
   const positioningEnabled = useCoords && canPositionCharacters
@@ -275,7 +275,7 @@ export function CharacterOverlay(): React.JSX.Element {
           <span className="text-faint">{t('ui.emptyCharacter')}</span>
         )}
       </button>
-      {positioningEnabled && char.enabled && !v5 && (
+      {positioningEnabled && positionableCharacters.some((c) => c.id === char.id) && !v5 && (
         <Popover>
           <PopoverTrigger asChild>
             <Button size="sm" variant="ghost" className="h-7 gap-1 px-1.5 font-mono text-[11px]">
@@ -291,7 +291,7 @@ export function CharacterOverlay(): React.JSX.Element {
           </PopoverContent>
         </Popover>
       )}
-      {positioningEnabled && char.enabled && v5 && (
+      {positioningEnabled && positionableCharacters.some((c) => c.id === char.id) && v5 && (
         <Button
           size="sm"
           variant="ghost"
@@ -422,6 +422,7 @@ export function CharacterOverlay(): React.JSX.Element {
         >
           {t('ui.setPositions')}
           <Switch
+            aria-label={t('ui.setPositions')}
             checked={positioningEnabled}
             disabled={!canPositionCharacters}
             onCheckedChange={(v) => patch({ useCoords: v })}

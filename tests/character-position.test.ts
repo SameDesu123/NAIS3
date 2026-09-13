@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getPositionableCharacters,
   nudgePosition,
   pointToNormalizedPosition,
   positionPercent
@@ -24,5 +25,27 @@ describe('character position helpers', () => {
       x: 0.186,
       y: 0.21
     })
+  })
+})
+
+describe('positionable characters', () => {
+  it.each([
+    ['nai-diffusion-5-full', 32],
+    ['nai-diffusion-5-curated', 32],
+    ['nai-diffusion-4-5-full', 6]
+  ])('filters empty prompts before applying the %s limit', (model, limit) => {
+    const active = Array.from({ length: 33 }, (_, id) => ({
+      id,
+      enabled: true,
+      prompt: `character ${id}`
+    }))
+    const characters = [
+      { id: -1, enabled: false, prompt: 'disabled' },
+      { id: -2, enabled: true, prompt: '  ' },
+      { id: -3, enabled: true, prompt: '# comment only' },
+      ...active
+    ]
+    expect(getPositionableCharacters(characters, model)).toEqual(active.slice(0, limit))
+    expect(characters).toHaveLength(36)
   })
 })

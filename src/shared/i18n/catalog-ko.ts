@@ -1,4 +1,6 @@
 export const KO = {
+  'ui.decreasePositionGridCount': '{0} 개수 줄이기',
+  'ui.increasePositionGridCount': '{0} 개수 늘리기',
   'ui.positioningRequiresTwoCharacters':
     '위치 지정은 활성 캐릭터가 2명 이상일 때 사용할 수 있습니다',
   'ui.v5FreePositionEditor': 'V5 캐릭터 자유 위치 편집',
