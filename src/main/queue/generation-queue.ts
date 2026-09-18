@@ -1,6 +1,11 @@
 import { EventEmitter } from 'events'
 import { randomUUID } from 'crypto'
-import type { GenerationRequest, QueueItem, QueueStatus } from '../../shared/types'
+import type {
+  GenerationDelayRandomization,
+  GenerationRequest,
+  QueueItem,
+  QueueStatus
+} from '../../shared/types'
 
 /**
  * 생성 큐. 메인 프로세스 상주 — 렌더러가 리로드/크래시해도 큐는 살아있다.
@@ -22,13 +27,19 @@ export class GenerationQueue extends EventEmitter {
   private controllers = new Map<string, AbortController>()
   private running = false
   private delayMs = 600
+  private delayRandomization: GenerationDelayRandomization = {
+    enabled: false,
+    minusMs: 0,
+    plusMs: 0
+  }
 
   constructor(
     private readonly generate: (
       request: GenerationRequest,
       id: string,
       signal: AbortSignal
-    ) => Promise<string>
+    ) => Promise<string>,
+    private readonly random: () => number = Math.random
   ) {
     super()
   }
@@ -80,8 +91,15 @@ export class GenerationQueue extends EventEmitter {
     this.emitChanged()
   }
 
-  setDelayMs(ms: number): void {
-    this.delayMs = ms
+  setDelayMs(ms: number, randomization?: GenerationDelayRandomization): void {
+    this.delayMs = nonNegativeMs(ms)
+    if (randomization) {
+      this.delayRandomization = {
+        enabled: randomization.enabled,
+        minusMs: nonNegativeMs(randomization.minusMs),
+        plusMs: nonNegativeMs(randomization.plusMs)
+      }
+    }
   }
 
   status(): QueueStatus {
@@ -114,7 +132,7 @@ export class GenerationQueue extends EventEmitter {
         }
         this.emitChanged()
         if (this.nextPending()) {
-          await sleep(this.delayMs)
+          await sleep(this.nextDelayMs())
         }
       }
     } finally {
@@ -153,9 +171,20 @@ export class GenerationQueue extends EventEmitter {
     return undefined
   }
 
+  private nextDelayMs(): number {
+    if (!this.delayRandomization.enabled) return this.delayMs
+    const min = Math.max(0, this.delayMs - this.delayRandomization.minusMs)
+    const max = this.delayMs + this.delayRandomization.plusMs
+    return Math.round(min + (max - min) * this.random())
+  }
+
   private emitChanged(): void {
     this.emit('changed', this.status())
   }
+}
+
+function nonNegativeMs(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, value) : 0
 }
 
 function sleep(ms: number): Promise<void> {

@@ -113,6 +113,12 @@ export interface QueueStatus {
   delayMs: number
 }
 
+export interface GenerationDelayRandomization {
+  enabled: boolean
+  minusMs: number
+  plusMs: number
+}
+
 export interface OpusUsageStatus {
   /** Remaining rechargeable allowance percentage. May exceed 100 during boosts. */
   percent: number

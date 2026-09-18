@@ -15,6 +15,74 @@ class HttpErr extends Error {
 
 const REQ = {} as GenerationRequest // count=1이면 seed 접근 없음
 
+describe('GenerationQueue 생성 간격 랜덤화', () => {
+  it('활성화하면 설정한 마이너스 범위까지 생성 간격을 줄인다', async () => {
+    vi.useFakeTimers()
+    try {
+      const startedAt: number[] = []
+      const q = new GenerationQueue(
+        async () => {
+          startedAt.push(Date.now())
+          return '/img.png'
+        },
+        () => 0
+      )
+      q.setDelayMs(1000, { enabled: true, minusMs: 300, plusMs: 700 })
+
+      q.enqueue(REQ, 2)
+      await vi.runAllTimersAsync()
+
+      expect(startedAt[1] - startedAt[0]).toBe(700)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('활성화하면 설정한 플러스 범위 안에서 생성 간격을 늘린다', async () => {
+    vi.useFakeTimers()
+    try {
+      const startedAt: number[] = []
+      const q = new GenerationQueue(
+        async () => {
+          startedAt.push(Date.now())
+          return '/img.png'
+        },
+        () => 0.5
+      )
+      q.setDelayMs(1000, { enabled: true, minusMs: 0, plusMs: 400 })
+
+      q.enqueue(REQ, 2)
+      await vi.runAllTimersAsync()
+
+      expect(startedAt[1] - startedAt[0]).toBe(1200)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('비활성화하면 기존의 고정 생성 간격을 유지한다', async () => {
+    vi.useFakeTimers()
+    try {
+      const startedAt: number[] = []
+      const q = new GenerationQueue(
+        async () => {
+          startedAt.push(Date.now())
+          return '/img.png'
+        },
+        () => 0
+      )
+      q.setDelayMs(1000, { enabled: false, minusMs: 300, plusMs: 700 })
+
+      q.enqueue(REQ, 2)
+      await vi.runAllTimersAsync()
+
+      expect(startedAt[1] - startedAt[0]).toBe(1000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('GenerationQueue 재시도', () => {
   it('전이성 오류(429)는 백오프 후 재시도해 성공한다', async () => {
     vi.useFakeTimers()
