@@ -72,12 +72,12 @@ function Row({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <div className="flex items-center justify-between gap-6 py-2.5">
-      <div className="min-w-0">
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-6 gap-y-2 py-2.5">
+      <div className="min-w-0 flex-1 basis-32">
         <p className="text-[13px] text-ink">{label}</p>
         {hint && <p className="mt-0.5 text-[11.5px] text-faint">{hint}</p>}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="ml-auto max-w-full shrink-0 [&>*]:max-w-full">{children}</div>
     </div>
   )
 }
@@ -213,6 +213,9 @@ function GenerationSection(): React.JSX.Element {
   const t = useT()
   const [streaming, setStreaming] = useState(true)
   const [delay, setDelay] = useState(600)
+  const [randomizeDelay, setRandomizeDelay] = useState(false)
+  const [delayMinus, setDelayMinus] = useState(0)
+  const [delayPlus, setDelayPlus] = useState(0)
   const [alertSound, setAlertSound] = useState(false)
   const [alertNative, setAlertNative] = useState(false)
   const promptSplitEnabled = useGenerationStore((s) => s.promptSplitEnabled)
@@ -224,6 +227,15 @@ function GenerationSection(): React.JSX.Element {
     })
     void window.nais.invoke('settings:get', { key: 'gen_delay_ms' }).then(({ value }) => {
       if (value != null && value !== '') setDelay(Number(value))
+    })
+    void window.nais
+      .invoke('settings:get', { key: 'gen_delay_random_enabled' })
+      .then(({ value }) => setRandomizeDelay(value === '1'))
+    void window.nais.invoke('settings:get', { key: 'gen_delay_minus_ms' }).then(({ value }) => {
+      if (value != null && value !== '') setDelayMinus(Number(value))
+    })
+    void window.nais.invoke('settings:get', { key: 'gen_delay_plus_ms' }).then(({ value }) => {
+      if (value != null && value !== '') setDelayPlus(Number(value))
     })
     void window.nais.invoke('settings:get', { key: 'alert_sound' }).then(({ value }) => {
       setAlertSound(value === '1')
@@ -264,9 +276,60 @@ function GenerationSection(): React.JSX.Element {
           step={100}
           value={[delay]}
           onValueChange={([v]) => setDelay(v)}
-          onValueCommit={([v]) => void window.nais.invoke('gen:setDelay', { ms: v })}
+          onValueCommit={([v]) =>
+            void window.nais.invoke('gen:setDelay', {
+              ms: v,
+              randomization: {
+                enabled: randomizeDelay,
+                minusMs: delayMinus,
+                plusMs: delayPlus
+              }
+            })
+          }
         />
       </Row>
+      <Row
+        label={t('ui.randomizeGenerationInterval')}
+        hint={t('ui.randomizeGenerationIntervalHint')}
+      >
+        <Switch
+          aria-label={t('ui.randomizeGenerationInterval')}
+          checked={randomizeDelay}
+          onCheckedChange={(enabled) => {
+            setRandomizeDelay(enabled)
+            void window.nais.invoke('gen:setDelay', {
+              ms: delay,
+              randomization: { enabled, minusMs: delayMinus, plusMs: delayPlus }
+            })
+          }}
+        />
+      </Row>
+      {randomizeDelay && (
+        <div className="min-w-0 space-y-3 py-3">
+          <DelayRangeControl
+            label={t('ui.generationDelayMinusValueS', (delayMinus / 1000).toFixed(1))}
+            value={delayMinus}
+            onChange={setDelayMinus}
+            onCommit={(minusMs) =>
+              void window.nais.invoke('gen:setDelay', {
+                ms: delay,
+                randomization: { enabled: true, minusMs, plusMs: delayPlus }
+              })
+            }
+          />
+          <DelayRangeControl
+            label={t('ui.generationDelayPlusValueS', (delayPlus / 1000).toFixed(1))}
+            value={delayPlus}
+            onChange={setDelayPlus}
+            onCommit={(plusMs) =>
+              void window.nais.invoke('gen:setDelay', {
+                ms: delay,
+                randomization: { enabled: true, minusMs: delayMinus, plusMs }
+              })
+            }
+          />
+        </div>
+      )}
       <Row label={t('ui.completionSound')} hint={t('ui.playAChimeWhenTheQueueFinishes')}>
         <Switch
           aria-label={t('ui.completionSound')}
@@ -291,6 +354,36 @@ function GenerationSection(): React.JSX.Element {
           }}
         />
       </Row>
+    </div>
+  )
+}
+
+function DelayRangeControl({
+  label,
+  value,
+  onChange,
+  onCommit
+}: {
+  label: string
+  value: number
+  onChange: (value: number) => void
+  onCommit: (value: number) => void
+}): React.JSX.Element {
+  return (
+    <div className="min-w-0">
+      <p className="mb-2 truncate text-[12px] text-muted" title={label}>
+        {label}
+      </p>
+      <Slider
+        className="w-full min-w-0"
+        aria-label={label}
+        min={0}
+        max={5000}
+        step={100}
+        value={[value]}
+        onValueChange={([next]) => onChange(next)}
+        onValueCommit={([next]) => onCommit(next)}
+      />
     </div>
   )
 }

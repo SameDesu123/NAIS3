@@ -1,5 +1,10 @@
 import { EventEmitter } from 'events'
 import { randomUUID } from 'crypto'
+import {
+  normalizeDelayMs,
+  normalizeDelayRandomization,
+  randomizedGenerationDelayMs
+} from '../../shared/generation-delay'
 import type {
   GenerationDelayRandomization,
   GenerationRequest,
@@ -92,14 +97,8 @@ export class GenerationQueue extends EventEmitter {
   }
 
   setDelayMs(ms: number, randomization?: GenerationDelayRandomization): void {
-    this.delayMs = nonNegativeMs(ms)
-    if (randomization) {
-      this.delayRandomization = {
-        enabled: randomization.enabled,
-        minusMs: nonNegativeMs(randomization.minusMs),
-        plusMs: nonNegativeMs(randomization.plusMs)
-      }
-    }
+    this.delayMs = normalizeDelayMs(ms)
+    if (randomization) this.delayRandomization = normalizeDelayRandomization(randomization)
   }
 
   status(): QueueStatus {
@@ -172,19 +171,12 @@ export class GenerationQueue extends EventEmitter {
   }
 
   private nextDelayMs(): number {
-    if (!this.delayRandomization.enabled) return this.delayMs
-    const min = Math.max(0, this.delayMs - this.delayRandomization.minusMs)
-    const max = this.delayMs + this.delayRandomization.plusMs
-    return Math.round(min + (max - min) * this.random())
+    return randomizedGenerationDelayMs(this.delayMs, this.delayRandomization, this.random)
   }
 
   private emitChanged(): void {
     this.emit('changed', this.status())
   }
-}
-
-function nonNegativeMs(value: number): number {
-  return Number.isFinite(value) ? Math.max(0, value) : 0
 }
 
 function sleep(ms: number): Promise<void> {
