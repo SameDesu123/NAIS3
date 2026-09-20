@@ -1,6 +1,12 @@
 import { EventEmitter } from 'events'
 import { randomUUID } from 'crypto'
-import type { GenerationRequest, QueueItem, QueueStatus } from '../../shared/types'
+import { applyRandomCharacterPrompt } from '../../shared/random-character'
+import type {
+  CharacterPromptInput,
+  GenerationRequest,
+  QueueItem,
+  QueueStatus
+} from '../../shared/types'
 
 /**
  * 생성 큐. 메인 프로세스 상주 — 렌더러가 리로드/크래시해도 큐는 살아있다.
@@ -33,12 +39,18 @@ export class GenerationQueue extends EventEmitter {
     super()
   }
 
-  enqueue(request: GenerationRequest, count: number): string[] {
+  enqueue(
+    request: GenerationRequest,
+    count: number,
+    randomCharacterPrompts: readonly CharacterPromptInput[] = []
+  ): string[] {
     const ids: string[] = []
     for (let i = 0; i < count; i++) {
       const id = randomUUID()
       // 배치는 장마다 시드+i — 같은 시드 N장(동일 그림 N장) 방지, 시드 고정 시에도 각 장 재현 가능
-      const req = i === 0 ? request : { ...request, seed: (request.seed + i) % 4294967296 }
+      const seededRequest =
+        i === 0 ? request : { ...request, seed: (request.seed + i) % 4294967296 }
+      const req = applyRandomCharacterPrompt(seededRequest, randomCharacterPrompts)
       this.items.set(id, { id, state: 'pending', request: req })
       ids.push(id)
     }

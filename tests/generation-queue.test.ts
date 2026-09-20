@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GenerationRequest } from '../src/shared/types'
+import type { CharacterPromptInput, GenerationRequest } from '../src/shared/types'
 import { GenerationQueue } from '../src/main/queue/generation-queue'
 
 /** NaiHttpError를 흉내낸 최소 오류 — 큐는 status 필드만 본다 */
@@ -14,6 +14,49 @@ class HttpErr extends Error {
 }
 
 const REQ = {} as GenerationRequest // count=1이면 seed 접근 없음
+
+const RANDOM_CANDIDATES: CharacterPromptInput[] = [
+  { prompt: 'alpha', negativePrompt: '', enabled: true },
+  { prompt: 'beta', negativePrompt: '', enabled: true }
+]
+
+describe('GenerationQueue 랜덤 캐릭터', () => {
+  it('연속 생성의 각 큐 항목마다 후보 캐릭터를 독립 추첨한다', async () => {
+    const random = vi
+      .spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.75)
+      .mockReturnValueOnce(0.75)
+    const q = new GenerationQueue(async () => '/img.png')
+    q.setDelayMs(0)
+
+    const ids = q.enqueue(
+      {
+        ...REQ,
+        seed: 42,
+        characterPrompts: [{ prompt: 'previous', negativePrompt: '', enabled: true }]
+      },
+      3,
+      RANDOM_CANDIDATES
+    )
+
+    await vi.waitFor(() => {
+      expect(
+        q
+          .status()
+          .items.filter((item) => ids.includes(item.id))
+          .every((item) => item.state === 'done')
+      ).toBe(true)
+    })
+    expect(
+      q
+        .status()
+        .items.filter((item) => ids.includes(item.id))
+        .map((item) => item.request.characterPrompts.map((character) => character.prompt))
+    ).toEqual([['alpha'], ['beta'], ['beta']])
+    random.mockRestore()
+  })
+})
 
 describe('GenerationQueue 재시도', () => {
   it('전이성 오류(429)는 백오프 후 재시도해 성공한다', async () => {

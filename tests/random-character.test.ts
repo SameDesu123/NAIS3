@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CharacterCard } from '../src/shared/types'
-import { planRandomCharacterActivation } from '../src/renderer/src/lib/random-character'
+import { planRandomCharacterActivation } from '../src/shared/random-character'
 
 function character(id: number, prompt: string, enabled = false): CharacterCard {
   return {
