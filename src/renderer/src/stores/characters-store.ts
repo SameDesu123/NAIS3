@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { CharacterCard, CharacterCardPatch, ListFolder } from '@shared/types'
 import { canonicalize, moveRow, toOrderEntries } from '../lib/folder-list'
 import { t } from '../lib/i18n'
+import { planRandomCharacterActivation } from '../lib/random-character'
 
 /**
  * 캐릭터 단일 리스트 모델 (공용 폴더 리스트 로직 사용):
@@ -20,6 +21,8 @@ interface CharactersState {
   updateCard: (id: number, patch: CharacterCardPatch, maxCharacters?: number) => void
   /** 활성 캐릭터 전체 해제 */
   disableAll: () => void
+  /** 선택한 후보 중 한 명을 뽑아 단독 활성화 */
+  activateRandom: (candidateIds: ReadonlySet<number>) => CharacterCard | null
   removeCard: (id: number) => void
   duplicateCard: (id: number) => Promise<void>
   pickThumbnail: (id: number) => Promise<void>
@@ -87,6 +90,16 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
     set({ items: get().items.map((c) => (c.enabled ? { ...c, enabled: false } : c)) })
     for (const c of enabled)
       void window.nais.invoke('chars:update', { id: c.id, patch: { enabled: false } })
+  },
+
+  activateRandom: (candidateIds) => {
+    const plan = planRandomCharacterActivation(get().items, candidateIds)
+    if (!plan.picked) return null
+    set({ items: plan.items })
+    for (const change of plan.changed) {
+      void window.nais.invoke('chars:update', { id: change.id, patch: { enabled: change.enabled } })
+    }
+    return plan.picked
   },
 
   removeCard: (id) => {
