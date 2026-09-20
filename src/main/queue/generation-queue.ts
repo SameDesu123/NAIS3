@@ -5,8 +5,10 @@ import {
   normalizeDelayRandomization,
   randomizedGenerationDelayMs
 } from '../../shared/generation-delay'
+import { applyRandomCharacterPrompt } from '../../shared/random-character'
 import type {
   GenerationDelayRandomization,
+  CharacterPromptInput,
   GenerationRequest,
   QueueItem,
   QueueStatus
@@ -49,12 +51,18 @@ export class GenerationQueue extends EventEmitter {
     super()
   }
 
-  enqueue(request: GenerationRequest, count: number): string[] {
+  enqueue(
+    request: GenerationRequest,
+    count: number,
+    randomCharacterPrompts: readonly CharacterPromptInput[] = []
+  ): string[] {
     const ids: string[] = []
     for (let i = 0; i < count; i++) {
       const id = randomUUID()
       // 배치는 장마다 시드+i — 같은 시드 N장(동일 그림 N장) 방지, 시드 고정 시에도 각 장 재현 가능
-      const req = i === 0 ? request : { ...request, seed: (request.seed + i) % 4294967296 }
+      const seededRequest =
+        i === 0 ? request : { ...request, seed: (request.seed + i) % 4294967296 }
+      const req = applyRandomCharacterPrompt(seededRequest, randomCharacterPrompts, this.random)
       this.items.set(id, { id, state: 'pending', request: req })
       ids.push(id)
     }

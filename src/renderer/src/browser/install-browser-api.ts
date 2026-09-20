@@ -3,6 +3,7 @@ import { preprocessRequest } from '../../../main/fragments/request'
 import { processWildcards, resetSequentialCounters } from '../../../main/fragments/processor'
 import { removeComments } from '@shared/nai-presets'
 import { modelCapabilities } from '@shared/nai-models'
+import { applyRandomCharacterPrompt } from '@shared/random-character'
 import { UPSCALE_MODEL, UPSCALE_SCALE } from '../../../main/nai/upscale-request'
 import {
   normalizeDelayMs,
@@ -18,6 +19,7 @@ import {
 import type {
   CharacterOrderEntry,
   GenerationDelayRandomization,
+  CharacterPromptInput,
   GenerationRequest,
   IpcEventMap,
   IpcInvokeMap,
@@ -480,10 +482,15 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
     const count = Math.max(1, Number(request.count) || 1)
     const ids = Array.from({ length: count }, (_, index) => {
       const id = crypto.randomUUID()
+      const seededRequest =
+        index === 0 ? generation : { ...generation, seed: generation.seed + index }
       queue.items.push({
         id,
         state: 'pending',
-        request: index === 0 ? generation : { ...generation, seed: generation.seed + index }
+        request: applyRandomCharacterPrompt(
+          seededRequest,
+          (request.randomCharacterPrompts as CharacterPromptInput[] | undefined) ?? []
+        )
       })
       return id
     })
