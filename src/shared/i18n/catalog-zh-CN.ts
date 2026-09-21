@@ -110,6 +110,8 @@ export const ZH_CN = {
   'ui.livePreviewWhileGenerating': '生成过程实时预览',
   'ui.value3PartPromptSplit': '提示词三栏',
   'ui.splitIntoFixedVariableDetailBoxes': '分为固定 / 变动 / 细节栏',
+  'ui.quickGenerationControls': '快速生成设置',
+  'ui.showResolutionAndStepsAboveTheGenerateButton': '在生成按钮上方直接调整分辨率和步数',
   'ui.generationDelayValueS': '生成延迟 — {0}秒',
   'ui.intervalBetweenConsecutiveGenerations': '连续生成间隔',
   'ui.randomizeGenerationInterval': '随机化生成间隔',

@@ -109,6 +109,8 @@ export const KO = {
   'ui.livePreviewWhileGenerating': '생성 과정을 실시간 미리보기',
   'ui.value3PartPromptSplit': '프롬프트 3분할',
   'ui.splitIntoFixedVariableDetailBoxes': '고정 / 가변 / 디테일 칸으로 나누기',
+  'ui.quickGenerationControls': '빠른 생성 설정',
+  'ui.showResolutionAndStepsAboveTheGenerateButton': '생성 버튼 위에서 해상도와 스텝을 바로 조절',
   'ui.generationDelayValueS': '생성 지연 — {0}초',
   'ui.intervalBetweenConsecutiveGenerations': '연속 생성 간격',
   'ui.randomizeGenerationInterval': '생성 간격 랜덤화',
