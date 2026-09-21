@@ -217,6 +217,10 @@ function GenerationSection(): React.JSX.Element {
   const [alertNative, setAlertNative] = useState(false)
   const promptSplitEnabled = useGenerationStore((s) => s.promptSplitEnabled)
   const setPromptSplitEnabled = useGenerationStore((s) => s.setPromptSplitEnabled)
+  const quickGenerationControlsEnabled = useLayoutStore((s) => s.quickGenerationControlsEnabled)
+  const setQuickGenerationControlsEnabled = useLayoutStore(
+    (s) => s.setQuickGenerationControlsEnabled
+  )
 
   useEffect(() => {
     void window.nais.invoke('settings:get', { key: 'gen_streaming' }).then(({ value }) => {
@@ -250,6 +254,16 @@ function GenerationSection(): React.JSX.Element {
           aria-label={t('ui.value3PartPromptSplit')}
           checked={promptSplitEnabled}
           onCheckedChange={setPromptSplitEnabled}
+        />
+      </Row>
+      <Row
+        label={t('ui.quickGenerationControls')}
+        hint={t('ui.showResolutionAndStepsAboveTheGenerateButton')}
+      >
+        <Switch
+          aria-label={t('ui.quickGenerationControls')}
+          checked={quickGenerationControlsEnabled}
+          onCheckedChange={setQuickGenerationControlsEnabled}
         />
       </Row>
       <Row
