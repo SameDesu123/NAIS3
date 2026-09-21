@@ -3,7 +3,7 @@ name: Branch Build
 on:
   push:
     branches:
-      - 'ci/build-batch-progress-random-delay-per-image-character-*'
+      - 'ci/build-quick-generation-controls-*'
 
 permissions:
   contents: read
