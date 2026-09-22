@@ -21,6 +21,19 @@ describe('V5 Opus usage 응답', () => {
     expect(parseSubscriptionResponse({ tier: 1 }).usage).toBeUndefined()
   })
 
+  it('Opus가 아닌 구독 응답의 잔여 usage는 전달하지 않는다', () => {
+    expect(
+      parseSubscriptionResponse({
+        tier: 0,
+        usage: { percent: 15, isNegative: false, timeUntilNextPercent: 6048 }
+      })
+    ).toEqual({
+      tier: 'paper',
+      anlasFixed: 0,
+      anlasPurchased: 0
+    })
+  })
+
   it('부스트로 100%를 넘긴 usage도 상한 없이 전달한다', () => {
     const usage = { percent: 230, isNegative: false, timeUntilNextPercent: 6048 }
     expect(parseSubscriptionResponse({ tier: 3, usage }).usage).toEqual(usage)

@@ -34,15 +34,17 @@ interface NaiSubscriptionResponse {
 
 export function parseSubscriptionResponse(data: NaiSubscriptionResponse): SubscriptionInfo {
   const tierNames = ['paper', 'tablet', 'scroll', 'opus'] as const
+  const tier = tierNames[data.tier ?? 0] ?? 'paper'
   const usage = data.usage
   const validUsage =
+    tier === 'opus' &&
     usage &&
     Number.isFinite(usage.percent) &&
     typeof usage.isNegative === 'boolean' &&
     Number.isFinite(usage.timeUntilNextPercent) &&
     usage.timeUntilNextPercent >= 0
   return {
-    tier: tierNames[data.tier ?? 0] ?? 'paper',
+    tier,
     anlasFixed: data.trainingStepsLeft?.fixedTrainingStepsLeft ?? 0,
     anlasPurchased: data.trainingStepsLeft?.purchasedTrainingSteps ?? 0,
     ...(validUsage ? { usage } : {})
