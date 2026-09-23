@@ -790,7 +790,7 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
   if (channel === 'images:showInFolder') return undefined
   if (channel === 'images:saveLocal') {
     const base64 = String(request.base64)
-    const filePath = await saveBrowserImage(base64, 'mosaic')
+    const filePath = await saveBrowserImage(base64, String(request.kind))
     return { filePath }
   }
 

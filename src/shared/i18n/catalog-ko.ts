@@ -623,7 +623,34 @@ export const KO = {
   'ui.inlineRandomSyntax': '<a|b|c>',
   'ui.queue': '예약',
   'ui.namedCast': '"{0}" 출연',
-  'ui.adjustQueueForSelectedScenes': '선택한 {0}개 씬의 {1} 예약 {2}{3}'
+  'ui.adjustQueueForSelectedScenes': '선택한 {0}개 씬의 {1} 예약 {2}{3}',
+  'ui.pixelArt': '픽셀 아트',
+  'ui.pixelArtLocalToolDescription': '이미지 전체를 픽셀화하고 팔레트를 줄입니다 · 로컬 무료',
+  'ui.pixelArtEditor': '픽셀 아트 변환',
+  'ui.pixelArtEditorDescription':
+    '픽셀 크기와 팔레트를 따로 조절합니다. 원본은 유지되고 결과가 새 이미지로 저장됩니다.',
+  'ui.pixelSize': '픽셀 크기',
+  'ui.pixelSizeDescription': '1px은 색상만 줄이고, 값이 클수록 픽셀 블록이 커집니다.',
+  'ui.paletteMode': '팔레트 방식',
+  'ui.automaticPalette': '이미지에서 자동 추출',
+  'ui.customPalette': '지정색만 사용',
+  'ui.gradientPalette': '기준색 그라데이션',
+  'ui.automaticPaletteDescription': '이미지의 대표색을 분석해 선택한 색 수로 줄입니다.',
+  'ui.customPaletteDescription': '입력한 색만 결과에 사용합니다.',
+  'ui.gradientPaletteDescription':
+    '검정에서 선택한 기준색들을 지나 흰색까지 이어지는 범용 팔레트를 만듭니다.',
+  'ui.colorCount': '색상 수',
+  'ui.paletteColors': '팔레트 색상',
+  'ui.gradientAnchorColors': '그라데이션 기준색',
+  'ui.chooseColor': '색상 선택',
+  'ui.addColor': '색상 추가',
+  'ui.valueColors': '{0}색',
+  'ui.addAtLeastOnePaletteColor': '팔레트 색상을 하나 이상 추가하세요.',
+  'ui.resultPalette': '결과 팔레트',
+  'ui.renderingFullResolution': '원본 해상도로 변환 중…',
+  'ui.updatingPreview': '미리보기 갱신 중…',
+  'ui.localProcessingNoAnlas': '로컬 처리 · Anlas 사용 없음',
+  'ui.savePixelArtResultToAFile': '픽셀 아트 결과를 파일로 저장'
 } as const
 
 export type MessageId = keyof typeof KO

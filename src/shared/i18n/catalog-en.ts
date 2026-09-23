@@ -639,5 +639,34 @@ export const EN = {
   'ui.inlineRandomSyntax': '<a|b|c>',
   'ui.queue': 'Queue',
   'ui.namedCast': 'cast "{0}"',
-  'ui.adjustQueueForSelectedScenes': '{2}{3} queue for {1} across {0} selected {0|scene|scenes}'
+  'ui.adjustQueueForSelectedScenes': '{2}{3} queue for {1} across {0} selected {0|scene|scenes}',
+  'ui.pixelArt': 'Pixel Art',
+  'ui.pixelArtLocalToolDescription':
+    'Pixelate the whole image and reduce its palette · Free local tool',
+  'ui.pixelArtEditor': 'Pixel Art Conversion',
+  'ui.pixelArtEditorDescription':
+    'Adjust pixel size and palette separately. The original stays untouched and the result is saved as a new image.',
+  'ui.pixelSize': 'Pixel size',
+  'ui.pixelSizeDescription': '1px only reduces colors; larger values create larger pixel blocks.',
+  'ui.paletteMode': 'Palette mode',
+  'ui.automaticPalette': 'Extract from image',
+  'ui.customPalette': 'Use exact colors',
+  'ui.gradientPalette': 'Anchor color gradient',
+  'ui.automaticPaletteDescription':
+    'Find representative image colors and reduce them to the selected count.',
+  'ui.customPaletteDescription': 'Use only the colors entered below in the result.',
+  'ui.gradientPaletteDescription':
+    'Build a versatile palette from black through your anchor colors to white.',
+  'ui.colorCount': 'Color count',
+  'ui.paletteColors': 'Palette colors',
+  'ui.gradientAnchorColors': 'Gradient anchor colors',
+  'ui.chooseColor': 'Choose color',
+  'ui.addColor': 'Add color',
+  'ui.valueColors': '{0} colors',
+  'ui.addAtLeastOnePaletteColor': 'Add at least one palette color.',
+  'ui.resultPalette': 'Result palette',
+  'ui.renderingFullResolution': 'Rendering at full resolution…',
+  'ui.updatingPreview': 'Updating preview…',
+  'ui.localProcessingNoAnlas': 'Local processing · No Anlas used',
+  'ui.savePixelArtResultToAFile': 'Save the pixel-art result to a file'
 } as const satisfies MessageCatalog

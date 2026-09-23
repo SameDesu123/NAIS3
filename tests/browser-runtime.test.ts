@@ -123,6 +123,15 @@ describe('browser runtime regressions', () => {
     expect(download.href).toBe(filePath)
   })
 
+  it('preserves the local editor kind when saving pixel-art results', async () => {
+    const result = await api.invoke('images:saveLocal', {
+      base64: 'YQ==',
+      kind: 'pixel-art'
+    })
+    expect(result.filePath).toBe('data:image/png;base64,YQ==')
+    expect(state.images[0].kind).toBe('pixel-art')
+  })
+
   it('expands split, character, and sequential prompts at generation time without consuming preview counters', async () => {
     state.fragments = [{ id: 1, name: 'Words', content: 'first\nsecond', folderId: null }]
     const generated: {

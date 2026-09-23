@@ -1,4 +1,5 @@
 import {
+  Blocks,
   Droplets,
   Eraser,
   Film,
@@ -39,7 +40,8 @@ const KIND_MAP: Record<string, KindMeta> = {
     className: 'text-violet-300',
     label: 'ui.declutter.85446fc'
   },
-  mosaic: { Icon: Grid3x3, className: 'text-orange-400', label: 'ui.mosaic' }
+  mosaic: { Icon: Grid3x3, className: 'text-orange-400', label: 'ui.mosaic' },
+  'pixel-art': { Icon: Blocks, className: 'text-cyan-400', label: 'ui.pixelArt' }
 }
 
 export function kindMeta(kind: string): KindMeta {

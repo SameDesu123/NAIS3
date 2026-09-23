@@ -3,7 +3,7 @@ import { app } from 'electron'
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs'
 import { isAbsolute, join, relative } from 'path'
 import sharp from 'sharp'
-import type { DirectorMethod, ImageMetadata } from '../../shared/types'
+import type { DirectorMethod, ImageMetadata, LocalImageKind } from '../../shared/types'
 import { getDb } from '../db'
 import { getSetting } from '../db/settings'
 
@@ -151,7 +151,8 @@ export async function saveGeneratedImage(input: {
   sentPayload: string
   seed: number
   // 디렉터 결과는 개별 req_type(bg-removal 등)을 kind로 저장 → 히스토리 뱃지가 툴별로 표시
-  kind: 't2i' | 'i2i' | 'inpaint' | 'scene' | 'upscale' | 'director' | 'mosaic' | DirectorMethod
+  kind:
+    't2i' | 'i2i' | 'inpaint' | 'scene' | 'upscale' | 'director' | LocalImageKind | DirectorMethod
   sceneId?: number
   /** 저장 파일 확장자 (NAI가 반환한 실제 포맷). 기본 png */
   format?: 'png' | 'webp'

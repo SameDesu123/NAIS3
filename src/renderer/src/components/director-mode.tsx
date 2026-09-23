@@ -1,4 +1,5 @@
 import {
+  Blocks,
   ChevronRight,
   Droplets,
   Eraser,
@@ -34,6 +35,7 @@ import { Input } from './ui/input'
 import { isLeavingDropZone, useDragEndCleanup } from '../lib/drop-zone'
 import { DropOverlay } from './drop-overlay'
 import { MosaicEditor } from './mosaic-editor'
+import { PixelArtEditor } from './pixel-art-editor'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Slider } from './ui/slider'
 
@@ -112,6 +114,11 @@ export function DirectorMode(): React.JSX.Element {
   const [mosaic, setMosaic] = useState<{ base64: string; width: number; height: number } | null>(
     null
   )
+  const [pixelArt, setPixelArt] = useState<{
+    base64: string
+    width: number
+    height: number
+  } | null>(null)
 
   const source = stack.length > 0 ? stack[stack.length - 1] : null
   const isResult = stack.length > 1 // 툴이 한 번 이상 적용된 상태
@@ -349,6 +356,17 @@ export function DirectorMode(): React.JSX.Element {
               void imageDims(source).then((dims) => setMosaic({ base64: source, ...dims }))
             }}
           />
+          <SendToMainCard
+            icon={Blocks}
+            color="text-cyan-400"
+            label={t('ui.pixelArt')}
+            desc={t('ui.pixelArtLocalToolDescription')}
+            disabled={!source || loading}
+            onRun={() => {
+              if (!source) return
+              void imageDims(source).then((dims) => setPixelArt({ base64: source, ...dims }))
+            }}
+          />
           {/* Anlas는 안 쓰지만 외부(HF Space) 호출 — 인터넷 필요 */}
           <SendToMainCard
             icon={Palette}
@@ -373,6 +391,18 @@ export function DirectorMode(): React.JSX.Element {
             void applyLocal(b64, 'mosaic')
           }}
           onCancel={() => setMosaic(null)}
+        />
+      )}
+      {pixelArt && (
+        <PixelArtEditor
+          imageBase64={pixelArt.base64}
+          width={pixelArt.width}
+          height={pixelArt.height}
+          onConfirm={(base64) => {
+            setPixelArt(null)
+            void applyLocal(base64, 'pixel-art')
+          }}
+          onCancel={() => setPixelArt(null)}
         />
       )}
     </div>
