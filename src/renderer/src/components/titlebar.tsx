@@ -102,8 +102,9 @@ function AnlasChips({
 function OpusUsageChip(): React.JSX.Element | null {
   const t = useT()
   const usage = useGenerationStore((s) => s.opusUsage)
+  const subscriptionTier = useGenerationStore((s) => s.subscriptionTier)
   const model = useGenerationStore((s) => s.request.model)
-  if (!usage || !model.startsWith('nai-diffusion-5-')) return null
+  if (subscriptionTier !== 'opus' || !usage || !model.startsWith('nai-diffusion-5-')) return null
   const percent = displayOpusUsagePercent(usage)
   const hours = Math.max(0, usage.timeUntilNextPercent / 3600)
   return (

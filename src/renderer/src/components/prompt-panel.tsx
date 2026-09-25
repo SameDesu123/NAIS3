@@ -35,6 +35,7 @@ import { CharacterOverlay } from './character-overlay'
 import { FragmentOverlay } from './fragment-overlay'
 import { ParamsDialog } from './params-dialog'
 import { RefOverlay } from './ref-overlay'
+import { ResolutionPicker } from './resolution-picker'
 import { SOURCE_BANNER_HEIGHT, SourceBanner } from './source-banner'
 import { Button } from './ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -73,6 +74,7 @@ export function PromptPanel(): React.JSX.Element {
     ? snapNaiResolution(source.width, source.height)
     : { width: request.width, height: request.height }
   const [paramsOpen, setParamsOpen] = useState(false)
+  const quickGenerationControlsEnabled = useLayoutStore((s) => s.quickGenerationControlsEnabled)
 
   useEffect(() => {
     const openParams = (): void => setParamsOpen((v) => !v)
@@ -376,6 +378,8 @@ export function PromptPanel(): React.JSX.Element {
         />
       </div>
 
+      {quickGenerationControlsEnabled && <QuickGenerationControls />}
+
       {/* 생성 행: 파라미터 / 배치 / 생성 */}
       <div className="flex items-center gap-2">
         <Button
@@ -457,6 +461,42 @@ export function PromptPanel(): React.JSX.Element {
 
       <ParamsDialog open={paramsOpen} onOpenChange={setParamsOpen} />
     </aside>
+  )
+}
+
+function QuickGenerationControls(): React.JSX.Element {
+  const t = useT()
+  const request = useGenerationStore((s) => s.request)
+  const patch = useGenerationStore((s) => s.patchRequest)
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <ResolutionPicker
+        className="h-9 w-full"
+        width={request.width}
+        height={request.height}
+        ariaLabel={t('ui.resolution')}
+        onPick={(width, height) => patch({ width, height })}
+      />
+      <label className="flex h-9 min-w-0 items-center gap-2 rounded-md border border-line bg-paper px-2.5">
+        <span className="shrink-0 text-[12px] text-muted">{t('ui.steps')}</span>
+        <input
+          className="min-w-0 flex-1 bg-transparent text-right font-mono text-[13px] text-ink outline-none"
+          aria-label={t('ui.steps')}
+          type="number"
+          min={1}
+          max={50}
+          step={1}
+          inputMode="numeric"
+          value={request.steps}
+          onChange={(event) => {
+            const parsed = Number.parseInt(event.target.value, 10)
+            if (!Number.isNaN(parsed)) patch({ steps: Math.max(1, Math.min(50, parsed)) })
+          }}
+          onFocus={(event) => event.currentTarget.select()}
+        />
+      </label>
+    </div>
   )
 }
 

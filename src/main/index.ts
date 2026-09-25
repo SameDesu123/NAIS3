@@ -299,7 +299,13 @@ app.whenReady().then(() => {
 
   // 저장해둔 생성 지연 시간 적용 (기본 600ms)
   const savedDelay = Number(getSetting('gen_delay_ms'))
-  if (Number.isFinite(savedDelay) && savedDelay >= 0) queue.setDelayMs(savedDelay)
+  const savedDelayMinus = Number(getSetting('gen_delay_minus_ms'))
+  const savedDelayPlus = Number(getSetting('gen_delay_plus_ms'))
+  queue.setDelayMs(Number.isFinite(savedDelay) && savedDelay >= 0 ? savedDelay : 600, {
+    enabled: getSetting('gen_delay_random_enabled') === '1',
+    minusMs: Number.isFinite(savedDelayMinus) ? savedDelayMinus : 0,
+    plusMs: Number.isFinite(savedDelayPlus) ? savedDelayPlus : 0
+  })
 
   registerIpcHandlers({ dbVersion, queue })
 
