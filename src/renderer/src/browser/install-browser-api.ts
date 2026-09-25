@@ -5,6 +5,11 @@ import { removeComments } from '@shared/nai-presets'
 import { modelCapabilities } from '@shared/nai-models'
 import { UPSCALE_MODEL, UPSCALE_SCALE } from '../../../main/nai/upscale-request'
 import {
+  normalizeDelayMs,
+  normalizeDelayRandomization,
+  randomizedGenerationDelayMs
+} from '@shared/generation-delay'
+import {
   browserFragmentSource,
   exportBrowserWorkspace,
   importBrowserWorkspace,
@@ -12,6 +17,7 @@ import {
 } from './browser-workspace'
 import type {
   CharacterOrderEntry,
+  GenerationDelayRandomization,
   GenerationRequest,
   IpcEventMap,
   IpcInvokeMap,
@@ -29,6 +35,11 @@ import {
 
 const listeners = new Map<keyof IpcEventMap, Set<(payload: unknown) => void>>()
 const queue: QueueStatus = { items: [], running: false, delayMs: 600 }
+let delayRandomization: GenerationDelayRandomization = {
+  enabled: false,
+  minusMs: 0,
+  plusMs: 0
+}
 const queueControllers = new Map<string, AbortController>()
 let queueRunning = false
 
@@ -292,7 +303,9 @@ async function runQueue(): Promise<void> {
         queueControllers.delete(item.id)
       }
       emit('queue:changed', structuredClone(queue))
-      await new Promise((resolve) => setTimeout(resolve, queue.delayMs))
+      await new Promise((resolve) =>
+        setTimeout(resolve, randomizedGenerationDelayMs(queue.delayMs, delayRandomization))
+      )
       item = queue.items.find((candidate) => candidate.state === 'pending')
     }
   } finally {
@@ -455,6 +468,14 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
 
   if (channel === 'queue:status') return structuredClone(queue)
   if (channel === 'queue:enqueue') {
+    const state = await readBrowserState()
+    const savedDelay = Number(state.settings.gen_delay_ms)
+    queue.delayMs = Number.isFinite(savedDelay) ? normalizeDelayMs(savedDelay) : 600
+    delayRandomization = normalizeDelayRandomization({
+      enabled: state.settings.gen_delay_random_enabled === '1',
+      minusMs: Number(state.settings.gen_delay_minus_ms),
+      plusMs: Number(state.settings.gen_delay_plus_ms)
+    })
     const generation = request.request as GenerationRequest
     const count = Math.max(1, Number(request.count) || 1)
     const ids = Array.from({ length: count }, (_, index) => {
@@ -480,9 +501,19 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
     return undefined
   }
   if (channel === 'gen:setDelay') {
-    queue.delayMs = Math.max(0, Number(request.ms) || 0)
+    queue.delayMs = normalizeDelayMs(Number(request.ms))
+    if (request.randomization) {
+      delayRandomization = normalizeDelayRandomization(
+        request.randomization as unknown as GenerationDelayRandomization
+      )
+    }
     await mutateBrowserState((state) => {
       state.settings.gen_delay_ms = String(queue.delayMs)
+      if (request.randomization) {
+        state.settings.gen_delay_random_enabled = delayRandomization.enabled ? '1' : '0'
+        state.settings.gen_delay_minus_ms = String(delayRandomization.minusMs)
+        state.settings.gen_delay_plus_ms = String(delayRandomization.plusMs)
+      }
     })
     return undefined
   }

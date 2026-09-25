@@ -610,9 +610,14 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     setSetting(saveDirKey(req?.target), '')
     return { dir: saveDirOf(req?.target) }
   })
-  handle('gen:setDelay', ({ ms }) => {
-    ctx.queue.setDelayMs(ms)
+  handle('gen:setDelay', ({ ms, randomization }) => {
+    ctx.queue.setDelayMs(ms, randomization)
     setSetting('gen_delay_ms', String(ms))
+    if (randomization) {
+      setSetting('gen_delay_random_enabled', randomization.enabled ? '1' : '0')
+      setSetting('gen_delay_minus_ms', String(randomization.minusMs))
+      setSetting('gen_delay_plus_ms', String(randomization.plusMs))
+    }
   })
 
   handle('notify:done', ({ done, failed }) => {
