@@ -111,6 +111,9 @@ export const EN = {
   'ui.livePreviewWhileGenerating': 'Live preview while generating',
   'ui.value3PartPromptSplit': '3-Part Prompt Split',
   'ui.splitIntoFixedVariableDetailBoxes': 'Split into fixed / variable / detail boxes',
+  'ui.quickGenerationControls': 'Quick Generation Controls',
+  'ui.showResolutionAndStepsAboveTheGenerateButton':
+    'Adjust resolution and steps above the Generate button',
   'ui.generationDelayValueS': 'Generation Delay — {0}s',
   'ui.intervalBetweenConsecutiveGenerations': 'Interval between consecutive generations',
   'ui.completionSound': 'Completion Sound',
