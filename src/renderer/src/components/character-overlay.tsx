@@ -21,12 +21,17 @@ import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { applyClickSelection, useSelectAllShortcut } from '../lib/edit-selection'
 import { buildDisplayRows } from '../lib/folder-list'
-import { getPositionableCharacters, positionPercent } from '../lib/character-position'
+import {
+  DEFAULT_POSITION_GUIDES,
+  getPositionableCharacters,
+  positionPercent,
+  type PositionGuideSettings
+} from '../lib/character-position'
 import { useCharactersStore } from '../stores/characters-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { askConfirm, askText } from '../stores/dialog-store'
 import { FolderListView } from './folder-list-view'
-import { CharacterPositionEditor } from './character-position-editor'
+import { CharacterPositionEditor, CharacterPositionPanel } from './character-position-editor'
 import { PromptEditor } from './prompt-editor'
 import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Button } from './ui/button'
@@ -93,7 +98,8 @@ export function CharacterOverlay(): React.JSX.Element {
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [positionEditorOpen, setPositionEditorOpen] = useState(false)
-  const [positionEditorId, setPositionEditorId] = useState<number | null>(null)
+  const [positionGuides, setPositionGuides] =
+    useState<PositionGuideSettings>(DEFAULT_POSITION_GUIDES)
   // 편집 모드 — 다중 선택 (일반 클릭=교체, Ctrl=토글, Shift=구간, Ctrl+A=전체)
   const [editMode, setEditMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -143,15 +149,13 @@ export function CharacterOverlay(): React.JSX.Element {
   )
   const canPositionCharacters = positionableCharacters.length >= 2
   const positioningEnabled = useCoords && canPositionCharacters
-  const openPositionEditor = (id?: number): void => {
+  const openPositionEditor = (): void => {
     if (!canPositionCharacters) return
-    const selected =
-      positionableCharacters.find((char) => char.id === id) ?? positionableCharacters[0]
-    if (!selected) return
     patch({ useCoords: true })
-    setPositionEditorId(selected.id)
     setPositionEditorOpen(true)
   }
+  const positionCharacter = (id: number, center: { x: number; y: number }): void =>
+    updateCard(id, { center })
 
   // 화면에 보이는 순서의 카드 id들 (Shift 구간/Ctrl+A 기준)
   const visibleIds = useMemo(
@@ -297,7 +301,7 @@ export function CharacterOverlay(): React.JSX.Element {
           variant="ghost"
           className="h-7 gap-1 px-1.5 font-mono text-[11px]"
           title={t('ui.v5FreePositionEditor')}
-          onClick={() => openPositionEditor(char.id)}
+          onClick={openPositionEditor}
         >
           <Crosshair size={13} />
           {positionPercent(char.center.x)},{positionPercent(char.center.y)}
@@ -428,19 +432,18 @@ export function CharacterOverlay(): React.JSX.Element {
             onCheckedChange={(v) => patch({ useCoords: v })}
           />
         </label>
-        {v5 && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 gap-1 px-2"
-            title={t('ui.v5FreePositionEditor')}
-            disabled={!canPositionCharacters}
-            onClick={() => openPositionEditor(positionEditorId ?? undefined)}
-          >
-            <Crosshair size={13} /> {t('ui.arrangeCharacters')}
-          </Button>
-        )}
       </div>
+
+      {v5 && positioningEnabled && (
+        <CharacterPositionPanel
+          characters={positionableCharacters}
+          width={outputWidth}
+          height={outputHeight}
+          guides={positionGuides}
+          onPosition={positionCharacter}
+          onExpand={openPositionEditor}
+        />
+      )}
 
       <div className="flex items-center gap-1.5">
         <div className="relative flex-1">
@@ -608,11 +611,11 @@ export function CharacterOverlay(): React.JSX.Element {
         <CharacterPositionEditor
           open={positionEditorOpen && canPositionCharacters}
           characters={positionableCharacters}
-          selectedId={positionEditorId}
           width={outputWidth}
           height={outputHeight}
-          onSelect={setPositionEditorId}
-          onPosition={(id, center) => updateCard(id, { center })}
+          guides={positionGuides}
+          onGuidesChange={setPositionGuides}
+          onPosition={positionCharacter}
           onClose={() => setPositionEditorOpen(false)}
         />
       )}

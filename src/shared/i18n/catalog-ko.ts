@@ -4,13 +4,14 @@ export const KO = {
   'ui.positioningRequiresTwoCharacters':
     '위치 지정은 활성 캐릭터가 2명 이상일 때 사용할 수 있습니다',
   'ui.v5FreePositionEditor': 'V5 캐릭터 자유 위치 편집',
-  'ui.arrangeCharacters': '배치',
   'ui.v5CharacterPositionEditor': 'V5 캐릭터 위치 편집',
   'ui.characterPositionInstructions':
-    '캐릭터를 고른 뒤 출력 화면에서 원하는 위치를 누르세요. 드래그와 방향키도 사용할 수 있습니다.',
-  'ui.characterPositionCanvas': '{0} 위치 캔버스',
-  'ui.selectedCharacter': '선택한 캐릭터',
+    '번호 마커에 커서를 올리고 그대로 끌어 옮기세요. 마커를 누른 뒤 방향키로 0.1%씩, Shift와 함께 1%씩 움직일 수 있습니다.',
+  'ui.characterPositionCanvas': '캐릭터 위치 캔버스',
+  'ui.characterPositionMarker': '{0} 위치: X {1}, Y {2}',
+  'ui.expandPositionEditor': '위치 편집기 크게 보기',
   'ui.noActiveCharacterPrompts': '활성 캐릭터 프롬프트가 없습니다.',
+  'ui.positionGuides': '안내선',
   'ui.positionGuideNone': '없음',
   'ui.positionGuideThirds': '3분할',
   'ui.positionGuideGoldenRatio': '황금비',

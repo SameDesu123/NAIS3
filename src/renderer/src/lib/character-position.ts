@@ -55,3 +55,27 @@ export function getPositionableCharacters<T extends { enabled: boolean; prompt: 
     .filter((character) => character.enabled && removeComments(character.prompt).trim())
     .slice(0, modelCapabilities(model).maxCharacters)
 }
+
+export type GuideMode = 'none' | 'thirds' | 'phi' | 'grid'
+
+export interface PositionGuideSettings {
+  mode: GuideMode
+  columns: number
+  rows: number
+}
+
+export const DEFAULT_POSITION_GUIDES: PositionGuideSettings = { mode: 'none', columns: 3, rows: 3 }
+
+const divisions = (count: number): number[] =>
+  Array.from({ length: count - 1 }, (_, index) => ((index + 1) / count) * 100)
+
+export function guideStops({ mode, columns, rows }: PositionGuideSettings): [number[], number[]] {
+  if (mode === 'thirds') return [divisions(3), divisions(3)]
+  if (mode === 'phi')
+    return [
+      [38.2, 61.8],
+      [38.2, 61.8]
+    ]
+  if (mode === 'grid') return [divisions(columns), divisions(rows)]
+  return [[], []]
+}
