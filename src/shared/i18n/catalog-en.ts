@@ -445,6 +445,9 @@ export const EN = {
   'ui.directorAnalyze': 'Analyze',
   'ui.directorSelectTool': 'Pick a tool (double-click to run it right away)',
   'ui.directorOpenImageFirst': 'Open an image first',
+  'ui.directorInstantRun': 'Run director tools instantly',
+  'ui.directorInstantRunHint':
+    'A single click runs the tool (off: pick a tool, then press the button)',
   'ui.back': 'Back',
   'ui.forward': 'Forward',
   'ui.reload': 'Reload',

@@ -432,6 +432,8 @@ export const ZH_CN = {
   'ui.directorAnalyze': '分析',
   'ui.directorSelectTool': '请选择工具（双击可直接执行）',
   'ui.directorOpenImageFirst': '请先打开图片',
+  'ui.directorInstantRun': '导演工具即时执行',
+  'ui.directorInstantRunHint': '单击工具即直接执行（关闭时选择后点击按钮执行）',
   'ui.back': '后退',
   'ui.forward': '前进',
   'ui.reload': '刷新',

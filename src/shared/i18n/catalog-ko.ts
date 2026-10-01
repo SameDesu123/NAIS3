@@ -434,6 +434,8 @@ export const KO = {
   'ui.directorAnalyze': '분석하기',
   'ui.directorSelectTool': '툴을 골라 주세요 (더블클릭하면 바로 실행)',
   'ui.directorOpenImageFirst': '먼저 이미지를 열어 주세요',
+  'ui.directorInstantRun': '디렉터 툴 즉시 실행',
+  'ui.directorInstantRunHint': '툴을 한 번 클릭하면 바로 실행 (끄면 고른 뒤 버튼으로 실행)',
   'ui.back': '뒤로',
   'ui.forward': '앞으로',
   'ui.reload': '새로고침',

@@ -24,6 +24,7 @@ import { playChime } from '../lib/completion-alert'
 import { useLanguageStore, useT } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { THEME_PRESETS } from '../lib/theme-presets'
+import { useDirectorStore } from '../stores/director-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { useLayoutStore, type CenterMode } from '../stores/layout-store'
 import { useThemeStore } from '../stores/theme-store'
@@ -224,6 +225,8 @@ function GenerationSection(): React.JSX.Element {
   const setQuickGenerationControlsEnabled = useLayoutStore(
     (s) => s.setQuickGenerationControlsEnabled
   )
+  const directorInstantRun = useDirectorStore((s) => s.instantRun)
+  const setDirectorInstantRun = useDirectorStore((s) => s.setInstantRun)
 
   useEffect(() => {
     void window.nais.invoke('settings:get', { key: 'gen_streaming' }).then(({ value }) => {
@@ -276,6 +279,13 @@ function GenerationSection(): React.JSX.Element {
           aria-label={t('ui.quickGenerationControls')}
           checked={quickGenerationControlsEnabled}
           onCheckedChange={setQuickGenerationControlsEnabled}
+        />
+      </Row>
+      <Row label={t('ui.directorInstantRun')} hint={t('ui.directorInstantRunHint')}>
+        <Switch
+          aria-label={t('ui.directorInstantRun')}
+          checked={directorInstantRun}
+          onCheckedChange={setDirectorInstantRun}
         />
       </Row>
       <Row

@@ -151,7 +151,9 @@ export function DirectorMode(): React.JSX.Element {
   const applyLocal = useDirectorStore((s) => s.applyLocal)
   const undo = useDirectorStore((s) => s.undo)
   const clear = useDirectorStore((s) => s.clear)
-  // 툴은 클릭으로 고르고 하단 버튼으로 실행 — 실수 클릭으로 Anlas가 나가지 않게
+  const instantRun = useDirectorStore((s) => s.instantRun)
+  // 기본은 클릭으로 고르고 하단 버튼으로 실행 — 실수 클릭으로 Anlas가 나가지 않게.
+  // 설정의 '디렉터 툴 즉시 실행'을 켜면 클릭 한 번에 실행된다.
   const [selected, setSelected] = useState<ToolId | null>(null)
   // 옵션은 툴별로 따로 — 툴끼리 값 공유 안 되게
   const [colorizeOpt, setColorizeOpt] = useState({ prompt: '', defry: 0 })
@@ -416,9 +418,12 @@ export function DirectorMode(): React.JSX.Element {
                       <CostChip cost={costOf(tool.id, group.id)} />
                     )
                   }
-                  onSelect={() => setSelected(tool.id)}
-                  // 더블클릭은 바로 실행 — 익숙한 사용자용 지름길
-                  onRun={() => canRun(group.id) && runTool(tool.id)}
+                  onSelect={() => {
+                    setSelected(tool.id)
+                    if (instantRun && canRun(group.id)) runTool(tool.id)
+                  }}
+                  // 더블클릭은 바로 실행 — 즉시 실행이 꺼져 있을 때의 지름길
+                  onRun={() => !instantRun && canRun(group.id) && runTool(tool.id)}
                 />
               ))}
             </section>
