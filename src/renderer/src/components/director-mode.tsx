@@ -1,5 +1,5 @@
 import {
-  ChevronRight,
+  ArrowUpRight,
   Droplets,
   Eraser,
   Grid3x3,
@@ -37,67 +37,108 @@ import { MosaicEditor } from './mosaic-editor'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Slider } from './ui/slider'
 
-type Opt = 'colorize' | 'emotion' | undefined
+type ToolGroup = 'ai' | 'main' | 'local'
+type ToolId = DirectorMethod | 'upscale' | 'i2i' | 'inpaint' | 'mosaic' | 'artist-tags'
+
+/**
+ * 디렉터 툴 목록 — 그룹 순서대로 표시.
+ * ai: Anlas를 쓰고 결과가 스택에 쌓임 / main: 메인 페이지로 넘겨 이어서 작업 / local: 무료
+ */
 const TOOLS: {
-  method: DirectorMethod
+  id: ToolId
+  group: ToolGroup
   label: MessageId
   desc: MessageId
-  icon: typeof Eraser
-  color: string
-  opt?: Opt
+  icon: LucideIcon
 }[] = [
   {
-    method: 'bg-removal',
+    id: 'upscale',
+    group: 'ai',
+    label: 'ui.upscale',
+    desc: 'ui.upscaleV5Description',
+    icon: Maximize2
+  },
+  {
+    id: 'bg-removal',
+    group: 'ai',
     label: 'ui.removeBg',
     desc: 'ui.makeTheBackgroundTransparentKeepingOnlyTheCharacter',
-    icon: Eraser,
-    color: 'text-rose-400'
+    icon: Eraser
   },
+  { id: 'lineart', group: 'ai', label: 'ui.lineArt', desc: 'ui.extractLineArt', icon: PenTool },
+  { id: 'sketch', group: 'ai', label: 'ui.sketch', desc: 'ui.convertToSketchStyle', icon: Pencil },
   {
-    method: 'lineart',
-    label: 'ui.lineArt',
-    desc: 'ui.extractLineArt',
-    icon: PenTool,
-    color: 'text-sky-400'
-  },
-  {
-    method: 'sketch',
-    label: 'ui.sketch',
-    desc: 'ui.convertToSketchStyle',
-    icon: Pencil,
-    color: 'text-amber-400'
-  },
-  {
-    method: 'colorize',
+    id: 'colorize',
+    group: 'ai',
     label: 'ui.colorize',
     desc: 'ui.colorLineArtGuidedByPrompt',
-    icon: Droplets,
-    color: 'text-emerald-400',
-    opt: 'colorize'
+    icon: Droplets
   },
   {
-    method: 'emotion',
+    id: 'emotion',
+    group: 'ai',
     label: 'ui.changeExpression',
     desc: 'ui.replaceTheFacialExpression',
-    icon: Smile,
-    color: 'text-fuchsia-400',
-    opt: 'emotion'
+    icon: Smile
   },
   {
-    method: 'declutter',
+    id: 'declutter',
+    group: 'ai',
     label: 'ui.declutter.6851509',
     desc: 'ui.removeWatermarksAndClutter',
-    icon: Sparkles,
-    color: 'text-violet-400'
+    icon: Sparkles
   },
   {
-    method: 'declutter-keep-bubbles',
+    id: 'declutter-keep-bubbles',
+    group: 'ai',
     label: 'ui.declutterKeepBubbles',
     desc: 'ui.declutterWhileKeepingSpeechBubbles',
-    icon: MessageSquareText,
-    color: 'text-violet-300'
+    icon: MessageSquareText
+  },
+  {
+    id: 'i2i',
+    group: 'main',
+    label: 'ui.directorImg2img',
+    desc: 'ui.img2imgWithThisImageGoesToMain',
+    icon: ImageIcon
+  },
+  {
+    id: 'inpaint',
+    group: 'main',
+    label: 'ui.inpaint',
+    desc: 'ui.paintAMaskToRegenerateAnAreaGoesToMain',
+    icon: Layers
+  },
+  {
+    id: 'mosaic',
+    group: 'local',
+    label: 'ui.mosaic',
+    desc: 'ui.paintWithABrushToPixelateLocalFree',
+    icon: Grid3x3
+  },
+  // Anlas는 안 쓰지만 외부(HF Space) 호출 — 인터넷 필요
+  {
+    id: 'artist-tags',
+    group: 'local',
+    label: 'ui.artistTagAnalysis',
+    desc: 'ui.extractArtistTagsWithASimilarStyleKaloscopeFree',
+    icon: Palette
   }
 ]
+
+const GROUPS: { id: ToolGroup; label: MessageId }[] = [
+  { id: 'ai', label: 'ui.directorGroupAi' },
+  { id: 'main', label: 'ui.directorGroupMain' },
+  { id: 'local', label: 'ui.directorGroupLocal' }
+]
+
+/** 실행 버튼 문구 — 그룹/툴마다 실제로 일어나는 일을 말해 준다 */
+function actionLabel(id: ToolId, group: ToolGroup): MessageId {
+  if (group === 'main') return 'ui.directorOpenInMain'
+  if (id === 'mosaic') return 'ui.directorOpenEditor'
+  if (id === 'artist-tags') return 'ui.directorAnalyze'
+  return 'ui.directorApply'
+}
 
 export function DirectorMode(): React.JSX.Element {
   const t = useT()
@@ -105,9 +146,16 @@ export function DirectorMode(): React.JSX.Element {
   const loading = useDirectorStore((s) => s.loading)
   const error = useDirectorStore((s) => s.error)
   const setSource = useDirectorStore((s) => s.setSource)
+  const run = useDirectorStore((s) => s.run)
+  const upscale = useDirectorStore((s) => s.upscale)
   const applyLocal = useDirectorStore((s) => s.applyLocal)
   const undo = useDirectorStore((s) => s.undo)
   const clear = useDirectorStore((s) => s.clear)
+  // 툴은 클릭으로 고르고 하단 버튼으로 실행 — 실수 클릭으로 Anlas가 나가지 않게
+  const [selected, setSelected] = useState<ToolId | null>(null)
+  // 옵션은 툴별로 따로 — 툴끼리 값 공유 안 되게
+  const [colorizeOpt, setColorizeOpt] = useState({ prompt: '', defry: 0 })
+  const [emotionOpt, setEmotionOpt] = useState({ emotion: 'neutral', prompt: '', defry: 0 })
   // 모자이크 편집기 — 열 때의 이미지·해상도 고정 (편집 중 스택 변화와 무관)
   const [mosaic, setMosaic] = useState<{ base64: string; width: number; height: number } | null>(
     null
@@ -157,6 +205,49 @@ export function DirectorMode(): React.JSX.Element {
     }
     useLayoutStore.getState().setCenterMode('main')
   }
+
+  function costOf(id: ToolId, group: ToolGroup): number | null {
+    if (group === 'local') return 0
+    if (group === 'main' || !currentToolCosts) return null
+    if (id === 'upscale') return currentToolCosts.upscale
+    if (id === 'bg-removal') return currentToolCosts.backgroundRemoval
+    return currentToolCosts.standardAugment
+  }
+
+  // 메인으로 보내기는 처리 중에도 가능 (기존 동작 유지)
+  const canRun = (group: ToolGroup): boolean => !!source && (group === 'main' || !loading)
+
+  function runTool(id: ToolId): void {
+    if (!source) return
+    switch (id) {
+      case 'upscale':
+        void upscale()
+        break
+      case 'i2i':
+      case 'inpaint':
+        void sendToMain(id)
+        break
+      case 'mosaic':
+        void imageDims(source).then((dims) => setMosaic({ base64: source, ...dims }))
+        break
+      case 'artist-tags':
+        void useArtistTagsStore.getState().show({ base64: source })
+        break
+      case 'colorize':
+        void run(id, colorizeOpt)
+        break
+      case 'emotion':
+        void run(id, {
+          prompt: `${emotionOpt.emotion};;${emotionOpt.prompt}`,
+          defry: emotionOpt.defry
+        })
+        break
+      default:
+        void run(id)
+    }
+  }
+
+  const selectedTool = TOOLS.find((tool) => tool.id === selected) ?? null
 
   function loadFile(file: File): void {
     const reader = new FileReader()
@@ -293,73 +384,116 @@ export function DirectorMode(): React.JSX.Element {
         />
       </div>
 
-      {/* 툴 패널 */}
+      {/* 툴 패널 — 위: 그룹별 툴 목록 / 아래: 고른 툴의 옵션과 실행 버튼 */}
       <div className="flex w-[320px] shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-surface">
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           <Wand2 size={16} className="text-accent" />
           <h2 className="text-[14px] font-semibold">{t('ui.directorTools')}</h2>
         </div>
-        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3 no-scrollbar">
+        <div className="min-h-0 flex-1 overflow-y-auto p-2 no-scrollbar">
           {error && (
-            <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-[12px] text-danger">
+            <p className="mb-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-[12px] text-danger">
               {error}
             </p>
           )}
-          {/* i2i·인페인트 — 여기서 시작하면 메인 페이지로 이동 */}
-          <SendToMainCard
-            icon={ImageIcon}
-            color="text-indigo-400"
-            label="I2I"
-            desc={t('ui.img2imgWithThisImageGoesToMain')}
-            disabled={!source}
-            onRun={() => sendToMain('i2i')}
-          />
-          <SendToMainCard
-            icon={Layers}
-            color="text-pink-400"
-            label={t('ui.inpaint')}
-            desc={t('ui.paintAMaskToRegenerateAnAreaGoesToMain')}
-            disabled={!source}
-            onRun={() => sendToMain('inpaint')}
-          />
-          <div className="!my-3 h-px bg-line" />
-          <UpscaleCard disabled={!source || loading} cost={currentToolCosts?.upscale ?? null} />
-          {TOOLS.map((tool) => (
-            <ToolCard
-              key={tool.method}
-              tool={tool}
-              disabled={!source || loading}
-              cost={
-                tool.method === 'bg-removal'
-                  ? (currentToolCosts?.backgroundRemoval ?? null)
-                  : (currentToolCosts?.standardAugment ?? null)
-              }
-            />
+          {GROUPS.map((group) => (
+            <section key={group.id} className="mb-2 last:mb-0">
+              <h3 className="px-2.5 pb-1 pt-2 text-[11px] font-medium text-muted">
+                {t(group.label)}
+              </h3>
+              {TOOLS.filter((tool) => tool.group === group.id).map((tool) => (
+                <ToolRow
+                  key={tool.id}
+                  icon={tool.icon}
+                  label={t(tool.label)}
+                  desc={t(tool.desc)}
+                  selected={selected === tool.id}
+                  trailing={
+                    group.id === 'main' ? (
+                      <ArrowUpRight size={14} className="shrink-0 text-faint" />
+                    ) : (
+                      <CostChip cost={costOf(tool.id, group.id)} />
+                    )
+                  }
+                  onSelect={() => setSelected(tool.id)}
+                  // 더블클릭은 바로 실행 — 익숙한 사용자용 지름길
+                  onRun={() => canRun(group.id) && runTool(tool.id)}
+                />
+              ))}
+            </section>
           ))}
-          <div className="!my-3 h-px bg-line" />
-          {/* 로컬 툴 — API/Anlas 안 씀 */}
-          <SendToMainCard
-            icon={Grid3x3}
-            color="text-orange-400"
-            label={t('ui.mosaic')}
-            desc={t('ui.paintWithABrushToPixelateLocalFree')}
-            disabled={!source || loading}
-            onRun={() => {
-              if (!source) return
-              void imageDims(source).then((dims) => setMosaic({ base64: source, ...dims }))
-            }}
-          />
-          {/* Anlas는 안 쓰지만 외부(HF Space) 호출 — 인터넷 필요 */}
-          <SendToMainCard
-            icon={Palette}
-            color="text-teal-400"
-            label={t('ui.artistTagAnalysis')}
-            desc={t('ui.extractArtistTagsWithASimilarStyleKaloscopeFree')}
-            disabled={!source || loading}
-            onRun={() => {
-              if (source) void useArtistTagsStore.getState().show({ base64: source })
-            }}
-          />
+        </div>
+
+        <div className="border-t border-line p-3">
+          {!source || !selectedTool ? (
+            <p className="py-3 text-center text-[12px] text-muted">
+              {t(!source ? 'ui.directorOpenImageFirst' : 'ui.directorSelectTool')}
+            </p>
+          ) : (
+            <div className="grid gap-2.5">
+              <div className="flex items-center gap-2">
+                <selectedTool.icon size={16} className="shrink-0 text-accent" />
+                <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">
+                  {t(selectedTool.label)}
+                </p>
+                {selectedTool.group !== 'main' && (
+                  <CostChip cost={costOf(selectedTool.id, selectedTool.group)} />
+                )}
+              </div>
+              {selectedTool.id === 'colorize' && (
+                <>
+                  <Input
+                    className="h-8"
+                    placeholder={t('ui.colorGuidancePromptOptional')}
+                    value={colorizeOpt.prompt}
+                    onChange={(e) => setColorizeOpt({ ...colorizeOpt, prompt: e.target.value })}
+                  />
+                  <DefryRow
+                    value={colorizeOpt.defry}
+                    onChange={(defry) => setColorizeOpt({ ...colorizeOpt, defry })}
+                  />
+                </>
+              )}
+              {selectedTool.id === 'emotion' && (
+                <>
+                  <Select
+                    value={emotionOpt.emotion}
+                    onValueChange={(emotion) => setEmotionOpt({ ...emotionOpt, emotion })}
+                  >
+                    <SelectTrigger className="h-8 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMOTIONS.map((e) => (
+                        <SelectItem key={e} value={e}>
+                          {e}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    className="h-8"
+                    placeholder={t('ui.additionalPromptOptional')}
+                    value={emotionOpt.prompt}
+                    onChange={(e) => setEmotionOpt({ ...emotionOpt, prompt: e.target.value })}
+                  />
+                  <DefryRow
+                    value={emotionOpt.defry}
+                    onChange={(defry) => setEmotionOpt({ ...emotionOpt, defry })}
+                  />
+                </>
+              )}
+              <Button
+                variant="accent"
+                size="lg"
+                className="w-full"
+                disabled={!canRun(selectedTool.group)}
+                onClick={() => runTool(selectedTool.id)}
+              >
+                {t(actionLabel(selectedTool.id, selectedTool.group))}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -394,131 +528,49 @@ function CostChip({ cost }: { cost: number | null }): React.JSX.Element | null {
   )
 }
 
-function ToolCard({
-  tool,
-  disabled,
-  cost
+/** 툴 목록 한 줄 — 클릭은 선택, 더블클릭은 바로 실행 */
+function ToolRow({
+  icon: Icon,
+  label,
+  desc,
+  selected,
+  trailing,
+  onSelect,
+  onRun
 }: {
-  tool: (typeof TOOLS)[number]
-  disabled: boolean
-  cost: number | null
+  icon: LucideIcon
+  label: string
+  desc: string
+  selected: boolean
+  trailing: React.ReactNode
+  onSelect: () => void
+  onRun: () => void
 }): React.JSX.Element {
-  const t = useT()
-  const run = useDirectorStore((s) => s.run)
-  // 옵션은 카드별 로컬 state — 툴끼리 값 공유 안 되게
-  const [emotion, setEmotion] = useState('neutral')
-  const [prompt, setPrompt] = useState('')
-  const [defry, setDefry] = useState(0)
-  const Icon = tool.icon
-
-  function onRun(): void {
-    if (tool.opt === 'emotion') {
-      void run(tool.method, { prompt: `${emotion};;${prompt}`, defry })
-    } else if (tool.opt === 'colorize') {
-      void run(tool.method, { prompt, defry })
-    } else {
-      void run(tool.method)
-    }
-  }
-
-  const hasOpt = tool.opt != null
-  // 옵션 위젯은 클릭해도 실행 안 되게 (카드 클릭 실행과 분리)
-  const stop = (e: React.MouseEvent): void => e.stopPropagation()
-
   return (
-    <div
-      role="button"
-      aria-disabled={disabled}
-      onClick={() => !disabled && onRun()}
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      onDoubleClick={onRun}
       className={cn(
-        'group rounded-xl border border-line bg-surface-2/40 p-3 transition-colors',
-        disabled ? 'opacity-60' : 'cursor-pointer hover:bg-surface-2/70'
+        'group flex w-full items-center gap-2.5 rounded-lg border px-2 py-1.5 text-left transition-colors',
+        selected ? 'border-accent/40 bg-accent-soft' : 'border-transparent hover:bg-surface-2'
       )}
     >
-      <div className={cn('flex items-center gap-2.5', hasOpt && 'mb-2')}>
-        <Icon size={18} className={tool.color} />
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-ink">{t(tool.label)}</p>
-          <p className="truncate text-[11px] text-faint">{t(tool.desc)}</p>
-        </div>
-        <CostChip cost={cost} />
-        <ChevronRight
-          size={16}
-          className="shrink-0 text-faint transition-colors group-hover:text-accent"
-        />
-      </div>
-
-      {tool.opt === 'emotion' && (
-        <div className="grid gap-1.5" onClick={stop}>
-          <Select value={emotion} onValueChange={setEmotion}>
-            <SelectTrigger className="h-8 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {EMOTIONS.map((e) => (
-                <SelectItem key={e} value={e}>
-                  {e}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            className="h-8"
-            placeholder={t('ui.additionalPromptOptional')}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-          />
-          <DefryRow value={defry} onChange={setDefry} />
-        </div>
-      )}
-      {tool.opt === 'colorize' && (
-        <div className="grid gap-1.5" onClick={stop}>
-          <Input
-            className="h-8"
-            placeholder={t('ui.colorGuidancePromptOptional')}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-          />
-          <DefryRow value={defry} onChange={setDefry} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** V5 Curated 2x 업스케일 카드 (결과 자동 체이닝) */
-function UpscaleCard({
-  disabled,
-  cost
-}: {
-  disabled: boolean
-  cost: number | null
-}): React.JSX.Element {
-  const t = useT()
-  const upscale = useDirectorStore((s) => s.upscale)
-  return (
-    <div
-      role="button"
-      aria-disabled={disabled}
-      onClick={() => !disabled && void upscale()}
-      className={cn(
-        'group rounded-xl border border-line bg-surface-2/40 p-3 transition-colors',
-        disabled ? 'opacity-60' : 'cursor-pointer hover:bg-surface-2/70'
-      )}
-    >
-      <div className="flex items-center gap-2.5">
-        <Maximize2 size={18} className="text-cyan-400" />
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-ink">{t('ui.upscale')}</p>
-          <p className="truncate text-[11px] text-faint">{t('ui.upscaleV5Description')}</p>
-        </div>
-        <CostChip cost={cost} />
-        <ChevronRight
-          size={16}
-          className="shrink-0 text-faint transition-colors group-hover:text-accent"
-        />
-      </div>
-    </div>
+      <span
+        className={cn(
+          'flex size-8 shrink-0 items-center justify-center rounded-md transition-colors',
+          selected ? 'bg-accent/15 text-accent' : 'bg-surface-2 text-muted group-hover:text-ink'
+        )}
+      >
+        <Icon size={16} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] font-medium text-ink">{label}</span>
+        <span className="block truncate text-[11px] text-muted">{desc}</span>
+      </span>
+      {trailing}
+    </button>
   )
 }
 
@@ -530,45 +582,6 @@ function imageDims(base64: string): Promise<{ width: number; height: number }> {
     img.onerror = () => resolve({ width: 0, height: 0 })
     img.src = `data:image/png;base64,${base64}`
   })
-}
-
-/** i2i·인페인트 진입 카드 (메인 페이지로 이동) */
-function SendToMainCard({
-  icon: Icon,
-  color,
-  label,
-  desc,
-  disabled,
-  onRun
-}: {
-  icon: LucideIcon
-  color: string
-  label: string
-  desc: string
-  disabled: boolean
-  onRun: () => void
-}): React.JSX.Element {
-  return (
-    <div
-      role="button"
-      aria-disabled={disabled}
-      onClick={() => !disabled && onRun()}
-      className={cn(
-        'group flex items-center gap-2.5 rounded-xl border border-line bg-surface-2/40 p-3 transition-colors',
-        disabled ? 'opacity-60' : 'cursor-pointer hover:bg-surface-2/70'
-      )}
-    >
-      <Icon size={18} className={color} />
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-ink">{label}</p>
-        <p className="truncate text-[11px] text-faint">{desc}</p>
-      </div>
-      <ChevronRight
-        size={16}
-        className="shrink-0 text-faint transition-colors group-hover:text-accent"
-      />
-    </div>
-  )
 }
 
 function DefryRow({
