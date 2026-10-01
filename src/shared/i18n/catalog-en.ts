@@ -3,6 +3,8 @@ import type { MessageCatalog } from './catalog-ko'
 export const EN = {
   'ui.decreasePositionGridCount': 'Decrease number of {0}',
   'ui.increasePositionGridCount': 'Increase number of {0}',
+  'ui.positioningNeedsTwoPromptedCharactersValue':
+    'Positioning needs at least two active characters with a prompt (currently {0})',
   'ui.positioningRequiresTwoCharacters': 'Positioning requires at least two active characters',
   'ui.v5FreePositionEditor': 'V5 freeform character positioning',
   'ui.v5CharacterPositionEditor': 'V5 character position editor',

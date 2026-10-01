@@ -3,7 +3,8 @@ import {
   getPositionableCharacters,
   nudgePosition,
   pointToNormalizedPosition,
-  positionPercent
+  positionPercent,
+  spreadDefaultPositions
 } from '../src/renderer/src/lib/character-position'
 
 describe('character position helpers', () => {
@@ -47,5 +48,39 @@ describe('positionable characters', () => {
     ]
     expect(getPositionableCharacters(characters, model)).toEqual(active.slice(0, limit))
     expect(characters).toHaveLength(36)
+  })
+
+  it('spreads characters stacked on the default center and keeps moved ones', () => {
+    const center = { x: 0.5, y: 0.5 }
+    expect(
+      spreadDefaultPositions([
+        { id: 1, center },
+        { id: 2, center: { x: 0.2, y: 0.8 } },
+        { id: 3, center },
+        { id: 4, center }
+      ])
+    ).toEqual([
+      { id: 1, center: { x: 0.25, y: 0.5 } },
+      { id: 3, center: { x: 0.5, y: 0.5 } },
+      { id: 4, center: { x: 0.75, y: 0.5 } }
+    ])
+    expect(
+      spreadDefaultPositions([
+        { id: 1, center },
+        { id: 2, center }
+      ])
+    ).toEqual([
+      { id: 1, center: { x: 0.333, y: 0.5 } },
+      { id: 2, center: { x: 0.667, y: 0.5 } }
+    ])
+  })
+
+  it('leaves a lone centered character where it is', () => {
+    expect(
+      spreadDefaultPositions([
+        { id: 1, center: { x: 0.5, y: 0.5 } },
+        { id: 2, center: { x: 0.1, y: 0.1 } }
+      ])
+    ).toEqual([])
   })
 })

@@ -25,11 +25,13 @@ import {
   DEFAULT_POSITION_GUIDES,
   getPositionableCharacters,
   positionPercent,
+  spreadDefaultPositions,
   type PositionGuideSettings
 } from '../lib/character-position'
 import { useCharactersStore } from '../stores/characters-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { askConfirm, askText } from '../stores/dialog-store'
+import { toast } from '../stores/toast-store'
 import { FolderListView } from './folder-list-view'
 import { CharacterPositionEditor, CharacterPositionPanel } from './character-position-editor'
 import { PromptEditor } from './prompt-editor'
@@ -156,6 +158,20 @@ export function CharacterOverlay(): React.JSX.Element {
   }
   const positionCharacter = (id: number, center: { x: number; y: number }): void =>
     updateCard(id, { center })
+  const setPositioning = (enabled: boolean): void => {
+    if (!canPositionCharacters) {
+      toast(t('ui.positioningNeedsTwoPromptedCharactersValue', positionableCharacters.length))
+      return
+    }
+    patch({ useCoords: enabled })
+  }
+
+  // V5 cards start stacked at the center; fan them out once positioning is on.
+  useEffect(() => {
+    if (!v5 || !positioningEnabled) return
+    for (const { id, center } of spreadDefaultPositions(positionableCharacters))
+      updateCard(id, { center })
+  }, [v5, positioningEnabled, positionableCharacters, updateCard])
 
   // 화면에 보이는 순서의 카드 id들 (Shift 구간/Ctrl+A 기준)
   const visibleIds = useMemo(
@@ -304,7 +320,7 @@ export function CharacterOverlay(): React.JSX.Element {
           onClick={openPositionEditor}
         >
           <Crosshair size={13} />
-          {positionPercent(char.center.x)},{positionPercent(char.center.y)}
+          {positionPercent(char.center.x)}, {positionPercent(char.center.y)}
         </Button>
       )}
     </div>
@@ -427,9 +443,10 @@ export function CharacterOverlay(): React.JSX.Element {
           {t('ui.setPositions')}
           <Switch
             aria-label={t('ui.setPositions')}
+            aria-disabled={!canPositionCharacters}
+            className={cn(!canPositionCharacters && 'cursor-not-allowed opacity-50')}
             checked={positioningEnabled}
-            disabled={!canPositionCharacters}
-            onCheckedChange={(v) => patch({ useCoords: v })}
+            onCheckedChange={setPositioning}
           />
         </label>
       </div>

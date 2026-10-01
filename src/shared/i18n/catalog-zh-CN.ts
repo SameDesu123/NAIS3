@@ -3,6 +3,8 @@ import type { MessageCatalog } from './catalog-ko'
 export const ZH_CN = {
   'ui.decreasePositionGridCount': '减少{0}数',
   'ui.increasePositionGridCount': '增加{0}数',
+  'ui.positioningNeedsTwoPromptedCharactersValue':
+    '位置设置需要至少两个已填写提示词的启用角色（当前 {0} 个）',
   'ui.positioningRequiresTwoCharacters': '至少需要两个启用的角色才能设置位置',
   'ui.v5FreePositionEditor': 'V5 角色自由位置编辑',
   'ui.v5CharacterPositionEditor': 'V5 角色位置编辑器',

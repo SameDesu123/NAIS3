@@ -46,6 +46,27 @@ export function nudgePosition(
   }
 }
 
+export const DEFAULT_CHARACTER_CENTER: NormalizedPosition = { x: 0.5, y: 0.5 }
+
+const isDefaultCenter = ({ x, y }: NormalizedPosition): boolean =>
+  x === DEFAULT_CHARACTER_CENTER.x && y === DEFAULT_CHARACTER_CENTER.y
+
+/**
+ * New cards all start at the image center, so their markers stack into one.
+ * Spread every character still on that default evenly across the width;
+ * positions the user already moved are left alone.
+ */
+export function spreadDefaultPositions<T extends { id: number; center: NormalizedPosition }>(
+  characters: T[]
+): { id: number; center: NormalizedPosition }[] {
+  const stacked = characters.filter((character) => isDefaultCenter(character.center))
+  if (stacked.length < 2) return []
+  return stacked.map((character, index) => ({
+    id: character.id,
+    center: { x: Math.round(((index + 1) / (stacked.length + 1)) * 1000) / 1000, y: 0.5 }
+  }))
+}
+
 /** Limit placement controls to nonempty prompts within the selected model's capacity. */
 export function getPositionableCharacters<T extends { enabled: boolean; prompt: string }>(
   characters: T[],

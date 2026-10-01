@@ -351,7 +351,7 @@ export function CharacterPositionEditor({
                     {char.name || t('ui.characterValue', index + 1)}
                   </span>
                   <span className="shrink-0 font-mono text-[10.5px] text-faint">
-                    {positionPercent(char.center.x)},{positionPercent(char.center.y)}
+                    {positionPercent(char.center.x)}, {positionPercent(char.center.y)}
                   </span>
                 </div>
               ))}
