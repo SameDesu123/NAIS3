@@ -386,9 +386,10 @@ export function DirectorMode(): React.JSX.Element {
 
       {/* 툴 패널 — 위: 그룹별 툴 목록 / 아래: 고른 툴의 옵션과 실행 버튼 */}
       <div className="flex w-[320px] shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-surface">
-        <div className="flex items-center gap-2 border-b border-line px-4 py-3">
-          <Wand2 size={16} className="text-accent" />
-          <h2 className="text-[14px] font-semibold">{t('ui.directorTools')}</h2>
+        {/* 헤더 — 히스토리 패널 헤더와 같은 높이·크기 */}
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
+          <Wand2 size={14} className="text-muted" />
+          <h2 className="text-[13px] font-medium">{t('ui.directorTools')}</h2>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-2 no-scrollbar">
           {error && (
