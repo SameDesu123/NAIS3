@@ -33,6 +33,7 @@ import { useFragmentsStore } from '../stores/fragments-store'
 import { useVibesStore, useCharRefsStore } from '../stores/refs-store'
 import { usePromptPresetsStore } from '../stores/prompt-presets-store'
 import { useScenesStore } from '../stores/scenes-store'
+import { useLibraryStore } from '../stores/library-store'
 import { useUpdateStore } from '../stores/update-store'
 import { askConfirm } from '../stores/dialog-store'
 import { toast } from '../stores/toast-store'
@@ -573,7 +574,7 @@ function StorageSection(): React.JSX.Element {
         <p className="mt-0.5 text-[11.5px] text-faint">
           {window.nais.runtime === 'browser'
             ? t('ui.browserWorkspaceBackup')
-            : t('ui.fullLibraryJsonNais2BackupCompatible')}
+            : t('ui.naisWorkspaceBackup')}
         </p>
         <BackupButtons />
       </div>
@@ -583,18 +584,42 @@ function StorageSection(): React.JSX.Element {
 
 function BackupButtons(): React.JSX.Element {
   const t = useT()
+  const browser = window.nais.runtime === 'browser'
+  async function exportArchive(): Promise<void> {
+    const result = await window.nais.invoke('backup:export', undefined)
+    if (result.error) {
+      toast(t('ui.backupExportError', result.error), 'error')
+      return
+    }
+    if (!result.saved) return
+    const skipped = result.skippedFiles
+      ? t('ui.backupMissingSourcesSkipped', result.skippedFiles)
+      : ''
+    toast(
+      browser ? t('ui.exportComplete') : t('ui.naisArchiveExported', skipped),
+      result.skippedFiles ? 'info' : 'success'
+    )
+  }
+
+  async function exportLegacy(): Promise<void> {
+    const result = await window.nais.invoke('backup:exportLegacy', undefined)
+    if (result.error) {
+      toast(t('ui.backupExportError', result.error), 'error')
+      return
+    }
+    if (result.saved) toast(t('ui.legacyJsonExported'), 'success')
+  }
+
   return (
-    <div className="mt-2 flex items-center gap-2">
-      <Button
-        variant="default"
-        className="gap-1.5"
-        onClick={async () => {
-          const r = await window.nais.invoke('backup:export', undefined)
-          if (r.saved) toast(t('ui.exportComplete'), 'success')
-        }}
-      >
-        <Upload size={14} /> {t('ui.export')}
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <Button variant="default" className="gap-1.5" onClick={() => void exportArchive()}>
+        <Upload size={14} /> {browser ? t('ui.export') : t('ui.exportNaisArchive')}
       </Button>
+      {!browser && (
+        <Button variant="ghost" className="gap-1.5" onClick={() => void exportLegacy()}>
+          <Upload size={14} /> {t('ui.legacyJson')}
+        </Button>
+      )}
       <Button
         variant="default"
         className="gap-1.5"
@@ -619,6 +644,7 @@ function BackupButtons(): React.JSX.Element {
           void useCharRefsStore.getState().load()
           void usePromptPresetsStore.getState().load()
           void useScenesStore.getState().loadPresets()
+          useLibraryStore.getState().openStack(null)
           // 메인 프롬프트가 바뀌었으면 재하이드레이트
           if (r.needsPromptReload) void useGenerationStore.getState().hydrate()
         }}
