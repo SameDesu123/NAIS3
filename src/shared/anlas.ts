@@ -1,5 +1,5 @@
 import type { DirectorMethod, OpusUsageStatus } from './types'
-import { format } from './i18n'
+import { translate, type MessageId } from './i18n'
 
 export function displayOpusUsagePercent(usage: OpusUsageStatus): number {
   return usage.isNegative ? 0 : Math.max(0, usage.percent)
@@ -25,8 +25,7 @@ export function opusUsagePercentSegments(usage: OpusUsageStatus): number[] {
  *   요청당 1장 차감 — NAIS3는 배치를 요청 N개(각 1장)로 쪼개므로 조건 충족 시 배치 전체 무료
  * - 프롬프트 길이는 비용에 영향 없음 (번들 전수 확인 — 관련 항 자체가 없다)
  * - 바이브 인코딩: encode-vibe 1회당 2 Anlas, 인코딩 캐시 재사용 시 0 (NAIS2에서 검증)
- * - 참고: 디렉터 툴(배경제거 등) 테이블 — [[1048576,7],[786432,5],[524288,3],[409600,2],
- *   [262144,1]], Opus는 409600px 이하 무료 (추후 스마트 툴에서 사용)
+ * - 참고: 구형 업스케일러는 해상도별 0~7 Anlas였지만 V5 Curated 업스케일러는 고정 1 Anlas
  */
 
 export interface AnlasEstimateInput {
@@ -79,23 +78,23 @@ export function effectiveGenerationStrength(
 export function formatAnlasEstimate(
   estimate: AnlasEstimate,
   batchCount = 1,
-  // 공유 모듈은 i18n 런타임을 못 가져오므로 호출자가 t를 주입한다 (기본값 = 한국어 원문)
-  tr: (key: string, ...args: (string | number)[]) => string = (key, ...args) => format(key, args)
+  tr: (id: MessageId, ...args: (string | number)[]) => string = (id, ...args) =>
+    translate('ko', id, args)
 ): string {
   if (estimate.usesOpusUsage) {
     return batchCount > 1
-      ? tr('Opus V5 충전 게이지에서 차감 — 중간에 고갈되면 후속 이미지는 Anlas 사용')
-      : tr('Opus V5 충전 게이지에서 차감')
+      ? tr('ui.deductedFromTheOpusV5RechargeGaugeIfItRunsOutMidBatchRemainingIm3cf092f')
+      : tr('ui.deductedFromTheOpusV5RechargeGauge')
   }
-  if (estimate.free) return tr('무료 생성 (Opus · 1024² 이하 · 28스텝 이하)')
+  if (estimate.free) return tr('ui.freeGenerationOpusUpTo1024UpTo28Steps')
 
   const parts = [
-    estimate.generation > 0 ? tr('생성 {0}', estimate.generation) : '',
-    estimate.charRef > 0 ? tr('레퍼런스 {0}', estimate.charRef) : '',
-    estimate.vibeEncoding > 0 ? tr('바이브 인코딩 {0}', estimate.vibeEncoding) : '',
-    estimate.vibeGeneration > 0 ? tr('다중 바이브 {0}', estimate.vibeGeneration) : ''
+    estimate.generation > 0 ? tr('ui.generationValue', estimate.generation) : '',
+    estimate.charRef > 0 ? tr('ui.referenceValue.f70089a', estimate.charRef) : '',
+    estimate.vibeEncoding > 0 ? tr('ui.vibeEncodingValue', estimate.vibeEncoding) : '',
+    estimate.vibeGeneration > 0 ? tr('ui.multiVibeValue', estimate.vibeGeneration) : ''
   ].filter(Boolean)
-  return `${tr('예상 {0} Anlas', estimate.total)}${parts.length ? ` (${parts.join(', ')})` : ''}`
+  return `${tr('ui.estimatedValueAnlas', estimate.total)}${parts.length ? ` (${parts.join(', ')})` : ''}`
 }
 
 const VIBE_ENCODE_COST = 2
@@ -107,20 +106,8 @@ const VIBE_ENCODE_COST = 2
  */
 const CHARREF_COST = 5
 
-/**
- * 디렉터 툴(배경제거·색칠 등)·업스케일 비용 — 웹 번들 픽셀 버킷 테이블.
- * [[262144,1],[409600,2],[524288,3],[786432,5],[1048576,7]] — Opus는 409600px 이하 무료.
- * (실사용 검증: 768×1024 업스케일 = 5 Anlas)
- */
-export function directorToolCost(width: number, height: number, isOpus: boolean): number {
-  const px = width * height
-  if (isOpus && px <= 409600) return 0
-  if (px <= 262144) return 1
-  if (px <= 409600) return 2
-  if (px <= 524288) return 3
-  if (px <= 786432) return 5
-  return 7
-}
+/** V5 Curated 전용 업스케일러는 입력 크기·구독 등급과 무관하게 고정 1 Anlas. */
+export const UPSCALE_ANLAS_COST = 1
 
 /**
  * augment-image 디렉터 툴 비용.

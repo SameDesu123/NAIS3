@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'fs'
+import { randomUUID } from 'crypto'
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'fs'
 import { join } from 'path'
 import { migrations } from './migrations'
 
@@ -23,10 +24,13 @@ export function getDbPath(): string {
  * - 마이그레이션 필요 시 실행 전 파일 백업 자동 생성 (pre-migration-v{N}.db)
  * - 각 마이그레이션은 개별 트랜잭션: 실패하면 해당 버전 이전 상태로 남고 앱은 에러 표면화
  */
-export function initDb(): { version: number; path: string } {
+export function initDb(): { version: number; path: string; isNewDatabase: boolean } {
   const dir = app.getPath('userData')
   mkdirSync(dir, { recursive: true })
   const path = getDbPath()
+  // Capture this before SQLite creates the file. An empty settings table does not
+  // mean a new installation: older workspaces may already contain user data.
+  const isNewDatabase = !existsSync(path)
 
   db = new Database(path)
   db.pragma('journal_mode = WAL')
@@ -36,8 +40,8 @@ export function initDb(): { version: number; path: string } {
   const target = migrations.length
 
   if (current < target) {
-    if (current > 0 && existsSync(path)) {
-      backupBeforeMigration(path, current)
+    if (current > 0) {
+      backupBeforeMigration(current)
     }
     for (let v = current; v < target; v++) {
       const migrate = db.transaction(() => {
@@ -54,14 +58,25 @@ export function initDb(): { version: number; path: string } {
     )
   }
 
-  return { version: target, path }
+  return { version: target, path, isNewDatabase }
 }
 
-function backupBeforeMigration(path: string, fromVersion: number): void {
+function backupBeforeMigration(fromVersion: number): void {
   const backupDir = join(app.getPath('userData'), 'backups')
   mkdirSync(backupDir, { recursive: true })
-  copyFileSync(path, join(backupDir, `pre-migration-v${fromVersion}.db`))
+  writeSnapshot(join(backupDir, `pre-migration-v${fromVersion}.db`))
   pruneBackups(backupDir, 10)
+}
+
+/** Include committed WAL pages and replace an older backup only after the snapshot succeeds. */
+function writeSnapshot(destination: string): void {
+  const temporary = `${destination}.${randomUUID()}.tmp`
+  try {
+    getDb().prepare('VACUUM INTO ?').run(temporary)
+    renameSync(temporary, destination)
+  } finally {
+    rmSync(temporary, { force: true })
+  }
 }
 
 function pruneBackups(backupDir: string, keep: number): void {
@@ -79,7 +94,7 @@ export function backupNow(): string {
   mkdirSync(backupDir, { recursive: true })
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const dest = join(backupDir, `auto-${stamp}.db`)
-  getDb().exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`)
+  writeSnapshot(dest)
   pruneBackups(backupDir, 10)
   return dest
 }
