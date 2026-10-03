@@ -142,7 +142,7 @@ describe('browser runtime regressions', () => {
       })
     )
     await api.invoke('frags:resetSequential', undefined)
-    await api.invoke('tokens:count', { texts: ['<*Words>'] })
+    await api.invoke('tokens:count', { texts: ['<*Words>'], model: 'nai-diffusion-4-5-full' })
     await api.invoke('gen:setDelay', { ms: 0 })
     const { ids } = await api.invoke('queue:enqueue', {
       request: {

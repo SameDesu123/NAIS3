@@ -259,6 +259,8 @@ export const EN = {
   'ui.activeCharactersValueValue': 'Active characters {0}/{1}',
   'ui.disableAllActiveCharacters': 'Disable all active characters',
   'ui.disableAll': 'Disable All',
+  'ui.basePromptCharacterPromptsCombinedSharedTokenLimit':
+    'Base prompt + character prompts combined (shared {0} tokens)',
   'ui.basePromptCharacterPromptsCombinedShared512Tokens':
     'Base prompt + character prompts combined (shared 512 tokens)',
   'ui.offAiSChoiceNaiDecidesPositions': "Off = AI's Choice (NAI decides positions)",

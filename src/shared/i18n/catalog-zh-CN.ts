@@ -253,6 +253,8 @@ export const ZH_CN = {
   'ui.activeCharactersValueValue': '启用角色 {0}/{1}',
   'ui.disableAllActiveCharacters': '停用全部角色',
   'ui.disableAll': '全部停用',
+  'ui.basePromptCharacterPromptsCombinedSharedTokenLimit':
+    '基础提示词 + 角色提示词合计（共享 {0} 个令牌）',
   'ui.basePromptCharacterPromptsCombinedShared512Tokens':
     '基础提示词 + 角色提示词合计（共享 512 Token）',
   'ui.offAiSChoiceNaiDecidesPositions': "关闭后由 NAI 决定位置（AI's Choice）",

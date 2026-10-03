@@ -254,6 +254,8 @@ export const KO = {
   'ui.activeCharactersValueValue': '활성 캐릭터 {0}/{1}',
   'ui.disableAllActiveCharacters': '활성 캐릭터 전체 해제',
   'ui.disableAll': '전체 해제',
+  'ui.basePromptCharacterPromptsCombinedSharedTokenLimit':
+    '기본 프롬프트 + 캐릭터 프롬프트 합산 ({0} 토큰 공유)',
   'ui.basePromptCharacterPromptsCombinedShared512Tokens':
     '기본 프롬프트 + 캐릭터 프롬프트 합산 (512 토큰 공유)',
   'ui.offAiSChoiceNaiDecidesPositions': "끄면 AI's Choice (NAI가 위치 결정)",

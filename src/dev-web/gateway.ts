@@ -14,9 +14,12 @@ import {
 } from '../main/nai/payload'
 import { ENDPOINTS } from '../main/nai/endpoints'
 import { upscaleRequest } from '../main/nai/upscale-request'
+import { isV5Model } from '../shared/nai-models'
+import { countWithQwenTokenizer, loadQwenTokenizer } from '../main/nai/qwen-tokenizer-core'
 
 const API_PREFIX = '/__nais/api/'
 const MAX_BODY_BYTES = 64 * 1024 * 1024
+let qwenTokenizer: ReturnType<typeof loadQwenTokenizer> | null = null
 
 interface SubscriptionResponse {
   tier?: number
@@ -279,6 +282,10 @@ async function route(
 
   if (path === 'tokens') {
     const texts = Array.isArray(body.texts) ? body.texts.map(String) : []
+    if (isV5Model(String(body.model ?? ''))) {
+      qwenTokenizer ??= loadQwenTokenizer(resolve('resources/qwen35'))
+      return { counts: countWithQwenTokenizer(qwenTokenizer, texts) }
+    }
     return { counts: texts.map(countTokens) }
   }
 
