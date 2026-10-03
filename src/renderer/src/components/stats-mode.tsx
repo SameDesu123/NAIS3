@@ -5,6 +5,7 @@ import {
   Images,
   Sigma,
   Table2,
+  X,
   type LucideIcon
 } from 'lucide-react'
 import { motion } from 'motion/react'
@@ -21,6 +22,7 @@ import {
 import { kindMeta } from '../lib/kind-icon'
 import { useLanguageStore, useT } from '../lib/i18n'
 import { cn } from '../lib/utils'
+import { useLayoutStore } from '../stores/layout-store'
 
 const RANGES = [7, 30, 90] as const
 type Range = (typeof RANGES)[number]
@@ -62,6 +64,18 @@ export function StatsMode(): React.JSX.Element {
   const [stats, setStats] = useState<GenerationStats | null>(null)
   const [range, setRangeState] = useState<Range>(readRange)
   const [showTable, setShowTable] = useState(false)
+  const close = (): void => useLayoutStore.getState().setStatsOpen(false)
+
+  // Esc로 닫기 — 다이얼로그가 떠 있으면 그쪽이 먼저 닫히도록 양보한다
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
+      useLayoutStore.getState().setStatsOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const setRange = (next: Range): void => {
     setRangeState(next)
@@ -101,7 +115,7 @@ export function StatsMode(): React.JSX.Element {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface">
       <header className="flex flex-wrap items-end justify-between gap-3 px-5 pb-3 pt-4">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="text-[16px] font-semibold text-ink">{t('ui.generationStats')}</h2>
           {stats?.since && (
             <p className="mt-0.5 text-[12px] text-faint">
@@ -109,7 +123,17 @@ export function StatsMode(): React.JSX.Element {
             </p>
           )}
         </div>
-        {stats?.since && <RangeControl value={range} onChange={setRange} />}
+        <div className="flex items-center gap-2">
+          {stats?.since && <RangeControl value={range} onChange={setRange} />}
+          <button
+            onClick={close}
+            title={`${t('ui.close')} (Esc)`}
+            aria-label={t('ui.close')}
+            className="grid size-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            <X size={16} />
+          </button>
+        </div>
       </header>
 
       {!stats ? null : !stats.since || !summary ? (

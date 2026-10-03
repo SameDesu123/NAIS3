@@ -1,25 +1,18 @@
-import {
-  ChartColumn,
-  Globe,
-  Image,
-  LayoutGrid,
-  Library,
-  Wand2,
-  type LucideIcon
-} from 'lucide-react'
+import { Globe, Image, LayoutGrid, Library, Wand2, type LucideIcon } from 'lucide-react'
 import { motion } from 'motion/react'
 import type { MessageId } from '@shared/i18n'
 import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
-import { useLayoutStore, type CenterMode } from '../stores/layout-store'
+import { useLayoutStore } from '../stores/layout-store'
 
-const PAGES: { id: CenterMode; label: MessageId; icon: LucideIcon }[] = [
+type Page = 'main' | 'scene' | 'director' | 'library' | 'websearch'
+
+const PAGES: { id: Page; label: MessageId; icon: LucideIcon }[] = [
   { id: 'main', label: 'ui.main', icon: Image },
   { id: 'scene', label: 'ui.scene', icon: LayoutGrid },
   { id: 'director', label: 'ui.director', icon: Wand2 },
   { id: 'library', label: 'ui.library', icon: Library },
-  { id: 'websearch', label: 'ui.web', icon: Globe },
-  { id: 'stats', label: 'ui.stats', icon: ChartColumn }
+  { id: 'websearch', label: 'ui.web', icon: Globe }
 ]
 
 /**
@@ -31,6 +24,7 @@ export function PageNav(): React.JSX.Element {
   const centerMode = useLayoutStore((s) => s.centerMode)
   const setCenterMode = useLayoutStore((s) => s.setCenterMode)
   const hiddenPages = useLayoutStore((s) => s.hiddenPages)
+  const statsOpen = useLayoutStore((s) => s.statsOpen)
   const visible = PAGES.filter((p) => p.id === 'main' || !hiddenPages.includes(p.id))
 
   return (
@@ -39,15 +33,14 @@ export function PageNav(): React.JSX.Element {
       className="no-drag pointer-events-auto flex items-center gap-1 rounded-full border border-line/70 bg-surface/95 p-1 shadow-md backdrop-blur"
     >
       {visible.map((page) => {
-        const active = centerMode === page.id
+        const active = centerMode === page.id && !statsOpen
         return (
           <button
             key={page.id}
             onClick={() => setCenterMode(page.id)}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              // 최소 창 폭(1080)에서도 좌우 칩과 겹치지 않게 좁은 화면에서는 여백을 줄인다
-              'relative z-0 rounded-full px-2.5 py-1.5 text-[13px] font-medium transition-colors xl:px-4',
+              'relative z-0 rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors',
               active ? 'text-ink' : 'text-muted hover:text-ink'
             )}
           >
@@ -58,7 +51,7 @@ export function PageNav(): React.JSX.Element {
                 transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
               />
             )}
-            <span className="relative z-10 flex items-center gap-1.5 xl:gap-2">
+            <span className="relative z-10 flex items-center gap-2">
               <page.icon className="size-4" />
               {t(page.label)}
             </span>

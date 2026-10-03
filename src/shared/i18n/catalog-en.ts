@@ -735,7 +735,6 @@ export const EN = {
   'ui.queue': 'Queue',
   'ui.namedCast': 'cast "{0}"',
   'ui.adjustQueueForSelectedScenes': '{2}{3} queue for {1} across {0} selected {0|scene|scenes}',
-  'ui.stats': 'Stats',
   'ui.generationStats': 'Generation stats',
   'ui.statsSinceValue': 'Counting since {0}',
   'ui.statsNoRecordsYet': 'No records yet',

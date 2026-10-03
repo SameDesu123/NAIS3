@@ -718,7 +718,6 @@ export const KO = {
   'ui.queue': '예약',
   'ui.namedCast': '"{0}" 출연',
   'ui.adjustQueueForSelectedScenes': '선택한 {0}개 씬의 {1} 예약 {2}{3}',
-  'ui.stats': '통계',
   'ui.generationStats': '생성 통계',
   'ui.statsSinceValue': '{0}부터 집계',
   'ui.statsNoRecordsYet': '아직 기록이 없습니다',

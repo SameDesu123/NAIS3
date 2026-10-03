@@ -38,6 +38,7 @@ export default function App(): React.JSX.Element {
   const setSettingsOpen = useLayoutStore((s) => s.setSettingsOpen)
   const centerMode = useLayoutStore((s) => s.centerMode)
   const sidebarWidth = useLayoutStore((s) => s.sidebarWidth)
+  const statsOpen = useLayoutStore((s) => s.statsOpen)
   const [ready, setReady] = useState(false)
   const [resizing, setResizing] = useState(false)
 
@@ -103,7 +104,7 @@ export default function App(): React.JSX.Element {
     <TooltipProvider>
       <div className="flex h-screen flex-col bg-paper">
         <Titlebar />
-        <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3">
+        <div className="relative flex min-h-0 flex-1 gap-3 px-3 pb-3">
           <AnimatePresence initial={false}>
             {leftOpen && (
               <motion.div
@@ -137,8 +138,6 @@ export default function App(): React.JSX.Element {
               <LibraryMode />
             ) : centerMode === 'websearch' ? (
               <WebSearchMode />
-            ) : centerMode === 'stats' ? (
-              <StatsMode />
             ) : (
               <PreviewPane />
             )}
@@ -154,6 +153,21 @@ export default function App(): React.JSX.Element {
                 transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
               >
                 <HistoryPanel />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {/* 생성 통계 — 사이드바까지 덮는 전체 영역. 아래 화면은 언마운트하지 않아 작업 상태가 보존된다 */}
+          <AnimatePresence>
+            {statsOpen && (
+              <motion.div
+                key="stats"
+                className="absolute inset-0 z-20 flex bg-paper px-3 pb-3"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <StatsMode />
               </motion.div>
             )}
           </AnimatePresence>

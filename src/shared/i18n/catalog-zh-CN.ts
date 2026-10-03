@@ -711,7 +711,6 @@ export const ZH_CN = {
   'ui.queue': '预约',
   'ui.namedCast': '“{0}”角色组合',
   'ui.adjustQueueForSelectedScenes': '为选中的 {0} 个场景调整 {1} 预约 {2}{3}',
-  'ui.stats': '统计',
   'ui.generationStats': '生成统计',
   'ui.statsSinceValue': '自 {0} 起统计',
   'ui.statsNoRecordsYet': '暂无记录',

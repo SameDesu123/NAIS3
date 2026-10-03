@@ -1,5 +1,6 @@
 import {
   BatteryCharging,
+  ChartColumn,
   Coins,
   Download,
   Loader2,
@@ -146,6 +147,8 @@ export function Titlebar(): React.JSX.Element {
   const toggleLeft = useLayoutStore((s) => s.toggleLeft)
   const toggleRight = useLayoutStore((s) => s.toggleRight)
   const setSettingsOpen = useLayoutStore((s) => s.setSettingsOpen)
+  const statsOpen = useLayoutStore((s) => s.statsOpen)
+  const setStatsOpen = useLayoutStore((s) => s.setStatsOpen)
   const anlasBalance = useGenerationStore((s) => s.anlasBalance)
   const opusUsage = useGenerationStore((s) => s.opusUsage)
 
@@ -192,7 +195,11 @@ export function Titlebar(): React.JSX.Element {
         <PageNav />
       </div>
 
-      <BarButton onClick={toggleLeft} active={leftOpen} title={t('ui.togglePromptPanel.6ab7472')}>
+      <BarButton
+        onClick={toggleLeft}
+        active={leftOpen && !statsOpen}
+        title={t('ui.togglePromptPanel.6ab7472')}
+      >
         <PanelLeft size={15} />
       </BarButton>
 
@@ -225,7 +232,7 @@ export function Titlebar(): React.JSX.Element {
 
       <BarButton
         onClick={toggleRight}
-        active={rightOpen}
+        active={rightOpen && !statsOpen}
         title={t('ui.toggleHistoryPanel.b5c0fb9')}
       >
         <PanelRight size={15} />
@@ -235,6 +242,14 @@ export function Titlebar(): React.JSX.Element {
           <ThemeToggle />
         </div>
       )}
+      <BarButton
+        onClick={() => setStatsOpen(!statsOpen)}
+        active={statsOpen}
+        title={t('ui.generationStats')}
+        aria-pressed={statsOpen}
+      >
+        <ChartColumn size={15} />
+      </BarButton>
       <BarButton onClick={() => setSettingsOpen(true)} title={t('ui.settings')}>
         <Settings size={15} />
       </BarButton>

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { recordNav } from '../lib/nav-history'
 
-export type CenterMode = 'main' | 'scene' | 'director' | 'library' | 'websearch' | 'stats'
+export type CenterMode = 'main' | 'scene' | 'director' | 'library' | 'websearch'
 
 interface LayoutState {
   leftOpen: boolean
@@ -13,6 +13,9 @@ interface LayoutState {
   /** 상단 탭에서 숨긴 페이지 (메인은 숨길 수 없음) */
   hiddenPages: CenterMode[]
   quickGenerationControlsEnabled: boolean
+  /** 생성 통계 — 타이틀바 아래 전체 영역을 덮는 화면 (사이드바 상태는 그대로 보존) */
+  statsOpen: boolean
+  setStatsOpen: (open: boolean) => void
   toggleLeft: () => void
   toggleRight: () => void
   setSettingsOpen: (open: boolean) => void
@@ -52,8 +55,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   },
   setCenterMode: (centerMode) => {
     if (centerMode !== get().centerMode) recordNav() // 마우스 뒤로/앞으로용 히스토리
-    set({ centerMode })
+    set({ centerMode, statsOpen: false }) // 페이지 이동 = 통계 닫기
   },
+  statsOpen: false,
+  setStatsOpen: (statsOpen) => set({ statsOpen }),
   setPageHidden: (page, hidden) => {
     if (page === 'main') return // 메인은 항상 표시
     const hiddenPages = hidden
@@ -68,12 +73,15 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     if (hidden && get().centerMode === page) get().setCenterMode('main')
   },
   toggleLeft: () => {
-    const leftOpen = !get().leftOpen
+    // 통계를 보는 중이면 통계를 닫고 패널을 보이게 한다 (안 보이는 상태를 뒤집지 않게)
+    const leftOpen = get().statsOpen || !get().leftOpen
+    if (get().statsOpen) set({ statsOpen: false })
     set({ leftOpen })
     persist('ui_left_open', leftOpen)
   },
   toggleRight: () => {
-    const rightOpen = !get().rightOpen
+    const rightOpen = get().statsOpen || !get().rightOpen
+    if (get().statsOpen) set({ statsOpen: false })
     set({ rightOpen })
     persist('ui_right_open', rightOpen)
   },
