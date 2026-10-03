@@ -488,7 +488,7 @@ export function CharacterOverlay(): React.JSX.Element {
           searching={searching}
           expandedId={editMode ? null : expandedId}
           // 헤더가 item 밖 상태(좌표 토글/편집 선택)에 의존 — 바뀌면 카드 리렌더
-          renderKey={editMode ? selected : useCoords}
+          renderKey={editMode ? selected : `${model}:${useCoords}`}
           folderActions={{
             rename: renameFolder,
             toggleCollapse,
