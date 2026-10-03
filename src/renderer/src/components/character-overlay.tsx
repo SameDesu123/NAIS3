@@ -22,11 +22,18 @@ import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { applyClickSelection, useSelectAllShortcut } from '../lib/edit-selection'
 import { buildDisplayRows } from '../lib/folder-list'
+import {
+  DEFAULT_POSITION_GUIDES,
+  getPositionableCharacters,
+  positionPercent,
+  type PositionGuideSettings
+} from '../lib/character-position'
 import { useCharactersStore } from '../stores/characters-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { toast } from '../stores/toast-store'
 import { askConfirm, askText } from '../stores/dialog-store'
 import { FolderListView } from './folder-list-view'
+import { CharacterPositionEditor, CharacterPositionPanel } from './character-position-editor'
 import { PromptEditor } from './prompt-editor'
 import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Button } from './ui/button'
@@ -35,10 +42,10 @@ import { Input } from './ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { Switch } from './ui/switch'
 
-/** NAI 웹의 5×5 수동 배치 그리드 (실캡처: 0.1~0.9) */
+/** V4/V4.5 웹의 5×5 수동 배치 그리드 (실캡처: 0.1~0.9). V5는 자유 배치 편집기를 쓴다. */
 const GRID = [0.1, 0.3, 0.5, 0.7, 0.9]
 
-function PositionPicker({
+function LegacyPositionPicker({
   center,
   onPick
 }: {
@@ -85,8 +92,11 @@ export function CharacterOverlay(): React.JSX.Element {
   const move = useCharactersStore((s) => s.move)
   const useCoords = useGenerationStore((s) => s.request.useCoords)
   const model = useGenerationStore((s) => s.request.model)
+  const outputWidth = useGenerationStore((s) => s.request.width)
+  const outputHeight = useGenerationStore((s) => s.request.height)
   const patch = useGenerationStore((s) => s.patchRequest)
   const maxCharacters = modelCapabilities(model).maxCharacters
+  const v5 = isV5Model(model)
 
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -94,6 +104,10 @@ export function CharacterOverlay(): React.JSX.Element {
   const [selectionMode, setSelectionMode] = useState<'edit' | 'random' | null>(null)
   const editMode = selectionMode === 'edit'
   const randomMode = selectionMode === 'random'
+  const [positionEditorOpen, setPositionEditorOpen] = useState(false)
+  const [positionGuides, setPositionGuides] =
+    useState<PositionGuideSettings>(DEFAULT_POSITION_GUIDES)
+
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [bulkPromptOpen, setBulkPromptOpen] = useState(false)
   const anchorRef = useRef<number | null>(null)
@@ -135,6 +149,26 @@ export function CharacterOverlay(): React.JSX.Element {
   }, [folders, items, searching, search])
 
   const enabledCount = items.filter((c) => c.enabled && c.prompt.trim()).length
+  const positionableCharacters = useMemo(
+    () => getPositionableCharacters(items, model),
+    [items, model]
+  )
+  const canPositionCharacters = positionableCharacters.length >= 2
+  const positioningEnabled = useCoords && canPositionCharacters
+  const openPositionEditor = (): void => {
+    if (!canPositionCharacters) return
+    patch({ useCoords: true })
+    setPositionEditorOpen(true)
+  }
+  const positionCharacter = (id: number, center: { x: number; y: number }): void =>
+    updateCard(id, { center })
+  const setPositioning = (enabled: boolean): void => {
+    if (!canPositionCharacters) {
+      toast(t('ui.positioningNeedsTwoPromptedCharactersValue', positionableCharacters.length))
+      return
+    }
+    patch({ useCoords: enabled })
+  }
 
   // 화면에 보이는 순서의 카드 id들 (Shift 구간/Ctrl+A 기준)
   const visibleIds = useMemo(
@@ -277,7 +311,7 @@ export function CharacterOverlay(): React.JSX.Element {
           <span className="text-faint">{t('ui.emptyCharacter')}</span>
         )}
       </button>
-      {useCoords && char.enabled && (
+      {positioningEnabled && positionableCharacters.some((c) => c.id === char.id) && !v5 && (
         <Popover>
           <PopoverTrigger asChild>
             <Button size="sm" variant="ghost" className="h-7 gap-1 px-1.5 font-mono text-[11px]">
@@ -286,12 +320,24 @@ export function CharacterOverlay(): React.JSX.Element {
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto">
-            <PositionPicker
+            <LegacyPositionPicker
               center={char.center}
               onPick={(c) => updateCard(char.id, { center: c })}
             />
           </PopoverContent>
         </Popover>
+      )}
+      {positioningEnabled && positionableCharacters.some((c) => c.id === char.id) && v5 && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 gap-1 px-1.5 font-mono text-[11px]"
+          title={t('ui.v5FreePositionEditor')}
+          onClick={openPositionEditor}
+        >
+          <Crosshair size={13} />
+          {positionPercent(char.center.x)}, {positionPercent(char.center.y)}
+        </Button>
       )}
     </div>
   )
@@ -404,12 +450,33 @@ export function CharacterOverlay(): React.JSX.Element {
         <div className="flex-1" />
         <label
           className="flex items-center gap-1.5 text-[11.5px] text-muted"
-          title={t('ui.offAiSChoiceNaiDecidesPositions')}
+          title={
+            canPositionCharacters
+              ? t('ui.offAiSChoiceNaiDecidesPositions')
+              : t('ui.positioningRequiresTwoCharacters')
+          }
         >
           {t('ui.setPositions')}
-          <Switch checked={useCoords} onCheckedChange={(v) => patch({ useCoords: v })} />
+          <Switch
+            aria-label={t('ui.setPositions')}
+            aria-disabled={!canPositionCharacters}
+            className={cn(!canPositionCharacters && 'cursor-not-allowed opacity-50')}
+            checked={positioningEnabled}
+            onCheckedChange={setPositioning}
+          />
         </label>
       </div>
+
+      {v5 && positioningEnabled && (
+        <CharacterPositionPanel
+          characters={positionableCharacters}
+          width={outputWidth}
+          height={outputHeight}
+          guides={positionGuides}
+          onPosition={positionCharacter}
+          onExpand={openPositionEditor}
+        />
+      )}
 
       <div className="flex items-center gap-1.5">
         <div className="relative flex-1">
@@ -539,7 +606,9 @@ export function CharacterOverlay(): React.JSX.Element {
           expandedId={selectionMode ? null : expandedId}
           // 헤더가 item 밖 상태(좌표 토글/편집 선택)에 의존 — 바뀌면 카드 리렌더
           renderKey={
-            selectionMode ? `${selectionMode}:${Array.from(selected).join(',')}` : useCoords
+            selectionMode
+              ? `${selectionMode}:${Array.from(selected).join(',')}`
+              : `${model}:${positioningEnabled}:${positionableCharacters.map((c) => c.id).join(',')}`
           }
           folderActions={{
             rename: renameFolder,
@@ -613,6 +682,19 @@ export function CharacterOverlay(): React.JSX.Element {
           />,
           document.body
         )}
+
+      {v5 && (
+        <CharacterPositionEditor
+          open={positionEditorOpen && canPositionCharacters}
+          characters={positionableCharacters}
+          width={outputWidth}
+          height={outputHeight}
+          guides={positionGuides}
+          onGuidesChange={setPositionGuides}
+          onPosition={positionCharacter}
+          onClose={() => setPositionEditorOpen(false)}
+        />
+      )}
     </div>
   )
 }
