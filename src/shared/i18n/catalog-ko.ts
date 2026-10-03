@@ -1,4 +1,27 @@
 export const KO = {
+  'ui.decreasePositionGridCount': '{0} 개수 줄이기',
+  'ui.increasePositionGridCount': '{0} 개수 늘리기',
+  'ui.positioningNeedsTwoPromptedCharactersValue':
+    '위치 지정은 프롬프트가 있는 활성 캐릭터가 2명 이상 필요합니다 (현재 {0}명)',
+  'ui.positioningRequiresTwoCharacters':
+    '위치 지정은 활성 캐릭터가 2명 이상일 때 사용할 수 있습니다',
+  'ui.v5FreePositionEditor': 'V5 캐릭터 자유 위치 편집',
+  'ui.v5CharacterPositionEditor': 'V5 캐릭터 위치 편집',
+  'ui.characterPositionInstructions':
+    '번호 마커에 커서를 올리고 그대로 끌어 옮기세요. 마커를 누른 뒤 방향키로 0.1%씩, Shift와 함께 1%씩 움직일 수 있습니다.',
+  'ui.characterPositionCanvas': '캐릭터 위치 캔버스',
+  'ui.characterPositionMarker': '{0} 위치: X {1}, Y {2}',
+  'ui.expandPositionEditor': '위치 편집기 크게 보기',
+  'ui.noActiveCharacterPrompts': '활성 캐릭터 프롬프트가 없습니다.',
+  'ui.positionGuides': '안내선',
+  'ui.positionGuideNone': '없음',
+  'ui.positionGuideThirds': '3분할',
+  'ui.positionGuideGoldenRatio': '황금비',
+  'ui.positionGuideGrid': '격자',
+  'ui.positionGridColumns': '열',
+  'ui.positionGridRows': '행',
+  'ui.finishPositionEditing': '위치 편집 완료',
+  'ui.positionGridCount': '{0} 개수',
   'ui.decreaseBatchCount': '배치 수 감소',
   'ui.batchCount': '배치 수',
   'ui.increaseBatchCount': '배치 수 증가',

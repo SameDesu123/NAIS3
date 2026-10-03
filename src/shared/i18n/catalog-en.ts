@@ -1,6 +1,28 @@
 import type { MessageCatalog } from './catalog-ko'
 
 export const EN = {
+  'ui.decreasePositionGridCount': 'Decrease number of {0}',
+  'ui.increasePositionGridCount': 'Increase number of {0}',
+  'ui.positioningNeedsTwoPromptedCharactersValue':
+    'Positioning needs at least two active characters with a prompt (currently {0})',
+  'ui.positioningRequiresTwoCharacters': 'Positioning requires at least two active characters',
+  'ui.v5FreePositionEditor': 'V5 freeform character positioning',
+  'ui.v5CharacterPositionEditor': 'V5 character position editor',
+  'ui.characterPositionInstructions':
+    'Hover a numbered marker and drag it into place. Focus a marker and use the arrow keys to move by 0.1%, or 1% with Shift.',
+  'ui.characterPositionCanvas': 'Character position canvas',
+  'ui.characterPositionMarker': '{0} position: X {1}, Y {2}',
+  'ui.expandPositionEditor': 'Expand position editor',
+  'ui.noActiveCharacterPrompts': 'No active character prompts.',
+  'ui.positionGuides': 'Guides',
+  'ui.positionGuideNone': 'None',
+  'ui.positionGuideThirds': 'Thirds',
+  'ui.positionGuideGoldenRatio': 'Golden ratio',
+  'ui.positionGuideGrid': 'Grid',
+  'ui.positionGridColumns': 'Columns',
+  'ui.positionGridRows': 'Rows',
+  'ui.finishPositionEditing': 'Done',
+  'ui.positionGridCount': 'Number of {0}',
   'ui.decreaseBatchCount': 'Decrease batch count',
   'ui.batchCount': 'Batch count',
   'ui.increaseBatchCount': 'Increase batch count',

@@ -1,6 +1,28 @@
 import type { MessageCatalog } from './catalog-ko'
 
 export const ZH_CN = {
+  'ui.decreasePositionGridCount': '减少{0}数',
+  'ui.increasePositionGridCount': '增加{0}数',
+  'ui.positioningNeedsTwoPromptedCharactersValue':
+    '位置设置需要至少两个已填写提示词的启用角色（当前 {0} 个）',
+  'ui.positioningRequiresTwoCharacters': '至少需要两个启用的角色才能设置位置',
+  'ui.v5FreePositionEditor': 'V5 角色自由位置编辑',
+  'ui.v5CharacterPositionEditor': 'V5 角色位置编辑器',
+  'ui.characterPositionInstructions':
+    '将光标移到编号标记上并直接拖动。选中标记后可用方向键每次移动 0.1%，按住 Shift 每次移动 1%。',
+  'ui.characterPositionCanvas': '角色位置画布',
+  'ui.characterPositionMarker': '{0} 位置：X {1}，Y {2}',
+  'ui.expandPositionEditor': '放大位置编辑器',
+  'ui.noActiveCharacterPrompts': '没有启用的角色提示词。',
+  'ui.positionGuides': '参考线',
+  'ui.positionGuideNone': '无',
+  'ui.positionGuideThirds': '三等分',
+  'ui.positionGuideGoldenRatio': '黄金比例',
+  'ui.positionGuideGrid': '网格',
+  'ui.positionGridColumns': '列',
+  'ui.positionGridRows': '行',
+  'ui.finishPositionEditing': '完成位置编辑',
+  'ui.positionGridCount': '{0}数',
   'ui.decreaseBatchCount': '减少批次数量',
   'ui.batchCount': '批次数量',
   'ui.increaseBatchCount': '增加批次数量',
