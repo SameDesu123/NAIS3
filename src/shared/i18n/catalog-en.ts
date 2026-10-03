@@ -1,6 +1,11 @@
 import type { MessageCatalog } from './catalog-ko'
 
 export const EN = {
+  'ui.fragmentName': 'Fragment name',
+  'ui.fragmentContent': 'Fragment content',
+  'ui.expandFragmentEditor': 'Expand editor',
+  'ui.fragmentQuickEditHint': 'Double-click <fragment name> in any prompt to edit it directly.',
+  'ui.fragmentEditorAutoSave': 'Changes are saved automatically.',
   'ui.decreaseBatchCount': 'Decrease batch count',
   'ui.batchCount': 'Batch count',
   'ui.increaseBatchCount': 'Increase batch count',
@@ -452,6 +457,11 @@ export const EN = {
   'ui.googleTranslate': 'Google Translate',
   'ui.mosaicPaintTheAreasToHide': 'Mosaic — paint the areas to hide',
   'ui.pixelValue': 'Pixel {0}',
+  'ui.inpaintCanvas': 'Inpaint canvas',
+  'ui.inpaintFitToView': 'Fit to view',
+  'ui.inpaintMoveView': 'Move view',
+  'ui.inpaintNavigationHint': 'Wheel: zoom · Space + drag / middle mouse button: pan',
+  'ui.inpaintBrushSize': 'Brush diameter',
   'ui.brushValue': 'Brush {0}',
   'ui.reset': 'Reset',
   'ui.saveTheMosaicResultToAFileWindowStaysOpen':

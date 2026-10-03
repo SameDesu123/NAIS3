@@ -14,6 +14,7 @@ import { SceneMode } from './components/scene-mode'
 import { Titlebar } from './components/titlebar'
 import { SettingsDialog } from './components/token-dialog'
 import { TextPromptHost } from './components/text-prompt-host'
+import { FragmentEditorDialog } from './components/fragment-editor-dialog'
 import { WebSearchMode } from './components/web-search-mode'
 import { TooltipProvider } from './components/ui/tooltip'
 import { useCharactersStore } from './stores/characters-store'
@@ -154,6 +155,7 @@ export default function App(): React.JSX.Element {
         </div>
         <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
         <TextPromptHost />
+        <FragmentEditorDialog />
         <InpaintHost />
         <MetadataDialog />
         <ArtistTagsDialog />

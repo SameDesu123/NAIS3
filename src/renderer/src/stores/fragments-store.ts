@@ -1,14 +1,21 @@
 import { create } from 'zustand'
 import type { Fragment, ListFolder } from '@shared/types'
+import { normalizeFragmentPath } from '@shared/fragment-path'
 import { canonicalize, moveRow, toOrderEntries } from '../lib/folder-list'
 import { t } from '../lib/i18n'
 
 interface FragmentsState {
   folders: ListFolder[]
   items: Fragment[]
+  /** Generation resolves duplicate normalized paths in database order, not folder display order. */
+  referenceOrder: number[]
   loaded: boolean
   overlayOpen: boolean
   setOverlayOpen: (open: boolean) => void
+  editingId: number | null
+  editorTrigger: HTMLElement | null
+  openEditor: (id: number, trigger?: HTMLElement) => void
+  closeEditor: () => void
   load: () => Promise<void>
   create: (folderId: number | null) => Promise<number>
   update: (id: number, patch: { name?: string; content?: string }) => void
@@ -30,13 +37,30 @@ interface FragmentsState {
 export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   folders: [],
   items: [],
+  referenceOrder: [],
   loaded: false,
   overlayOpen: false,
   setOverlayOpen: (overlayOpen) => set({ overlayOpen }),
+  editingId: null,
+  editorTrigger: null,
+  openEditor: (id, trigger) => {
+    if (get().items.some((f) => f.id === id)) {
+      set({
+        editingId: id,
+        editorTrigger: get().editingId == null ? (trigger ?? null) : get().editorTrigger
+      })
+    }
+  },
+  closeEditor: () => set({ editingId: null, editorTrigger: null }),
 
   load: async () => {
     const { folders, items } = await window.nais.invoke('frags:list', undefined)
-    set({ folders, items: canonicalize(folders, items), loaded: true })
+    set({
+      folders,
+      items: canonicalize(folders, items),
+      referenceOrder: items.map((f) => f.id),
+      loaded: true
+    })
   },
 
   create: async (folderId) => {
@@ -51,7 +75,11 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   },
 
   remove: (id) => {
-    set({ items: get().items.filter((f) => f.id !== id) })
+    set({
+      items: get().items.filter((f) => f.id !== id),
+      editingId: get().editingId === id ? null : get().editingId,
+      editorTrigger: get().editingId === id ? null : get().editorTrigger
+    })
     void window.nais.invoke('frags:delete', { id })
   },
 
@@ -90,8 +118,12 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   move: (activeKey, overKey) => {
     const { folders, items } = get()
     const next = moveRow(folders, items, activeKey, overKey)
-    set(next)
-    void window.nais.invoke('frags:reorder', { order: toOrderEntries(next.folders, next.items) })
+    const order = toOrderEntries(next.folders, next.items)
+    set({
+      ...next,
+      referenceOrder: order.filter((entry) => entry.type === 'char').map((entry) => entry.id)
+    })
+    void window.nais.invoke('frags:reorder', { order })
   },
 
   importTxt: async () => {
@@ -118,6 +150,32 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
     await window.nais.invoke('frags:resetSequential', undefined)
   }
 }))
+
+/** Match the same bare names and folder paths used by the generation processor. */
+export function fragmentAtSelection(text: string, start: number, end: number): Fragment | null {
+  const reference = [...text.matchAll(/<([^<>\n]+)>/g)].find(
+    (match) => start >= match.index && end <= match.index + match[0].length
+  )
+  if (!reference || reference[1].includes('|')) return null
+  const path = normalizeFragmentPath(reference[1].trim().replace(/^\*/, ''))
+  if (!path) return null
+  const { items, folders, referenceOrder } = useFragmentsStore.getState()
+  const folderNames = new Map(folders.map((folder) => [folder.id, folder.name]))
+  const byId = new Map(items.map((fragment) => [fragment.id, fragment]))
+  const order = referenceOrder.length > 0 ? referenceOrder : items.map((f) => f.id)
+  // Later entries win, just like the generation source's path map.
+  for (let i = order.length - 1; i >= 0; i--) {
+    const fragment = byId.get(order[i])
+    if (!fragment) continue
+    const folder = fragment.folderId == null ? null : folderNames.get(fragment.folderId)
+    if (
+      normalizeFragmentPath(fragment.name) === path ||
+      (folder && normalizeFragmentPath(`${folder}/${fragment.name}`) === path)
+    )
+      return fragment
+  }
+  return null
+}
 
 /** 자동완성용: `<검색어`에 매칭되는 조각 경로 목록 */
 export function fragmentPaths(query: string): string[] {

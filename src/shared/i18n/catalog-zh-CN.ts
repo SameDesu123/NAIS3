@@ -1,6 +1,11 @@
 import type { MessageCatalog } from './catalog-ko'
 
 export const ZH_CN = {
+  'ui.fragmentName': '片段名称',
+  'ui.fragmentContent': '片段内容',
+  'ui.expandFragmentEditor': '展开编辑器',
+  'ui.fragmentQuickEditHint': '双击提示词中的 <片段名称> 即可直接编辑。',
+  'ui.fragmentEditorAutoSave': '更改会自动保存。',
   'ui.decreaseBatchCount': '减少批次数量',
   'ui.batchCount': '批次数量',
   'ui.increaseBatchCount': '增加批次数量',
@@ -438,6 +443,11 @@ export const ZH_CN = {
   'ui.googleTranslate': 'Google 翻译',
   'ui.mosaicPaintTheAreasToHide': '马赛克 — 请涂抹要遮盖的区域',
   'ui.pixelValue': '像素 {0}',
+  'ui.inpaintCanvas': '局部重绘画布',
+  'ui.inpaintFitToView': '适应窗口',
+  'ui.inpaintMoveView': '移动画布',
+  'ui.inpaintNavigationHint': '滚轮：缩放 · 空格 + 拖动 / 鼠标中键：平移',
+  'ui.inpaintBrushSize': '画笔直径',
   'ui.brushValue': '画笔 {0}',
   'ui.reset': '重置',
   'ui.saveTheMosaicResultToAFileWindowStaysOpen': '将马赛克结果直接保存为文件（窗口保持打开）',
