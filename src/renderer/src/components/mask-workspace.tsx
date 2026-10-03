@@ -85,7 +85,6 @@ export function MaskWorkspace({
     zoomIn,
     zoomOut,
     resetView,
-    onWheel,
     beginPan,
     movePan,
     endPan,
@@ -371,7 +370,6 @@ export function MaskWorkspace({
       <div
         ref={viewportRef}
         className={cn('absolute inset-0 overflow-hidden', panning && 'cursor-grabbing')}
-        onWheel={onWheel}
       >
         <div className="absolute will-change-transform" style={frameStyle}>
           <img

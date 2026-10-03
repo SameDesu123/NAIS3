@@ -5,8 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type PointerEvent as ReactPointerEvent,
-  type WheelEvent as ReactWheelEvent
+  type PointerEvent as ReactPointerEvent
 } from 'react'
 import { zoomAroundPoint, type Point } from './mask-geometry'
 
@@ -30,7 +29,6 @@ export function useImageViewport(
   zoomIn: () => void
   zoomOut: () => void
   resetView: () => void
-  onWheel: (event: ReactWheelEvent) => void
   beginPan: (event: ReactPointerEvent) => boolean
   movePan: (event: ReactPointerEvent) => boolean
   endPan: (event: ReactPointerEvent) => void
@@ -65,10 +63,12 @@ export function useImageViewport(
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.code === 'Space' && !isTextInput(event.target)) {
-        spaceHeld.current = true
-        event.preventDefault()
-      }
+      const target = event.target as HTMLElement | null
+      if (event.code !== 'Space' || target?.closest('input, textarea, [contenteditable="true"]'))
+        return
+      spaceHeld.current = true
+      // Keep native keyboard activation while tracking Space for the next drag.
+      if (!target?.closest('button, [role="slider"]')) event.preventDefault()
     }
     const onKeyUp = (event: KeyboardEvent): void => {
       if (event.code === 'Space') spaceHeld.current = false
@@ -105,24 +105,34 @@ export function useImageViewport(
     setStoredTransform({ key: imageKey, zoom: 1, pan: { x: 0, y: 0 } })
   }, [imageKey])
 
-  function onWheel(event: ReactWheelEvent): void {
-    event.preventDefault()
-    const rect = viewportRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const next = Math.min(
-      MAX_ZOOM,
-      Math.max(MIN_ZOOM, transform.zoom * Math.exp(-event.deltaY * 0.0015))
-    )
-    const pointer = {
-      x: event.clientX - rect.left - rect.width / 2,
-      y: event.clientY - rect.top - rect.height / 2
+  // React's wheel listener is passive; a native listener must cancel browser zoom/scroll.
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+    const onWheel = (event: WheelEvent): void => {
+      event.preventDefault()
+      const rect = viewport.getBoundingClientRect()
+      const pointer = {
+        x: event.clientX - rect.left - rect.width / 2,
+        y: event.clientY - rect.top - rect.height / 2
+      }
+      setStoredTransform((current) => {
+        const previous =
+          current.key === imageKey ? current : { key: imageKey, zoom: 1, pan: { x: 0, y: 0 } }
+        const next = Math.min(
+          MAX_ZOOM,
+          Math.max(MIN_ZOOM, previous.zoom * Math.exp(-event.deltaY * 0.0015))
+        )
+        return {
+          key: imageKey,
+          zoom: next,
+          pan: zoomAroundPoint(previous.pan, previous.zoom, next, pointer)
+        }
+      })
     }
-    setStoredTransform({
-      key: imageKey,
-      zoom: next,
-      pan: zoomAroundPoint(transform.pan, transform.zoom, next, pointer)
-    })
-  }
+    viewport.addEventListener('wheel', onWheel, { passive: false })
+    return () => viewport.removeEventListener('wheel', onWheel)
+  }, [imageKey])
 
   function beginPan(event: ReactPointerEvent): boolean {
     if (event.button !== 1 && !(event.button === 0 && spaceHeld.current)) return false
@@ -171,14 +181,9 @@ export function useImageViewport(
     zoomIn: () => setZoomCentered(transform.zoom * 1.25),
     zoomOut: () => setZoomCentered(transform.zoom / 1.25),
     resetView,
-    onWheel,
     beginPan,
     movePan,
     endPan,
     panning
   }
-}
-
-function isTextInput(target: EventTarget | null): boolean {
-  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
 }

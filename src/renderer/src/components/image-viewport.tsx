@@ -84,7 +84,6 @@ export function ZoomableImageStage({
     zoomIn,
     zoomOut,
     resetView,
-    onWheel,
     beginPan,
     movePan,
     endPan,
@@ -98,7 +97,6 @@ export function ZoomableImageStage({
         panning ? 'cursor-grabbing' : 'cursor-default',
         className
       )}
-      onWheel={onWheel}
       onPointerDown={beginPan}
       onPointerMove={movePan}
       onPointerUp={endPan}
