@@ -25,7 +25,6 @@ import {
   DEFAULT_POSITION_GUIDES,
   getPositionableCharacters,
   positionPercent,
-  spreadDefaultPositions,
   type PositionGuideSettings
 } from '../lib/character-position'
 import { useCharactersStore } from '../stores/characters-store'
@@ -165,13 +164,6 @@ export function CharacterOverlay(): React.JSX.Element {
     }
     patch({ useCoords: enabled })
   }
-
-  // V5 cards start stacked at the center; fan them out once positioning is on.
-  useEffect(() => {
-    if (!v5 || !positioningEnabled) return
-    for (const { id, center } of spreadDefaultPositions(positionableCharacters))
-      updateCard(id, { center })
-  }, [v5, positioningEnabled, positionableCharacters, updateCard])
 
   // 화면에 보이는 순서의 카드 id들 (Shift 구간/Ctrl+A 기준)
   const visibleIds = useMemo(
@@ -550,7 +542,11 @@ export function CharacterOverlay(): React.JSX.Element {
           searching={searching}
           expandedId={editMode ? null : expandedId}
           // 헤더가 item 밖 상태(좌표 토글/편집 선택)에 의존 — 바뀌면 카드 리렌더
-          renderKey={editMode ? selected : positioningEnabled}
+          renderKey={
+            editMode
+              ? selected
+              : `${model}:${positioningEnabled}:${positionableCharacters.map((c) => c.id).join(',')}`
+          }
           folderActions={{
             rename: renameFolder,
             toggleCollapse,
