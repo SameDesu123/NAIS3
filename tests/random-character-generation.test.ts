@@ -74,6 +74,25 @@ describe('random character generation handoff', () => {
     expect(enqueue?.[1]).not.toHaveProperty('randomCharacterPrompts')
   })
 
+  it('stops randomizing when the active random character is deleted', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    useCharactersStore.getState().activateRandom(new Set([1, 2]))
+    useCharactersStore.getState().removeCard(1)
+    await useGenerationStore.getState().generate()
+    const enqueue = invoke.mock.calls.find(([channel]) => channel === 'queue:enqueue')
+    expect(enqueue?.[1]).not.toHaveProperty('randomCharacterPrompts')
+    expect(enqueue?.[1]).toMatchObject({ request: { characterPrompts: [] } })
+  })
+
+  it('keeps the remaining random pool when an inactive candidate is deleted', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    useCharactersStore.getState().activateRandom(new Set([1, 2]))
+    useCharactersStore.getState().removeCard(2)
+    await useGenerationStore.getState().generate()
+    const enqueue = invoke.mock.calls.find(([channel]) => channel === 'queue:enqueue')
+    expect(enqueue?.[1]).toMatchObject({ randomCharacterPrompts: [{ prompt: 'alpha' }] })
+  })
+
   it('stops randomizing after all active characters are disabled', async () => {
     vi.spyOn(Math, 'random').mockReturnValueOnce(0)
     useCharactersStore.getState().activateRandom(new Set([1, 2]))

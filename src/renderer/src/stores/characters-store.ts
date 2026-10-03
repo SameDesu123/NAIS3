@@ -116,7 +116,13 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
   },
 
   removeCard: (id) => {
-    set({ items: get().items.filter((c) => c.id !== id) })
+    const { items, randomCandidateIds } = get()
+    set({
+      items: items.filter((c) => c.id !== id),
+      randomCandidateIds: items.some((c) => c.id === id && c.enabled)
+        ? []
+        : randomCandidateIds.filter((candidateId) => candidateId !== id)
+    })
     void window.nais.invoke('chars:delete', { id })
   },
 
