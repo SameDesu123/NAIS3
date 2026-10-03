@@ -207,6 +207,7 @@ export function MaskWorkspace({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
+      if (event.defaultPrevented) return
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
         return
       if ((event.metaKey || event.ctrlKey) && event.code === 'KeyZ') {

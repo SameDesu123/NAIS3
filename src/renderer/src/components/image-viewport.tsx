@@ -24,6 +24,7 @@ export function ZoomControls({
         'flex items-center gap-0.5 rounded-full border border-line bg-paper/85 p-1 shadow-sm backdrop-blur',
         className
       )}
+      onDoubleClick={(event) => event.stopPropagation()}
     >
       <Button
         size="icon"
