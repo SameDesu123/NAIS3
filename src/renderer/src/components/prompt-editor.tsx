@@ -5,7 +5,7 @@ import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { caretCoords } from '../lib/caret'
 import { highlightRanges } from '../lib/prompt-weights'
-import { fragmentPaths } from '../stores/fragments-store'
+import { fragmentAtSelection, fragmentPaths, useFragmentsStore } from '../stores/fragments-store'
 
 /**
  * 프롬프트 에디터.
@@ -47,6 +47,7 @@ export function PromptEditor({
   onValueChange,
   placeholder,
   className,
+  ariaLabel,
   negative = false,
   tokensOverride,
   tokenModel,
@@ -56,6 +57,7 @@ export function PromptEditor({
   onValueChange: (value: string) => void
   placeholder?: string
   className?: string
+  ariaLabel?: string
   negative?: boolean
   /** 외부에서 합산한 토큰 수 (기본+캐릭터 합산 등). undefined면 자체 카운트, null이면 숨김 */
   tokensOverride?: number | null
@@ -102,7 +104,7 @@ export function PromptEditor({
       clearTimeout(timer)
     }
   }, [value, external, tokenModel])
-  const tokens = external ? tokensOverride : ownTokens
+  const tokens = external ? tokensOverride : tokenModel && value.trim() ? ownTokens : null
 
   // 세로 스크롤바가 생기면 textarea 콘텐츠 폭이 줄어 줄바꿈이 달라진다 —
   // 미러의 오른쪽을 스크롤바 폭만큼 좁혀 두 레이어의 줄바꿈을 항상 일치시킨다
@@ -177,10 +179,10 @@ export function PromptEditor({
   function closeFind(): void {
     setFindOpen(false)
     const ta = textareaRef.current
+    ta?.focus()
     // 찾던 자리에 커서를 두고 닫는다 — 바로 이어서 고칠 수 있게
     if (ta && current >= 0) {
       const start = hits[current]
-      ta.focus()
       ta.setSelectionRange(start, start + query.length)
     }
   }
@@ -330,6 +332,7 @@ export function PromptEditor({
 
       <textarea
         ref={textareaRef}
+        aria-label={ariaLabel}
         className={cn(
           TYPO,
           'relative block h-full w-full resize-none bg-transparent text-ink outline-none placeholder:text-faint'
@@ -343,10 +346,26 @@ export function PromptEditor({
           refreshSuggestions(e.target.value, e.target.selectionStart)
         }}
         onScroll={syncScroll}
+        onDoubleClick={(e) => {
+          const ta = e.currentTarget
+          const fragment = fragmentAtSelection(value, ta.selectionStart, ta.selectionEnd)
+          if (!fragment) return
+          clearTimeout(debounceRef.current)
+          searchSeqRef.current++
+          setSuggestions([])
+          useFragmentsStore.getState().openEditor(fragment.id)
+        }}
         onKeyDown={(e) => {
           if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
             e.preventDefault()
+            e.stopPropagation()
             openFind()
+            return
+          }
+          if (e.key === 'Escape' && findOpen) {
+            e.preventDefault()
+            e.stopPropagation()
+            closeFind()
             return
           }
           if (suggestions.length === 0) return
@@ -360,6 +379,8 @@ export function PromptEditor({
             e.preventDefault()
             complete(suggestions[selected])
           } else if (e.key === 'Escape') {
+            e.preventDefault()
+            e.stopPropagation()
             setSuggestions([])
           }
         }}
@@ -374,7 +395,10 @@ export function PromptEditor({
 
       {/* 찾기 바 — 우상단. Enter=다음, Shift+Enter=이전, Esc=닫기(그 자리에 커서) */}
       {findOpen && (
-        <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md border border-line bg-paper/95 p-1 shadow-lg backdrop-blur-sm">
+        <div
+          data-prompt-find
+          className="absolute right-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md border border-line bg-paper/95 p-1 shadow-lg backdrop-blur-sm"
+        >
           <Search size={12} className="ml-0.5 shrink-0 text-faint" />
           <input
             ref={findInputRef}
@@ -391,9 +415,11 @@ export function PromptEditor({
                 step(e.shiftKey ? -1 : 1)
               } else if (e.key === 'Escape') {
                 e.preventDefault()
+                e.stopPropagation()
                 closeFind()
               } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
                 e.preventDefault()
+                e.stopPropagation()
                 findInputRef.current?.select()
               }
             }}
@@ -451,8 +477,9 @@ export function PromptEditor({
         popupPos &&
         createPortal(
           <div
+            data-prompt-suggestions
             className="fixed z-50 min-w-52 max-w-72 overflow-hidden rounded-md border border-line bg-surface shadow-xl"
-            style={{ left: popupPos.left, top: popupPos.top }}
+            style={{ left: popupPos.left, top: popupPos.top, pointerEvents: 'auto' }}
           >
             {suggestions.map((s, i) => (
               <button

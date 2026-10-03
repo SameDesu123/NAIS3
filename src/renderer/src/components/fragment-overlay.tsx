@@ -4,6 +4,7 @@ import {
   FileDown,
   FileUp,
   FolderPlus,
+  Maximize2,
   Pencil,
   Plus,
   Puzzle,
@@ -12,14 +13,14 @@ import {
   Trash2,
   X
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { Fragment } from '@shared/types'
 import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { buildDisplayRows } from '../lib/folder-list'
 import { useFragmentsStore } from '../stores/fragments-store'
 import { toast } from '../stores/toast-store'
-import { askText } from '../stores/dialog-store'
+import { FragmentNameInput } from './fragment-name-input'
 import { FolderListView } from './folder-list-view'
 import { Button } from './ui/button'
 import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
@@ -51,9 +52,13 @@ export function FragmentOverlay(): React.JSX.Element {
   const exportAll = useFragmentsStore((s) => s.exportAll)
   const duplicate = useFragmentsStore((s) => s.duplicate)
   const resetSequential = useFragmentsStore((s) => s.resetSequential)
+  const openEditor = useFragmentsStore((s) => s.openEditor)
 
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [renamingId, setRenamingId] = useState<number | null>(null)
+  const itemButtons = useRef(new Map<number, HTMLButtonElement>())
+  const renderKey = useMemo(() => [folders, renamingId], [folders, renamingId])
 
   const searching = search.trim().length > 0
   const rows = useMemo(() => {
@@ -74,13 +79,32 @@ export function FragmentOverlay(): React.JSX.Element {
     return (
       <div className="flex h-10 items-center gap-2 px-2.5">
         <Puzzle size={14} className="shrink-0 text-faint" />
-        <button
-          className="min-w-0 flex-1 truncate text-left text-[13px] text-ink"
-          title={t('ui.clickToEdit')}
-          onClick={() => setExpandedId((prev) => (prev === fragment.id ? null : fragment.id))}
+        {renamingId === fragment.id ? (
+          <FragmentNameInput fragment={fragment} onDone={() => setRenamingId(null)} />
+        ) : (
+          <button
+            ref={(node) => {
+              if (node) itemButtons.current.set(fragment.id, node)
+              else itemButtons.current.delete(fragment.id)
+            }}
+            className="min-w-0 flex-1 truncate text-left text-[13px] text-ink"
+            title={t('ui.clickToEdit')}
+            onClick={() => setExpandedId((prev) => (prev === fragment.id ? null : fragment.id))}
+          >
+            {fragment.name}
+          </button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 w-7 shrink-0 p-0"
+          title={t('ui.rename')}
+          aria-label={t('ui.rename')}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => setRenamingId(fragment.id)}
         >
-          {fragment.name}
-        </button>
+          <Pencil size={13} />
+        </Button>
         <span
           className={cn('shrink-0 font-mono text-[11px]', lines > 1 ? 'text-accent' : 'text-faint')}
           title={
@@ -96,21 +120,16 @@ export function FragmentOverlay(): React.JSX.Element {
   }
 
   const renderExpanded = (fragment: Fragment): React.ReactNode => (
-    // 이름은 헤더에만 표시하고 여기선 편집만(중복 제거, F8). 이름 변경은 헤더 연필/우클릭과
-    // 동일한 dialog 방식 — 매 키 입력마다 저장하던 인라인 Input을 없애 한글 조합 깨짐도 회피.
     <div className="flex flex-col gap-1.5 px-2.5 pb-2">
       <div className="flex items-center justify-end gap-1.5">
         <Button
           size="sm"
           variant="ghost"
-          className="h-8 w-8 p-0"
-          title={t('ui.rename')}
-          onClick={async () => {
-            const name = await askText(t('ui.rename'), fragment.name)
-            if (name != null) update(fragment.id, { name })
-          }}
+          className="mr-auto gap-1.5 text-[11.5px]"
+          title={t('ui.expandFragmentEditor')}
+          onClick={() => openEditor(fragment.id)}
         >
-          <Pencil size={14} />
+          <Maximize2 size={14} /> {t('ui.expandFragmentEditor')}
         </Button>
         <Button
           size="sm"
@@ -197,6 +216,8 @@ export function FragmentOverlay(): React.JSX.Element {
         </Button>
       </div>
 
+      <p className="px-1 text-[11px] text-faint">{t('ui.fragmentQuickEditHint')}</p>
+
       <div className="flex items-center gap-1.5">
         <div className="relative flex-1">
           <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-faint" />
@@ -232,7 +253,7 @@ export function FragmentOverlay(): React.JSX.Element {
           rows={rows}
           searching={searching}
           expandedId={expandedId}
-          renderKey={folders} // 펼침 카드의 <폴더/이름> 힌트가 폴더 이름에 의존
+          renderKey={renderKey}
           folderActions={{
             rename: renameFolder,
             toggleCollapse,
@@ -246,13 +267,13 @@ export function FragmentOverlay(): React.JSX.Element {
           renderExpanded={renderExpanded}
           itemContextMenu={(fragment) => (
             <>
-              <ContextMenuItem
-                onSelect={async () => {
-                  const name = await askText(t('ui.rename'), fragment.name)
-                  if (name != null) update(fragment.id, { name })
-                }}
-              >
+              <ContextMenuItem onSelect={() => setTimeout(() => setRenamingId(fragment.id), 0)}>
                 <Pencil size={13} /> {t('ui.rename')}
+              </ContextMenuItem>
+              <ContextMenuItem
+                onSelect={() => openEditor(fragment.id, itemButtons.current.get(fragment.id))}
+              >
+                <Maximize2 size={13} /> {t('ui.expandFragmentEditor')}
               </ContextMenuItem>
               <ContextMenuItem onSelect={() => void duplicate(fragment.id)}>
                 <Copy size={13} /> {t('ui.duplicate')}
