@@ -432,7 +432,15 @@ export interface IpcInvokeMap {
     req: { casts: { castId: string; request: GenerationRequest }[]; seedLocked: boolean }
     res: { ids: string[] }
   }
-  'queue:enqueue': { req: { request: GenerationRequest; count: number }; res: { ids: string[] } }
+  'queue:enqueue': {
+    req: {
+      request: GenerationRequest
+      count: number
+      /** When provided, each queue item independently samples one candidate. */
+      randomCharacterPrompts?: CharacterPromptInput[]
+    }
+    res: { ids: string[] }
+  }
   'queue:cancel': { req: { ids: string[] }; res: void }
   'queue:status': { req: void; res: QueueStatus }
   'images:list': {
@@ -484,8 +492,8 @@ export interface IpcInvokeMap {
     req: { query: string; limit?: number }
     res: { items: { tag: string; count: number; type: string }[] }
   }
-  /** T5 토큰 카운트 (V4.5 한도 512, EOS 포함 — NAI 웹과 동일 방식) */
-  'tokens:count': { req: { texts: string[] }; res: { counts: number[] } }
+  /** 모델별 토큰 카운트 (V5=Qwen 3.5, 이전 모델=T5) */
+  'tokens:count': { req: { texts: string[]; model: string }; res: { counts: number[] } }
   /** 히스토리 이미지를 i2i/인페인트 소스로 읽기 */
   'images:readForSource': {
     req: { filePath: string }
@@ -569,9 +577,17 @@ export interface IpcInvokeMap {
   'promptPresets:delete': { req: { id: number }; res: void }
   /** 업데이트 다운로드 시작 (완료 시 자동 설치/재시작) */
   'update:start': { req: void; res: void }
-  /** 전체 데이터 JSON 내보내기 (저장 다이얼로그) */
-  'backup:export': { req: void; res: { saved: boolean } }
-  /** JSON 가져오기 (열기 다이얼로그). NAIS3/NAIS2 포맷 자동 감지. summary=사람이 읽는 결과 */
+  /** 전체 데이터 .nais 내보내기 (저장 다이얼로그) */
+  'backup:export': {
+    req: void
+    res: { saved: boolean; skippedFiles?: number; error?: string }
+  }
+  /** 이전 NAIS3 버전에서 읽을 수 있는 JSON 내보내기 */
+  'backup:exportLegacy': {
+    req: void
+    res: { saved: boolean; error?: string }
+  }
+  /** .nais/NAIS3 JSON/NAIS2 JSON 가져오기. summary=사람이 읽는 결과 */
   'backup:import': {
     req: void
     res: { summary: string; needsPromptReload: boolean } | { error: string } | { canceled: true }

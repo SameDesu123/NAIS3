@@ -27,6 +27,20 @@ export const EN = {
   'ui.expandFragmentEditor': 'Expand editor',
   'ui.fragmentQuickEditHint': 'Double-click <fragment name> in any prompt to edit it directly.',
   'ui.fragmentEditorAutoSave': 'Changes are saved automatically.',
+  'ui.naisBackup': 'NAIS backup',
+  'ui.exportLegacyJson': 'Export legacy JSON',
+  'ui.importArchiveOrLegacyBackup': 'Import data (.nais / NAIS3 JSON / NAIS2 JSON)',
+  'ui.naisArchiveRestored': '.nais backup restored ({0} items)',
+  'ui.backupMissingImagesSkipped': ' · {0} missing images skipped',
+  'ui.nais3JsonRestored': 'NAIS3 JSON restored ({0} items{1})',
+  'ui.naisWorkspaceBackup': 'Workspace .nais backup · Supports importing legacy NAIS3/NAIS2 JSON',
+  'ui.backupExportError': 'Export error: {0}',
+  'ui.backupMissingSourcesSkipped': ' ({0} images with missing source files skipped)',
+  'ui.naisArchiveExported': '.nais export complete{0}',
+  'ui.legacyJsonExported': 'Legacy JSON export complete',
+  'ui.exportNaisArchive': 'Export .nais',
+  'ui.legacyJson': 'Legacy JSON',
+
   'ui.decreasePositionGridCount': 'Decrease number of {0}',
   'ui.increasePositionGridCount': 'Increase number of {0}',
   'ui.positioningNeedsTwoPromptedCharactersValue':
@@ -262,9 +276,17 @@ export const EN = {
   'ui.characterNegative': 'Character negative',
   'ui.close': 'Close',
   'ui.character': 'Character',
+  'ui.randomCharacter': 'Random character',
+  'ui.chooseRandomCharacterCandidatesShiftClickToSelectARange':
+    'Choose candidates · Shift-click to select a range',
+  'ui.randomCall': 'Random call',
+  'ui.randomlyActivatedValue': 'Activated random character "{0}"',
+  'ui.emptyPromptCharactersCannotBeSelected': 'Characters with an empty prompt cannot be selected',
   'ui.activeCharactersValueValue': 'Active characters {0}/{1}',
   'ui.disableAllActiveCharacters': 'Disable all active characters',
   'ui.disableAll': 'Disable All',
+  'ui.basePromptCharacterPromptsCombinedSharedTokenLimit':
+    'Base prompt + character prompts combined (shared {0} tokens)',
   'ui.basePromptCharacterPromptsCombinedShared512Tokens':
     'Base prompt + character prompts combined (shared 512 tokens)',
   'ui.offAiSChoiceNaiDecidesPositions': "Off = AI's Choice (NAI decides positions)",

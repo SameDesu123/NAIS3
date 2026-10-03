@@ -27,6 +27,20 @@ export const ZH_CN = {
   'ui.expandFragmentEditor': '展开编辑器',
   'ui.fragmentQuickEditHint': '双击提示词中的 <片段名称> 即可直接编辑。',
   'ui.fragmentEditorAutoSave': '更改会自动保存。',
+  'ui.naisBackup': 'NAIS 备份',
+  'ui.exportLegacyJson': '导出旧版 JSON',
+  'ui.importArchiveOrLegacyBackup': '导入数据（.nais / NAIS3 JSON / NAIS2 JSON）',
+  'ui.naisArchiveRestored': '.nais 备份已恢复（{0} 项）',
+  'ui.backupMissingImagesSkipped': ' · 已跳过 {0} 张缺失图片',
+  'ui.nais3JsonRestored': 'NAIS3 JSON 已恢复（{0} 项{1}）',
+  'ui.naisWorkspaceBackup': '工作区 .nais 备份 · 支持导入旧版 NAIS3/NAIS2 JSON',
+  'ui.backupExportError': '导出错误：{0}',
+  'ui.backupMissingSourcesSkipped': '（已跳过 {0} 张原文件缺失的图片）',
+  'ui.naisArchiveExported': '.nais 导出完成{0}',
+  'ui.legacyJsonExported': '旧版 JSON 导出完成',
+  'ui.exportNaisArchive': '导出 .nais',
+  'ui.legacyJson': '旧版 JSON',
+
   'ui.decreasePositionGridCount': '减少{0}数',
   'ui.increasePositionGridCount': '增加{0}数',
   'ui.positioningNeedsTwoPromptedCharactersValue':
@@ -256,9 +270,17 @@ export const ZH_CN = {
   'ui.characterNegative': '角色负面提示词',
   'ui.close': '关闭',
   'ui.character': '角色',
+  'ui.randomCharacter': '随机角色',
+  'ui.chooseRandomCharacterCandidatesShiftClickToSelectARange':
+    '选择候选角色 · Shift+点击可选择范围',
+  'ui.randomCall': '随机召唤',
+  'ui.randomlyActivatedValue': '已启用随机角色“{0}”',
+  'ui.emptyPromptCharactersCannotBeSelected': '无法选择提示词为空的角色',
   'ui.activeCharactersValueValue': '启用角色 {0}/{1}',
   'ui.disableAllActiveCharacters': '停用全部角色',
   'ui.disableAll': '全部停用',
+  'ui.basePromptCharacterPromptsCombinedSharedTokenLimit':
+    '基础提示词 + 角色提示词合计（共享 {0} 个令牌）',
   'ui.basePromptCharacterPromptsCombinedShared512Tokens':
     '基础提示词 + 角色提示词合计（共享 512 Token）',
   'ui.offAiSChoiceNaiDecidesPositions': "关闭后由 NAI 决定位置（AI's Choice）",

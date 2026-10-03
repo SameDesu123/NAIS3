@@ -127,10 +127,11 @@ import {
   reorderImages as reorderLibraryImages,
   setStack
 } from './library/repo'
-import { exportAll, importAll } from './backup/repo'
+import { exportLegacyJson, exportNais, importLegacyJson, importNais } from './backup/repo'
+import { hasZipSignature } from './backup/archive'
 import { importNais2 } from './backup/nais2'
 import { startUpdateDownload } from './updater'
-import { countTokens } from './nai/tokenizer'
+import { countPromptTokens } from './nai/token-counter'
 import {
   addRefImages,
   collapseRefFolder,
@@ -195,6 +196,13 @@ async function naiAccountInfos(): Promise<{ accounts: NaiAccountInfo[]; activeId
     })
   )
   return { accounts: infos, activeId }
+}
+
+function localDateStamp(date = new Date()): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQueue }): void {
@@ -262,7 +270,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('scenes:enqueueReserved', (request) => ({
     ids: enqueueReservedScenes(ctx.queue, request)
   }))
-  handle('queue:enqueue', ({ request, count }) => ({ ids: ctx.queue.enqueue(request, count) }))
+  handle('queue:enqueue', ({ request, count, randomCharacterPrompts }) => ({
+    ids: ctx.queue.enqueue(request, count, randomCharacterPrompts)
+  }))
   handle('queue:cancel', ({ ids }) => {
     ctx.queue.cancel(ids)
   })
@@ -319,32 +329,60 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
 
   handle('backup:export', async () => {
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    const stamp = new Date().toISOString().slice(0, 10)
+    const stamp = localDateStamp()
     const result = await dialog.showSaveDialog(win, {
       title: t('ui.exportData'),
-      defaultPath: `NAIS3-backup-${stamp}.json`,
+      defaultPath: `NAIS3-backup-${stamp}.nais`,
+      filters: [{ name: t('ui.naisBackup'), extensions: ['nais'] }]
+    })
+    if (result.canceled || !result.filePath) return { saved: false }
+    try {
+      const { archive, skippedFiles } = await exportNais(app.getVersion())
+      writeFileSync(result.filePath, archive)
+      return { saved: true, skippedFiles }
+    } catch (error) {
+      return { saved: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  handle('backup:exportLegacy', async () => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    const result = await dialog.showSaveDialog(win, {
+      title: t('ui.exportLegacyJson'),
+      defaultPath: `NAIS3-backup-${localDateStamp()}.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }]
     })
     if (result.canceled || !result.filePath) return { saved: false }
-    writeFileSync(result.filePath, JSON.stringify(exportAll()))
-    return { saved: true }
+    try {
+      writeFileSync(result.filePath, JSON.stringify(exportLegacyJson()))
+      return { saved: true }
+    } catch (error) {
+      return { saved: false, error: error instanceof Error ? error.message : String(error) }
+    }
   })
 
   handle('backup:import', async () => {
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
     const result = await dialog.showOpenDialog(win, {
-      title: t('ui.importDataNais3Nais2Backup'),
-      filters: [{ name: 'JSON', extensions: ['json'] }],
+      title: t('ui.importArchiveOrLegacyBackup'),
+      filters: [{ name: t('ui.naisBackup'), extensions: ['nais', 'json'] }],
       properties: ['openFile']
     })
     if (result.canceled || !result.filePaths[0]) return { canceled: true as const }
     try {
-      const data = JSON.parse(readFileSync(result.filePaths[0], 'utf-8')) as Record<string, unknown>
+      const input = readFileSync(result.filePaths[0])
+      if (hasZipSignature(input)) {
+        const { imported } = await importNais(input)
+        return { summary: t('ui.naisArchiveRestored', imported), needsPromptReload: true }
+      }
+
+      const data = JSON.parse(input.toString('utf-8')) as Record<string, unknown>
       // 포맷 감지: NAIS3는 _app='NAIS3', NAIS2는 nais2-* 키
       if (data._app === 'NAIS3') {
-        const { imported } = importAll(data)
+        const { imported, skippedFiles } = importLegacyJson(data)
+        const skipped = skippedFiles ? t('ui.backupMissingImagesSkipped', skippedFiles) : ''
         return {
-          summary: t('ui.nais3BackupRestoredValueItems', imported),
+          summary: t('ui.nais3JsonRestored', imported, skipped),
           needsPromptReload: true
         }
       }
@@ -528,12 +566,15 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   })
 
   handle('tags:search', ({ query, limit }) => ({ items: searchTags(query, limit) }))
-  handle('tokens:count', ({ texts }) => {
+  handle('tokens:count', async ({ texts, model }) => {
     // 토큰 수는 실제 전송본 기준 — 조각(<이름>)·주석을 치환/제거한 결과로 센다.
     // rng 고정(항상 첫 줄)이라 결정적이고, peek이라 <*이름> 순차 카운터를 소모하지 않는다.
     const src = fragmentSource()
+    const processed = texts.map((text) =>
+      processWildcards(removeComments(text), src, () => 0, true)
+    )
     return {
-      counts: texts.map((t) => countTokens(processWildcards(removeComments(t), src, () => 0, true)))
+      counts: await countPromptTokens(processed, model)
     }
   })
 

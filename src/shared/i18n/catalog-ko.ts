@@ -25,6 +25,20 @@ export const KO = {
   'ui.expandFragmentEditor': '크게 편집',
   'ui.fragmentQuickEditHint': '프롬프트의 <조각 이름>을 더블클릭하면 바로 편집할 수 있습니다.',
   'ui.fragmentEditorAutoSave': '변경 내용은 자동으로 저장됩니다.',
+  'ui.naisBackup': 'NAIS 백업',
+  'ui.exportLegacyJson': '레거시 JSON 내보내기',
+  'ui.importArchiveOrLegacyBackup': '데이터 가져오기 (.nais / NAIS3 JSON / NAIS2 JSON)',
+  'ui.naisArchiveRestored': '.nais 백업 복원 완료 ({0}개 항목)',
+  'ui.backupMissingImagesSkipped': ' · 누락 이미지 {0}개 제외',
+  'ui.nais3JsonRestored': 'NAIS3 JSON 복원 완료 ({0}개 항목{1})',
+  'ui.naisWorkspaceBackup': '전체 작업 데이터 .nais · 기존 NAIS3/NAIS2 JSON 불러오기 지원',
+  'ui.backupExportError': '내보내기 오류: {0}',
+  'ui.backupMissingSourcesSkipped': ' (원본 파일이 없는 이미지 {0}개 제외)',
+  'ui.naisArchiveExported': '.nais 내보내기 완료{0}',
+  'ui.legacyJsonExported': '레거시 JSON 내보내기 완료',
+  'ui.exportNaisArchive': '.nais 내보내기',
+  'ui.legacyJson': '레거시 JSON',
+
   'ui.decreasePositionGridCount': '{0} 개수 줄이기',
   'ui.increasePositionGridCount': '{0} 개수 늘리기',
   'ui.positioningNeedsTwoPromptedCharactersValue':
@@ -257,9 +271,17 @@ export const KO = {
   'ui.characterNegative': '캐릭터 네거티브',
   'ui.close': '닫기',
   'ui.character': '캐릭터',
+  'ui.randomCharacter': '랜덤 캐릭터',
+  'ui.chooseRandomCharacterCandidatesShiftClickToSelectARange':
+    '후보 선택 · Shift+클릭으로 범위 선택',
+  'ui.randomCall': '랜덤 호출',
+  'ui.randomlyActivatedValue': '랜덤 캐릭터 "{0}" 활성화',
+  'ui.emptyPromptCharactersCannotBeSelected': '프롬프트가 비어 있는 캐릭터는 선택할 수 없습니다',
   'ui.activeCharactersValueValue': '활성 캐릭터 {0}/{1}',
   'ui.disableAllActiveCharacters': '활성 캐릭터 전체 해제',
   'ui.disableAll': '전체 해제',
+  'ui.basePromptCharacterPromptsCombinedSharedTokenLimit':
+    '기본 프롬프트 + 캐릭터 프롬프트 합산 ({0} 토큰 공유)',
   'ui.basePromptCharacterPromptsCombinedShared512Tokens':
     '기본 프롬프트 + 캐릭터 프롬프트 합산 (512 토큰 공유)',
   'ui.offAiSChoiceNaiDecidesPositions': "끄면 AI's Choice (NAI가 위치 결정)",
