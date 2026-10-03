@@ -61,6 +61,7 @@ import {
   setSetting
 } from './db/settings'
 import { anlasUsage, logBalance } from './nai/anlas-log'
+import { generationStats, recordGeneration } from './stats/repo'
 import {
   augmentImage,
   fetchAnlasBalance,
@@ -266,6 +267,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     return { anlas, tier, ...(usage ? { usage } : {}) }
   })
   handle('nai:anlasUsage', () => anlasUsage())
+  handle('stats:generation', () => generationStats())
 
   handle('scenes:enqueueReserved', (request) => ({
     ids: enqueueReservedScenes(ctx.queue, request)
@@ -750,6 +752,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
         seed: 0,
         kind: 'upscale'
       })
+      recordGeneration('upscale')
       void fetchAnlasBalance(token).then(({ anlas, tier, usage }) => {
         if (anlas !== null) {
           logBalance(anlas)
@@ -797,6 +800,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
         seed: 0,
         kind: method // 툴별 kind (bg-removal 등) → 히스토리 뱃지 구분
       })
+      recordGeneration(method)
       // 잔액 갱신 (디렉터 툴도 Anlas 소모, Opus는 소형 무료)
       void fetchAnlasBalance(token).then(({ anlas, tier, usage }) => {
         if (anlas !== null) {

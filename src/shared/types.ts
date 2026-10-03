@@ -1,6 +1,8 @@
 // 메인 프로세스와 렌더러가 공유하는 타입.
 // 규칙: 렌더러는 이 타입들로만 메인과 대화한다 (IPC 계약).
 
+import type { GenerationStats } from './generation-stats'
+
 export interface CharacterPromptInput {
   prompt: string
   negativePrompt: string
@@ -428,6 +430,8 @@ export interface IpcInvokeMap {
     }
   }
   'nai:anlasUsage': { req: void; res: { today: number; week: number } }
+  /** 생성 통계 — 날짜×종류별 생성 횟수 + 날짜별 Anlas 소모 (집계 시작일 이후) */
+  'stats:generation': { req: void; res: GenerationStats }
   'scenes:enqueueReserved': {
     req: { casts: { castId: string; request: GenerationRequest }[]; seedLocked: boolean }
     res: { ids: string[] }

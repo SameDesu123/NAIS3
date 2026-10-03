@@ -22,6 +22,10 @@
   --accent: #c2610a;
   --accent-soft: rgba(194, 97, 10, 0.13);
   --danger: #a85a52;
+  /* 통계 차트 범주색 — CVD 인접쌍 검증 통과 (blue / orange / aqua) */
+  --stat-general: #2a78d6;
+  --stat-scene: #eb6834;
+  --stat-director: #1baf7a;
   --font-ui:
     'Pretendard Variable', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable',
     'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
@@ -46,6 +50,9 @@
   --accent: #eb9550;
   --accent-soft: rgba(235, 149, 80, 0.14);
   --danger: #c47a72;
+  --stat-general: #3987e5;
+  --stat-scene: #d95926;
+  --stat-director: #199e70;
 }
 
 @theme inline {
@@ -59,6 +66,9 @@
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
+  --color-stat-general: var(--stat-general);
+  --color-stat-scene: var(--stat-scene);
+  --color-stat-director: var(--stat-director);
   --font-sans: var(--font-ui);
   --font-mono: var(--font-mono);
   --radius-DEFAULT: var(--radius);

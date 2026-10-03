@@ -12,6 +12,7 @@ import type {
   ScenePreset,
   VibeItem
 } from '@shared/types'
+import type { GenerationStatsRow } from '@shared/generation-stats'
 
 const DB_NAME = 'nais3-web'
 const STORE_NAME = 'runtime'
@@ -38,6 +39,8 @@ export interface BrowserState {
   accounts: BrowserAccount[]
   activeAccountId: string | null
   anlasLog: { at: string; spent: number }[]
+  /** 생성 통계 (날짜×종류 카운터) — 데스크톱 generation_stats 테이블과 동일 형태 */
+  generationStats: GenerationStatsRow[]
   characterFolders: ListFolder[]
   characters: CharacterCard[]
   fragmentFolders: ListFolder[]
@@ -62,6 +65,7 @@ export function emptyState(): BrowserState {
     accounts: [],
     activeAccountId: null,
     anlasLog: [],
+    generationStats: [],
     characterFolders: [],
     characters: [],
     fragmentFolders: [],

@@ -22,6 +22,7 @@ import { broadcast, registerIpcHandlers } from './ipc'
 import { resolveInitialLanguage, t } from './i18n'
 import { setupUpdater } from './updater'
 import { logBalance } from './nai/anlas-log'
+import { recordGeneration } from './stats/repo'
 import { fetchAnlasBalance, generateImageStream, generateImageZip } from './nai/client'
 import { requestUsesV5Usage, resolveNaiAccountForGeneration } from './nai/account-router'
 import { prepareCharRefs, prepareVibes } from './refs/prepare'
@@ -254,12 +255,14 @@ app.whenReady().then(() => {
     // 자동저장 OFF: 메인 생성은 파일로 저장하지 않는다 — 원본은 메모리(최근 20장)에만,
     // 히스토리에는 썸네일 행으로 남는다 (NAIS2 방식). 씬 생성은 항상 씬 폴더에 저장.
     const ephemeral = !scene && getSetting('auto_save') === '0'
+    const imageKind = source ? (source.maskBase64 ? 'inpaint' : 'i2i') : 't2i'
+    const kind = !ephemeral && request.sceneId ? 'scene' : imageKind
     const saved = ephemeral
       ? await saveEphemeralImage({
           png,
           sentPayload,
           seed: request.seed,
-          kind: source ? (source.maskBase64 ? 'inpaint' : 'i2i') : 't2i',
+          kind: imageKind,
           format: imageFormat,
           localMetadata
         })
@@ -268,19 +271,15 @@ app.whenReady().then(() => {
           png,
           sentPayload,
           seed: request.seed,
-          kind: request.sceneId
-            ? 'scene'
-            : source
-              ? source.maskBase64
-                ? 'inpaint'
-                : 'i2i'
-              : 't2i',
+          kind,
           sceneId: request.sceneId,
           format: imageFormat,
           sceneName: scene?.name,
           scenePresetName: scene ? (getPresetName(scene.presetId) ?? undefined) : undefined,
           localMetadata
         })
+
+    recordGeneration(kind)
 
     // 씬 생성이면 해당 씬 갱신 알림 (목록 썸네일/개수, 상세 이미지 갱신용)
     if (request.sceneId)

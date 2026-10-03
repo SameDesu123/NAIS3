@@ -180,7 +180,8 @@ const TOGGLABLE_PAGES: { id: CenterMode; label: MessageId }[] = [
   { id: 'scene', label: 'ui.scene' },
   { id: 'director', label: 'ui.director' },
   { id: 'library', label: 'ui.library' },
-  { id: 'websearch', label: 'ui.web' }
+  { id: 'websearch', label: 'ui.web' },
+  { id: 'stats', label: 'ui.stats' }
 ]
 
 function PageToggles(): React.JSX.Element {

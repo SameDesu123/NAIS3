@@ -4,6 +4,7 @@ import { processWildcards, resetSequentialCounters } from '../../../main/fragmen
 import { removeComments } from '@shared/nai-presets'
 import { modelCapabilities } from '@shared/nai-models'
 import { applyRandomCharacterPrompt } from '@shared/random-character'
+import { bumpGenerationStats, localDay } from '@shared/generation-stats'
 import { UPSCALE_MODEL, UPSCALE_SCALE } from '../../../main/nai/upscale-request'
 import {
   normalizeDelayMs,
@@ -153,6 +154,7 @@ async function saveBrowserImage(
   return mutateBrowserState((state) => {
     const id = nextBrowserId(state)
     const filePath = webPath(base64)
+    bumpGenerationStats(state.generationStats, kind)
     state.images.unshift({
       id,
       filePath,
@@ -259,6 +261,17 @@ async function runQueue(): Promise<void> {
             favorite: false
           }
           next.images.unshift(created)
+          const request = item!.request
+          bumpGenerationStats(
+            next.generationStats,
+            request.sceneId
+              ? 'scene'
+              : request.source
+                ? request.source.maskBase64
+                  ? 'inpaint'
+                  : 'i2i'
+                : 't2i'
+          )
           for (const encoding of result.vibeEncodings) {
             const vibe = next.vibes.find((candidate) => candidate.id === encoding.id)
             if (!vibe) continue
@@ -452,6 +465,18 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
   if (channel === 'nai:balance') {
     const account = activeAccount(await readBrowserState())
     return account ? gateway('balance', { token: account.token }) : { anlas: null, tier: null }
+  }
+  if (channel === 'stats:generation') {
+    const state = await readBrowserState()
+    const rows = [...state.generationStats].sort((a, b) => a.day.localeCompare(b.day))
+    const since = rows[0]?.day ?? null
+    const anlas = new Map<string, number>()
+    if (since)
+      for (const entry of state.anlasLog) {
+        const day = localDay(new Date(entry.at))
+        if (day >= since) anlas.set(day, (anlas.get(day) ?? 0) + entry.spent)
+      }
+    return { since, rows, anlas: [...anlas].map(([day, spent]) => ({ day, spent })) }
   }
   if (channel === 'nai:anlasUsage') {
     const state = await readBrowserState()

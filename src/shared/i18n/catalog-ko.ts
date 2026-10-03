@@ -717,7 +717,31 @@ export const KO = {
   'ui.inlineRandomSyntax': '<a|b|c>',
   'ui.queue': '예약',
   'ui.namedCast': '"{0}" 출연',
-  'ui.adjustQueueForSelectedScenes': '선택한 {0}개 씬의 {1} 예약 {2}{3}'
+  'ui.adjustQueueForSelectedScenes': '선택한 {0}개 씬의 {1} 예약 {2}{3}',
+  'ui.stats': '통계',
+  'ui.generationStats': '생성 통계',
+  'ui.statsSinceValue': '{0}부터 집계',
+  'ui.statsNoRecordsYet': '아직 기록이 없습니다',
+  'ui.statsCountingStartsAfterUpdate':
+    '이 업데이트 이후 생성한 이미지부터 집계됩니다. 히스토리에서 이미지를 지워도 통계는 그대로 남습니다.',
+  'ui.statsLastValueDays': '최근 {0}일',
+  'ui.statsValueDays': '{0}일',
+  'ui.statsToday': '오늘',
+  'ui.statsAllTime': '누적',
+  'ui.statsAnlasSpent': 'Anlas 소모',
+  'ui.statsDailyAverageValue': '하루 평균 {0}장',
+  'ui.statsDailyGenerations': '일별 생성 수',
+  'ui.statsBreakdown': '종류별 내역',
+  'ui.statsGeneral': '일반 생성',
+  'ui.statsScene': '씬 생성',
+  'ui.statsDirector': '디렉터 작업',
+  'ui.statsImagesValue': '{0}장',
+  'ui.statsTotal': '합계',
+  'ui.statsDate': '날짜',
+  'ui.statsNoGenerationsInPeriod': '이 기간에는 생성 기록이 없습니다',
+  'ui.statsShowTable': '표로 보기',
+  'ui.statsShowChart': '차트로 보기',
+  'ui.statsRange': '기간'
 } as const
 
 export type MessageId = keyof typeof KO

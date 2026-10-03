@@ -343,5 +343,19 @@ export const migrations: ((db: Database.Database) => void)[] = [
   // v18: lightweight Danbooru-based defaults. Existing fragments win on name collisions.
   (db) => {
     seedDefaultDanbooruFragments(db)
+  },
+
+  // v19: 생성 통계 — 로컬 날짜×종류별 누적 카운터. 히스토리와 분리해 이미지 삭제와 무관하게 유지.
+  // 기존 히스토리는 소급하지 않는다 (이 업데이트 이후 생성분부터 집계)
+  (db) => {
+    db.exec(`
+      CREATE TABLE generation_stats (
+        id INTEGER PRIMARY KEY,
+        day TEXT NOT NULL,   -- 로컬 날짜 YYYY-MM-DD
+        kind TEXT NOT NULL,  -- t2i | i2i | inpaint | scene | upscale | 디렉터 툴
+        count INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (day, kind)
+      );
+    `)
   }
 ]
