@@ -9,22 +9,27 @@ interface DirectorState {
   stack: string[]
   loading: boolean
   error: string | null
+  /** 툴 클릭 한 번으로 바로 실행 (기본 off — 고른 뒤 하단 버튼으로 실행) */
+  instantRun: boolean
 
   /** 현재 이미지 (스택 top) */
   current: () => string | null
   setSource: (base64: string | null) => void
   run: (method: DirectorMethod, opts?: { prompt?: string; defry?: number }) => Promise<void>
-  upscale: (scale: number) => Promise<void>
+  upscale: () => Promise<void>
   /** API 없는 로컬 편집(모자이크 등) 결과를 스택에 push + 히스토리 저장 */
   applyLocal: (base64: string, kind: 'mosaic') => Promise<void>
   undo: () => void
   clear: () => void
+  setInstantRun: (on: boolean) => void
+  hydrate: () => Promise<void>
 }
 
 export const useDirectorStore = create<DirectorState>((set, get) => ({
   stack: [],
   loading: false,
   error: null,
+  instantRun: false,
 
   current: () => {
     const s = get().stack
@@ -53,11 +58,11 @@ export const useDirectorStore = create<DirectorState>((set, get) => ({
     void useGenerationStore.getState().refreshHistory()
   },
 
-  upscale: async (scale) => {
+  upscale: async () => {
     const cur = get().current()
     if (!cur || get().loading) return
     set({ loading: true, error: null })
-    const res = await window.nais.invoke('images:upscale', { imageBase64: cur, scale })
+    const res = await window.nais.invoke('images:upscale', { imageBase64: cur })
     if ('error' in res) {
       set({ loading: false, error: null })
       toast(res.error, 'error')
@@ -89,6 +94,19 @@ export const useDirectorStore = create<DirectorState>((set, get) => ({
     if (gen.source && stack.includes(gen.source.imageBase64)) gen.setSource(null)
     if (gen.inpaintTarget && stack.includes(gen.inpaintTarget.base64)) gen.cancelInpaint()
     set({ stack: [], error: null })
+  },
+
+  setInstantRun: (instantRun) => {
+    set({ instantRun })
+    void window.nais.invoke('settings:set', {
+      key: 'director_instant_run',
+      value: instantRun ? '1' : '0'
+    })
+  },
+
+  hydrate: async () => {
+    const { value } = await window.nais.invoke('settings:get', { key: 'director_instant_run' })
+    set({ instantRun: value === '1' })
   }
 }))
 

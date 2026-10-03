@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { useLanguageStore } from '../src/renderer/src/lib/i18n'
 import { act, createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -12,6 +13,7 @@ afterEach(async () => {
 })
 it('Escape in mask display popover only dismisses the popover', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  useLanguageStore.setState({ lang: 'ko' })
   window.nais = { invoke: vi.fn().mockResolvedValue({ value: null }) } as unknown as NaisApi
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
     () =>

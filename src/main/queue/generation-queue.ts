@@ -1,6 +1,16 @@
 import { EventEmitter } from 'events'
 import { randomUUID } from 'crypto'
-import type { GenerationRequest, QueueItem, QueueStatus } from '../../shared/types'
+import {
+  normalizeDelayMs,
+  normalizeDelayRandomization,
+  randomizedGenerationDelayMs
+} from '../../shared/generation-delay'
+import type {
+  GenerationDelayRandomization,
+  GenerationRequest,
+  QueueItem,
+  QueueStatus
+} from '../../shared/types'
 
 /**
  * 생성 큐. 메인 프로세스 상주 — 렌더러가 리로드/크래시해도 큐는 살아있다.
@@ -22,13 +32,19 @@ export class GenerationQueue extends EventEmitter {
   private controllers = new Map<string, AbortController>()
   private running = false
   private delayMs = 600
+  private delayRandomization: GenerationDelayRandomization = {
+    enabled: false,
+    minusMs: 0,
+    plusMs: 0
+  }
 
   constructor(
     private readonly generate: (
       request: GenerationRequest,
       id: string,
       signal: AbortSignal
-    ) => Promise<string>
+    ) => Promise<string>,
+    private readonly random: () => number = Math.random
   ) {
     super()
   }
@@ -47,6 +63,27 @@ export class GenerationQueue extends EventEmitter {
     return ids
   }
 
+  /** Publish a batch only after its synchronous reservation commit succeeds. */
+  enqueueRequests(requests: GenerationRequest[], commit: () => void): string[] {
+    const entries = requests.map((request): QueueItem => ({
+      id: randomUUID(),
+      state: 'pending',
+      request
+    }))
+    try {
+      for (const item of entries) this.items.set(item.id, item)
+      commit()
+    } catch (error) {
+      for (const item of entries) this.items.delete(item.id)
+      throw error
+    }
+    if (entries.length > 0) {
+      this.emitChanged()
+      void this.run()
+    }
+    return entries.map((item) => item.id)
+  }
+
   cancel(ids: string[]): void {
     for (const id of ids) {
       const item = this.items.get(id)
@@ -59,8 +96,9 @@ export class GenerationQueue extends EventEmitter {
     this.emitChanged()
   }
 
-  setDelayMs(ms: number): void {
-    this.delayMs = ms
+  setDelayMs(ms: number, randomization?: GenerationDelayRandomization): void {
+    this.delayMs = normalizeDelayMs(ms)
+    if (randomization) this.delayRandomization = normalizeDelayRandomization(randomization)
   }
 
   status(): QueueStatus {
@@ -93,7 +131,7 @@ export class GenerationQueue extends EventEmitter {
         }
         this.emitChanged()
         if (this.nextPending()) {
-          await sleep(this.delayMs)
+          await sleep(this.nextDelayMs())
         }
       }
     } finally {
@@ -130,6 +168,10 @@ export class GenerationQueue extends EventEmitter {
       if (item.state === 'pending') return item
     }
     return undefined
+  }
+
+  private nextDelayMs(): number {
+    return randomizedGenerationDelayMs(this.delayMs, this.delayRandomization, this.random)
   }
 
   private emitChanged(): void {

@@ -98,7 +98,9 @@ function PresetDropdown(): React.JSX.Element {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button className="flex h-8 min-w-52 items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 text-[13px] font-medium hover:bg-surface-2">
-            <span className="min-w-0 flex-1 truncate text-left">{active?.name ?? t('프리셋')}</span>
+            <span className="min-w-0 flex-1 truncate text-left">
+              {active?.name ?? t('ui.preset')}
+            </span>
             <ChevronDown size={14} className="shrink-0 text-muted" />
           </button>
         </PopoverTrigger>
@@ -128,10 +130,11 @@ function PresetDropdown(): React.JSX.Element {
                   <button
                     className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-fg group-hover:opacity-100"
                     onClick={async () => {
-                      const name = await askText(t('프리셋 이름'), p.name)
+                      const name = await askText(t('ui.presetName'), p.name)
                       if (name) void renamePreset(p.id, name)
                     }}
-                    title={t('이름 변경')}
+                    title={t('ui.rename')}
+                    aria-label={t('ui.rename')}
                   >
                     <Pencil size={12} />
                   </button>
@@ -140,15 +143,16 @@ function PresetDropdown(): React.JSX.Element {
                       className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-danger group-hover:opacity-100"
                       onClick={async () => {
                         if (
-                          await askConfirm(t('프리셋 삭제'), {
-                            message: t('"{0}" 프리셋과 그 안의 씬을 모두 삭제합니다.', p.name),
-                            confirmLabel: t('삭제'),
+                          await askConfirm(t('ui.deletePreset'), {
+                            message: t('ui.deletesTheValuePresetAndAllScenesInIt', p.name),
+                            confirmLabel: t('ui.delete'),
                             danger: true
                           })
                         )
                           void deletePreset(p.id)
                       }}
-                      title={t('삭제')}
+                      title={t('ui.delete')}
+                      aria-label={t('ui.delete')}
                     >
                       <Trash2 size={12} />
                     </button>
@@ -161,11 +165,11 @@ function PresetDropdown(): React.JSX.Element {
           <button
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-accent hover:bg-surface-2"
             onClick={async () => {
-              const name = await askText(t('새 프리셋 이름'), t('새 프리셋'))
+              const name = await askText(t('ui.newPresetName'), t('ui.newPreset'))
               if (name) void createPreset(name)
             }}
           >
-            <Plus size={14} /> {t('새 프리셋')}
+            <Plus size={14} /> {t('ui.newPreset')}
           </button>
         </PopoverContent>
       </Popover>
@@ -188,7 +192,7 @@ function CastSelector(): React.JSX.Element {
   const t = useT()
 
   const active = casts.find((c) => c.id === activeCastId)
-  const label = active ? active.name || t('이름 없음') : t('사이드바 설정')
+  const label = active ? active.name || t('ui.unnamed') : t('ui.sidebarSettings')
 
   return (
     <>
@@ -208,7 +212,7 @@ function CastSelector(): React.JSX.Element {
                   }
                 : undefined
             }
-            title={t('출연 — 예약(+)이 이 구성으로 기록됩니다')}
+            title={t('ui.castQueueWillBeRecordedWithThisCast')}
           >
             <UsersRound size={13} className="shrink-0" />
             <span className="min-w-0 truncate">{label}</span>
@@ -227,7 +231,7 @@ function CastSelector(): React.JSX.Element {
             }}
           >
             <span className="size-2.5 shrink-0 rounded-full bg-danger" />
-            {t('사이드바 설정')}
+            {t('ui.sidebarSettings')}
           </button>
           {/* 많아져도 화면을 뚫지 않게 스크롤 + 드래그 정렬 (프리셋 드롭다운과 동일 패턴) */}
           <div className="max-h-64 overflow-y-auto overflow-x-hidden no-scrollbar">
@@ -252,7 +256,7 @@ function CastSelector(): React.JSX.Element {
                       className="size-2.5 shrink-0 rounded-full"
                       style={{ backgroundColor: c.color }}
                     />
-                    <span className="min-w-0 flex-1 truncate">{c.name || t('이름 없음')}</span>
+                    <span className="min-w-0 flex-1 truncate">{c.name || t('ui.unnamed')}</span>
                     <span className="shrink-0 font-mono text-[10px] text-faint">
                       {c.characterIds.length > 0 && `👤${c.characterIds.length}`}
                     </span>
@@ -261,18 +265,19 @@ function CastSelector(): React.JSX.Element {
                     className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-danger group-hover:opacity-100"
                     onClick={async () => {
                       if (
-                        await askConfirm(t('출연 삭제'), {
+                        await askConfirm(t('ui.deleteCast'), {
                           message: t(
-                            '"{0}" 출연을 삭제합니다. 남은 예약은 실행에서 제외됩니다.',
-                            c.name || t('이름 없음')
+                            'ui.deletesTheValueCastItsRemainingQueuedImagesWillBeExcludedFromRuns',
+                            c.name || t('ui.unnamed')
                           ),
-                          confirmLabel: t('삭제'),
+                          confirmLabel: t('ui.delete'),
                           danger: true
                         })
                       )
                         removeCast(c.id)
                     }}
-                    title={t('출연 삭제')}
+                    title={t('ui.deleteCast')}
+                    aria-label={t('ui.deleteCast')}
                   >
                     <Trash2 size={12} />
                   </button>
@@ -288,7 +293,7 @@ function CastSelector(): React.JSX.Element {
               setTimeout(() => setManageOpen(true), 0) // 팝오버 dismiss 레이스 회피
             }}
           >
-            <SlidersHorizontal size={13} /> {t('출연 관리…')}
+            <SlidersHorizontal size={13} /> {t('ui.manageCasts')}
           </button>
         </PopoverContent>
       </Popover>
@@ -314,6 +319,8 @@ function IconBtn({
       <TooltipTrigger asChild>
         <button
           onClick={onClick}
+          aria-label={tip}
+          aria-pressed={active === undefined ? undefined : active}
           className={cn(
             'grid size-8 place-items-center rounded-md transition-colors',
             active ? 'bg-accent text-white' : 'text-muted hover:bg-surface-2 hover:text-fg'
@@ -385,10 +392,10 @@ function SceneGrid(): React.JSX.Element {
   async function importJson(): Promise<void> {
     const { count } = await window.nais.invoke('scenes:importJson', { presetId: activePresetId })
     if (count > 0) {
-      toast(t('씬 {0}개 가져옴', count), 'success')
+      toast(t('ui.importedValueScenes', count), 'success')
       void useScenesStore.getState().load()
     } else {
-      toast(t('가져올 씬이 없습니다'), 'info')
+      toast(t('ui.noScenesToImport'), 'info')
     }
   }
   async function exportZip(): Promise<void> {
@@ -402,16 +409,16 @@ function SceneGrid(): React.JSX.Element {
         <PresetDropdown />
         <CastSelector />
         <div className="mx-1 h-5 w-px bg-line" />
-        <IconBtn icon={<FileDown size={16} />} tip={t('JSON 내보내기')} onClick={exportJson} />
-        <IconBtn icon={<FileUp size={16} />} tip={t('JSON 불러오기')} onClick={importJson} />
+        <IconBtn icon={<FileDown size={16} />} tip={t('ui.exportJson')} onClick={exportJson} />
+        <IconBtn icon={<FileUp size={16} />} tip={t('ui.importJson')} onClick={importJson} />
         <IconBtn
           icon={<FolderArchive size={16} />}
-          tip={t('ZIP 내보내기')}
+          tip={t('ui.exportZip')}
           onClick={() => void exportZip()}
         />
         <IconBtn
           icon={<Pencil size={16} />}
-          tip={t('편집 모드')}
+          tip={t('ui.editMode')}
           active={editMode}
           onClick={() => setEditMode(!editMode)}
         />
@@ -420,12 +427,12 @@ function SceneGrid(): React.JSX.Element {
 
         <IconBtn
           icon={<CalendarPlus size={16} />}
-          tip={t('전체 예약 +1')}
+          tip={t('ui.queue1ForAll')}
           onClick={() => void adjustReserveAll(1)}
         />
         <IconBtn
           icon={<CalendarX size={16} />}
-          tip={t('전체 예약 취소')}
+          tip={t('ui.cancelAllQueued')}
           onClick={() => void clearReserveAll()}
         />
         <div className="mx-1 h-5 w-px bg-line" />
@@ -442,10 +449,10 @@ function SceneGrid(): React.JSX.Element {
           }
           tip={
             cardOrientation === 'portrait'
-              ? t('세로 카드 (클릭: 가로)')
+              ? t('ui.portraitCardsClickLandscape')
               : cardOrientation === 'landscape'
-                ? t('가로 카드 (클릭: 정사각)')
-                : t('정사각 카드 (클릭: 세로)')
+                ? t('ui.landscapeCardsClickSquare')
+                : t('ui.squareCardsClickPortrait')
           }
           onClick={() =>
             setCardOrientation(
@@ -458,11 +465,17 @@ function SceneGrid(): React.JSX.Element {
           }
         />
         {/* 열 수 (2~5) */}
-        <div className="flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5">
+        <div
+          role="group"
+          aria-label={t('ui.cardColumns')}
+          className="flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
+        >
           {[2, 3, 4, 5].map((n) => (
             <button
               key={n}
               onClick={() => setColumns(n)}
+              aria-label={t('ui.columnCount', n)}
+              aria-pressed={columns === n}
               className={cn(
                 'grid h-6 w-6 place-items-center rounded text-[12px] font-medium transition-colors',
                 columns === n ? 'bg-paper text-ink shadow-sm' : 'text-muted hover:text-ink'
@@ -521,12 +534,12 @@ function SceneGrid(): React.JSX.Element {
                 />
               ))}
               <button
-                onClick={() => void create(t('새 씬'))}
+                onClick={() => void create(t('ui.newScene'))}
                 className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-line text-faint transition hover:text-accent"
                 style={{ aspectRatio: CARD_ASPECT[cardOrientation] }}
               >
                 <Plus size={22} />
-                <span className="text-[12px]">{t('씬 추가')}</span>
+                <span className="text-[12px]">{t('ui.addScene')}</span>
               </button>
             </div>
           </SortableContext>
@@ -560,9 +573,7 @@ function SceneGrid(): React.JSX.Element {
         </DndContext>
         {scenes.length === 0 && (
           <p className="mt-6 text-center text-[13px] text-faint">
-            {t(
-              '씬을 추가해 프롬프트와 해상도를 저장하고, +로 예약한 뒤 좌측 생성 버튼으로 뽑으세요.'
-            )}
+            {t('ui.addASceneToSaveItsPromptAndResolutionQueueItWithThenGenerateWithf7ce9b6')}
           </p>
         )}
       </div>
@@ -596,28 +607,31 @@ function BulkBar(): React.JSX.Element {
 
   function reserveTip(delta: number): string {
     const step = Math.abs(delta) * (batchCount || 1)
-    const who = activeCast ? `"${activeCast.name}" 출연` : '사이드바 설정'
-    return `선택한 ${n}개 씬의 ${who} 예약 ${delta > 0 ? '+' : '-'}${step}`
+    const who = activeCast
+      ? t('ui.namedCast', activeCast.name || t('ui.unnamed'))
+      : t('ui.sidebarSettings')
+    return t('ui.adjustQueueForSelectedScenes', n, who, delta > 0 ? '+' : '-', step)
   }
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-b border-line bg-surface-2 px-3 py-2 text-[13px]">
-      <span className="font-medium text-fg">{t('{0}개 선택', n)}</span>
+      <span className="font-medium text-fg">{t('ui.valueSelected', n)}</span>
       <Button size="sm" variant="ghost" onClick={selectAll}>
-        {t('전체 선택')}
+        {t('ui.selectAll')}
       </Button>
       <Button size="sm" variant="ghost" onClick={clearSelection} disabled={disabled}>
-        {t('해제')}
+        {t('ui.clear')}
       </Button>
       <div className="mx-1 h-4 w-px bg-line" />
 
       {/* 선택 씬만 예약 증감 — 단위·대상 출연은 카드의 +/-와 동일 */}
       <div className="flex items-center gap-0.5 rounded-full border border-line bg-paper p-0.5">
-        <span className="px-1.5 text-[12px] text-muted">예약</span>
+        <span className="px-1.5 text-[12px] text-muted">{t('ui.queue')}</span>
         <button
           className="grid size-5 place-items-center rounded-full text-fg hover:bg-surface-2 disabled:opacity-30"
           disabled={disabled}
           title={reserveTip(-1)}
+          aria-label={reserveTip(-1)}
           onClick={() => void bulkAdjustReserve(-1)}
         >
           <Minus size={13} />
@@ -626,6 +640,7 @@ function BulkBar(): React.JSX.Element {
           className="grid size-5 place-items-center rounded-full text-fg hover:bg-surface-2 disabled:opacity-30"
           disabled={disabled}
           title={reserveTip(1)}
+          aria-label={reserveTip(1)}
           onClick={() => void bulkAdjustReserve(1)}
         >
           <Plus size={13} />
@@ -637,7 +652,7 @@ function BulkBar(): React.JSX.Element {
       <Popover>
         <PopoverTrigger asChild>
           <Button size="sm" variant="ghost" disabled={disabled}>
-            {t('프리셋 이동')}
+            {t('ui.moveToPreset')}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-44 p-1">
@@ -647,7 +662,7 @@ function BulkBar(): React.JSX.Element {
               <MenuItem key={p.id} label={p.name} onClick={() => void bulkMove(p.id)} />
             ))}
           {presets.filter((p) => p.id !== activePresetId).length === 0 && (
-            <p className="px-2 py-1.5 text-[12px] text-faint">{t('다른 프리셋 없음')}</p>
+            <p className="px-2 py-1.5 text-[12px] text-faint">{t('ui.noOtherPresets')}</p>
           )}
         </PopoverContent>
       </Popover>
@@ -660,12 +675,17 @@ function BulkBar(): React.JSX.Element {
         }}
       >
         <SelectTrigger className="h-8 w-40" disabled={disabled}>
-          <SelectValue placeholder={t('해상도 변경')} />
+          <SelectValue placeholder={t('ui.changeResolution')} />
         </SelectTrigger>
         <SelectContent>
-          {[...RESOLUTIONS, ...customResolutions].map((r) => (
+          {RESOLUTIONS.map((r) => (
             <SelectItem key={r.label} value={`${r.width}x${r.height}`}>
               {t(r.label)}
+            </SelectItem>
+          ))}
+          {customResolutions.map((r) => (
+            <SelectItem key={r.label} value={`${r.width}x${r.height}`}>
+              {r.label}
             </SelectItem>
           ))}
         </SelectContent>
@@ -680,7 +700,7 @@ function BulkBar(): React.JSX.Element {
         disabled={disabled}
         onClick={() => void bulkClearFavorites()}
       >
-        {t('즐겨찾기 해제')}
+        {t('ui.removeFavorites')}
       </Button>
       <Button
         size="sm"
@@ -688,16 +708,19 @@ function BulkBar(): React.JSX.Element {
         disabled={disabled}
         onClick={async () => {
           if (
-            await askConfirm(t('이미지 비우기'), {
-              message: t('선택한 {0}개 씬의 생성 이미지를 모두 삭제합니다. 되돌릴 수 없습니다.', n),
-              confirmLabel: t('비우기'),
+            await askConfirm(t('ui.clearImages'), {
+              message: t(
+                'ui.deletesAllGeneratedImagesOfTheValueSelectedScenesThisCannotBeUndone',
+                n
+              ),
+              confirmLabel: t('ui.clear.719ea39'),
               danger: true
             })
           )
             void bulkClearImages()
         }}
       >
-        {t('이미지 비우기')}
+        {t('ui.clearImages')}
       </Button>
       <Button
         size="sm"
@@ -706,16 +729,16 @@ function BulkBar(): React.JSX.Element {
         disabled={disabled}
         onClick={async () => {
           if (
-            await askConfirm(t('씬 삭제'), {
-              message: t('선택한 {0}개 씬을 삭제합니다.', n),
-              confirmLabel: t('삭제'),
+            await askConfirm(t('ui.deleteScene'), {
+              message: t('ui.deletesTheValueSelectedScenes', n),
+              confirmLabel: t('ui.delete'),
               danger: true
             })
           )
             void bulkDelete()
         }}
       >
-        <Trash2 size={13} /> {t('삭제')}
+        <Trash2 size={13} /> {t('ui.delete')}
       </Button>
     </div>
   )
@@ -738,20 +761,35 @@ function dndStyle(sortable: ReturnType<typeof useSortable>): CSSProperties {
  * 예약 배지 목록 — 사이드바('') 예약은 빨강(color: null → bg-danger), 출연 예약은 출연 고유색.
  * 삭제된 출연의 잔여 예약은 회색으로 표시해 정리할 수 있게 한다.
  */
+function reserveBadgeLabel(
+  b: { key: string; name: string; deleted?: boolean },
+  t: ReturnType<typeof useT>
+): string {
+  if (b.key === '') return t('ui.sidebarSettings')
+  if (b.deleted) return t('ui.deletedCast')
+  return b.name || t('ui.unnamed')
+}
+
 function reserveBadges(
   scene: Scene,
   casts: SceneCast[]
-): { key: string; name: string; count: number; color: string | null }[] {
-  const out: { key: string; name: string; count: number; color: string | null }[] = []
+): { key: string; name: string; count: number; color: string | null; deleted?: boolean }[] {
+  const out: {
+    key: string
+    name: string
+    count: number
+    color: string | null
+    deleted?: boolean
+  }[] = []
   const sidebar = scene.reserves[''] ?? 0
-  if (sidebar > 0) out.push({ key: '', name: '사이드바 설정', count: sidebar, color: null })
+  if (sidebar > 0) out.push({ key: '', name: '', count: sidebar, color: null })
   for (const c of casts) {
     const n = scene.reserves[c.id] ?? 0
-    if (n > 0) out.push({ key: c.id, name: c.name || '이름 없음', count: n, color: c.color })
+    if (n > 0) out.push({ key: c.id, name: c.name, count: n, color: c.color })
   }
   for (const [id, n] of Object.entries(scene.reserves)) {
     if (id !== '' && n > 0 && !casts.some((c) => c.id === id))
-      out.push({ key: id, name: '삭제된 출연', count: n, color: '#6b7280' })
+      out.push({ key: id, name: '', count: n, color: '#6b7280', deleted: true })
   }
   return out
 }
@@ -800,18 +838,18 @@ const SceneCard = memo(function SceneCard({
 
   // 우클릭 메뉴/3-dot 공용 액션
   const renameScene = async (): Promise<void> => {
-    const name = await askText(t('씬 이름'), scene.name)
+    const name = await askText(t('ui.sceneName'), scene.name)
     if (name) void update(scene.id, { name })
   }
   const openFolder = async (): Promise<void> => {
     const { ok } = await window.nais.invoke('scenes:openFolder', { sceneId: scene.id })
-    if (!ok) toast(t('아직 생성된 이미지 폴더가 없습니다'), 'info')
+    if (!ok) toast(t('ui.noGeneratedImageFolderYet'), 'info')
   }
   const removeScene = async (): Promise<void> => {
     if (
-      await askConfirm(t('씬 삭제'), {
-        message: t('"{0}" 씬을 삭제합니다.', scene.name),
-        confirmLabel: t('삭제'),
+      await askConfirm(t('ui.deleteScene'), {
+        message: t('ui.deletesTheSceneValue', scene.name),
+        confirmLabel: t('ui.delete'),
         danger: true
       })
     )
@@ -877,7 +915,7 @@ const SceneCard = memo(function SceneCard({
                         b.color === null && 'bg-danger'
                       )}
                       style={b.color ? { backgroundColor: b.color } : undefined}
-                      title={t('{0} {1}장', b.name, b.count)}
+                      title={t('ui.valueValueImages', reserveBadgeLabel(b, t), b.count)}
                     >
                       {b.count}
                     </span>
@@ -885,7 +923,9 @@ const SceneCard = memo(function SceneCard({
                   {rest.length > 0 && (
                     <span
                       className="grid h-6 min-w-6 place-items-center rounded-full bg-black/60 px-1.5 text-[11px] font-bold text-white shadow"
-                      title={rest.map((b) => t('{0} {1}장', b.name, b.count)).join('\n')}
+                      title={rest
+                        .map((b) => t('ui.valueValueImages', reserveBadgeLabel(b, t), b.count))
+                        .join('\n')}
                     >
                       +{rest.length}
                     </span>
@@ -909,6 +949,7 @@ const SceneCard = memo(function SceneCard({
               <PopoverTrigger asChild>
                 <button
                   className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-black/55 text-white opacity-0 transition hover:bg-black/70 group-hover:opacity-100"
+                  aria-label={t('ui.namedMenu', scene.name)}
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
@@ -918,22 +959,22 @@ const SceneCard = memo(function SceneCard({
               <PopoverContent align="end" className="w-40 p-1" onClick={(e) => e.stopPropagation()}>
                 <MenuItem
                   icon={<Pencil size={13} />}
-                  label={t('이름 변경')}
+                  label={t('ui.rename')}
                   onClick={() => void renameScene()}
                 />
                 <MenuItem
                   icon={<Copy size={13} />}
-                  label={t('복제')}
+                  label={t('ui.duplicate')}
                   onClick={() => void duplicate(scene.id)}
                 />
                 <MenuItem
                   icon={<FolderOpen size={13} />}
-                  label={t('폴더 열기')}
+                  label={t('ui.openFolder')}
                   onClick={() => void openFolder()}
                 />
                 <MenuItem
                   icon={<Trash2 size={13} />}
-                  label={t('삭제')}
+                  label={t('ui.delete')}
                   danger
                   onClick={() => void removeScene()}
                 />
@@ -949,6 +990,7 @@ const SceneCard = memo(function SceneCard({
                   <input
                     className="w-full truncate rounded bg-white/15 px-1 py-0.5 text-[13px] font-medium text-white outline-none placeholder:text-white/50 focus:bg-white/25"
                     value={scene.name}
+                    aria-label={t('ui.sceneName')}
                     onClick={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
                     onChange={(e) => void update(scene.id, { name: e.target.value })}
@@ -968,6 +1010,7 @@ const SceneCard = memo(function SceneCard({
                 <button
                   className="grid size-5 place-items-center rounded-full text-white hover:bg-white/20 disabled:opacity-30"
                   disabled={ctxCount === 0}
+                  aria-label={t('ui.decreaseSceneQueue', scene.name)}
                   onClick={() => void adjustReserve(scene.id, -1)}
                 >
                   <Minus size={13} />
@@ -982,12 +1025,15 @@ const SceneCard = memo(function SceneCard({
                     activeCast && ctxCount > 0 ? { backgroundColor: activeCast.color } : undefined
                   }
                   title={
-                    activeCast ? t('"{0}" 출연 예약', activeCast.name) : t('사이드바 설정 예약')
+                    activeCast
+                      ? t('ui.queuedForCastValue', activeCast.name)
+                      : t('ui.queuedWithSidebarSettings')
                   }
                   onCommit={(n) => void setReserve(scene.id, n)}
                 />
                 <button
                   className="grid size-5 place-items-center rounded-full text-white hover:bg-white/20"
+                  aria-label={t('ui.increaseSceneQueue', scene.name)}
                   onClick={() => void adjustReserve(scene.id, 1)}
                 >
                   <Plus size={13} />
@@ -999,17 +1045,17 @@ const SceneCard = memo(function SceneCard({
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onSelect={() => void renameScene()}>
-          <Pencil size={13} /> {t('이름 변경')}
+          <Pencil size={13} /> {t('ui.rename')}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => void duplicate(scene.id)}>
-          <Copy size={13} /> {t('복제')}
+          <Copy size={13} /> {t('ui.duplicate')}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => void openFolder()}>
-          <FolderOpen size={13} className="text-amber-400" /> {t('폴더 열기')}
+          <FolderOpen size={13} className="text-amber-400" /> {t('ui.openFolder')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem danger onSelect={() => void removeScene()}>
-          <Trash2 size={13} /> {t('삭제')}
+          <Trash2 size={13} /> {t('ui.delete')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

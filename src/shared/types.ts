@@ -113,6 +113,12 @@ export interface QueueStatus {
   delayMs: number
 }
 
+export interface GenerationDelayRandomization {
+  enabled: boolean
+  minusMs: number
+  plusMs: number
+}
+
 export interface OpusUsageStatus {
   /** Remaining rechargeable allowance percentage. May exceed 100 during boosts. */
   percent: number
@@ -422,6 +428,10 @@ export interface IpcInvokeMap {
     }
   }
   'nai:anlasUsage': { req: void; res: { today: number; week: number } }
+  'scenes:enqueueReserved': {
+    req: { casts: { castId: string; request: GenerationRequest }[]; seedLocked: boolean }
+    res: { ids: string[] }
+  }
   'queue:enqueue': { req: { request: GenerationRequest; count: number }; res: { ids: string[] } }
   'queue:cancel': { req: { ids: string[] }; res: void }
   'queue:status': { req: void; res: QueueStatus }
@@ -497,8 +507,8 @@ export interface IpcInvokeMap {
   }
   'settings:pickSaveDir': { req: { target?: 'main' | 'scene' } | void; res: { dir: string | null } }
   'settings:resetSaveDir': { req: { target?: 'main' | 'scene' } | void; res: { dir: string } }
-  /** 생성 지연 시간(ms) 설정 — 큐에 즉시 반영 + 영속 */
-  'gen:setDelay': { req: { ms: number }; res: void }
+  /** 생성 지연 시간(ms)과 랜덤 범위 설정 — 큐에 즉시 반영 + 영속 */
+  'gen:setDelay': { req: { ms: number; randomization?: GenerationDelayRandomization }; res: void }
   /** 큐 완료 네이티브 알림 (창이 포커스 없을 때만 표시) */
   'notify:done': { req: { done: number; failed: number }; res: void }
   /** 디렉터 툴 실행 — 결과를 히스토리에 저장하고 파일 경로 + 결과 base64 반환 */
@@ -506,9 +516,9 @@ export interface IpcInvokeMap {
     req: { method: DirectorMethod; imageBase64: string; prompt?: string; defry?: number }
     res: { filePath: string; base64: string } | { error: string }
   }
-  /** 업스케일 (2x/4x) — 결과를 히스토리에 저장하고 파일 경로 + 결과 base64 반환 */
+  /** V5 Curated 업스케일 (2x) — 결과를 히스토리에 저장하고 파일 경로 + 결과 base64 반환 */
   'images:upscale': {
-    req: { imageBase64: string; scale: number }
+    req: { imageBase64: string }
     res: { filePath: string; base64: string } | { error: string }
   }
   /** 렌더러 로컬 편집 결과(base64 PNG)를 히스토리에 저장 — 모자이크 등 API 없는 디렉터 로컬 툴용 */

@@ -14,9 +14,11 @@ import { SceneMode } from './components/scene-mode'
 import { Titlebar } from './components/titlebar'
 import { SettingsDialog } from './components/token-dialog'
 import { TextPromptHost } from './components/text-prompt-host'
+import { FragmentEditorDialog } from './components/fragment-editor-dialog'
 import { WebSearchMode } from './components/web-search-mode'
 import { TooltipProvider } from './components/ui/tooltip'
 import { useCharactersStore } from './stores/characters-store'
+import { useDirectorStore } from './stores/director-store'
 import { useFragmentsStore } from './stores/fragments-store'
 import { useCharRefsStore, useVibesStore } from './stores/refs-store'
 import { bindGenerationEvents, useGenerationStore } from './stores/generation-store'
@@ -29,7 +31,6 @@ import { useLayoutStore } from './stores/layout-store'
 import { useThemeStore } from './stores/theme-store'
 
 export default function App(): React.JSX.Element {
-  const lang = useLanguageStore((s) => s.lang)
   const leftOpen = useLayoutStore((s) => s.leftOpen)
   const rightOpen = useLayoutStore((s) => s.rightOpen)
   const settingsOpen = useLayoutStore((s) => s.settingsOpen)
@@ -68,7 +69,8 @@ export default function App(): React.JSX.Element {
         useFragmentsStore.getState().load(),
         useVibesStore.getState().load(),
         useCharRefsStore.getState().load(),
-        useShortcutsStore.getState().hydrate()
+        useShortcutsStore.getState().hydrate(),
+        useDirectorStore.getState().hydrate()
       ])
       // 스플래시가 너무 순식간에 사라지지 않게 최소 표시 시간 확보
       setTimeout(() => setReady(true), 350)
@@ -98,8 +100,7 @@ export default function App(): React.JSX.Element {
 
   return (
     <TooltipProvider>
-      {/* key=lang — 언어 변경 시 전체 리마운트로 모든 텍스트 즉시 갱신 */}
-      <div key={lang} className="flex h-screen flex-col bg-paper">
+      <div className="flex h-screen flex-col bg-paper">
         <Titlebar />
         <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3">
           <AnimatePresence initial={false}>
@@ -126,17 +127,19 @@ export default function App(): React.JSX.Element {
               </motion.div>
             )}
           </AnimatePresence>
-          {centerMode === 'scene' ? (
-            <SceneMode />
-          ) : centerMode === 'director' ? (
-            <DirectorMode />
-          ) : centerMode === 'library' ? (
-            <LibraryMode />
-          ) : centerMode === 'websearch' ? (
-            <WebSearchMode />
-          ) : (
-            <PreviewPane />
-          )}
+          <main className="flex min-h-0 min-w-0 flex-1">
+            {centerMode === 'scene' ? (
+              <SceneMode />
+            ) : centerMode === 'director' ? (
+              <DirectorMode />
+            ) : centerMode === 'library' ? (
+              <LibraryMode />
+            ) : centerMode === 'websearch' ? (
+              <WebSearchMode />
+            ) : (
+              <PreviewPane />
+            )}
+          </main>
           <AnimatePresence initial={false}>
             {rightOpen && (
               <motion.div
@@ -154,6 +157,7 @@ export default function App(): React.JSX.Element {
         </div>
         <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
         <TextPromptHost />
+        <FragmentEditorDialog />
         <InpaintHost />
         <MetadataDialog />
         <ArtistTagsDialog />

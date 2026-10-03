@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { useLanguageStore } from '../src/renderer/src/lib/i18n'
 import { act, createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -10,6 +11,7 @@ afterEach(async () => {
 })
 it('keeps zooming when plus is clicked twice quickly', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  useLanguageStore.setState({ lang: 'ko' })
   const div = document.createElement('div')
   document.body.append(div)
   const root = createRoot(div)

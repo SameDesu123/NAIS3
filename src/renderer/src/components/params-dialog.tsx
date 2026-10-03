@@ -45,14 +45,14 @@ export function ParamsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[420px] p-5">
-        <DialogTitle className="mb-4">{t('생성 파라미터')}</DialogTitle>
+        <DialogTitle className="mb-4">{t('ui.generationParameters')}</DialogTitle>
         <div className="grid gap-4">
-          <Row label={t('모델')}>
+          <Row label={t('ui.model')}>
             <Select
               value={request.model}
               onValueChange={(model) => patch({ model, ...generationDefaultsForModel(model) })}
             >
-              <SelectTrigger className="w-52">
+              <SelectTrigger className="w-52" aria-label={t('ui.model')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -63,21 +63,23 @@ export function ParamsDialog({
               </SelectContent>
             </Select>
           </Row>
-          <Row label={t('해상도')}>
+          <Row label={t('ui.resolution')}>
             <ResolutionPicker
               className="w-52"
               width={request.width}
               height={request.height}
+              ariaLabel={t('ui.resolution')}
               onPick={(width, height) => patch({ width, height })}
             />
           </Row>
 
-          <Row label={t('시드')}>
+          <Row label={t('ui.seed')}>
             <div className="flex w-52 items-center gap-1.5">
               <Input
                 className="font-mono"
+                aria-label={t('ui.seed')}
                 value={request.seed < 0 ? '' : String(request.seed)}
-                placeholder={t('랜덤')}
+                placeholder={t('ui.random')}
                 onChange={(e) => {
                   const n = Number(e.target.value)
                   patch({ seed: e.target.value === '' || Number.isNaN(n) ? -1 : n })
@@ -86,7 +88,7 @@ export function ParamsDialog({
               <Button
                 size="icon"
                 variant={seedLocked ? 'accent' : 'ghost'}
-                title={seedLocked ? t('시드 고정됨') : t('시드 고정')}
+                title={seedLocked ? t('ui.seedLocked') : t('ui.lockSeed')}
                 onClick={() => setSeedLocked(!seedLocked)}
               >
                 {seedLocked ? <Lock size={14} /> : <LockOpen size={14} />}
@@ -94,7 +96,7 @@ export function ParamsDialog({
               <Button
                 size="icon"
                 variant="ghost"
-                title={t('랜덤 시드')}
+                title={t('ui.randomSeed')}
                 onClick={() => patch({ seed: -1 })}
               >
                 <Dice5 size={14} />
@@ -102,9 +104,10 @@ export function ParamsDialog({
             </div>
           </Row>
 
-          <Row label={t('스텝 {0}', request.steps)}>
+          <Row label={t('ui.stepsValue', request.steps)}>
             <Slider
               className="w-52"
+              aria-label={t('ui.stepsValue', request.steps)}
               min={1}
               max={50}
               step={1}
@@ -116,6 +119,7 @@ export function ParamsDialog({
           <Row label={`CFG ${request.cfgScale}`}>
             <Slider
               className="w-52"
+              aria-label={`CFG ${request.cfgScale}`}
               min={1}
               max={10}
               step={0.1}
@@ -127,6 +131,7 @@ export function ParamsDialog({
           <Row label={`Rescale ${request.cfgRescale}`}>
             <Slider
               className="w-52"
+              aria-label={`Rescale ${request.cfgRescale}`}
               min={0}
               max={1}
               step={0.02}
@@ -135,9 +140,9 @@ export function ParamsDialog({
             />
           </Row>
 
-          <Row label={t('샘플러')}>
+          <Row label={t('ui.sampler')}>
             <Select value={request.sampler} onValueChange={(v) => patch({ sampler: v })}>
-              <SelectTrigger className="w-52">
+              <SelectTrigger className="w-52" aria-label={t('ui.sampler')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -151,12 +156,12 @@ export function ParamsDialog({
           </Row>
 
           {capabilities.noiseScheduleSelection && (
-            <Row label={t('노이즈 스케줄')}>
+            <Row label={t('ui.noiseSchedule')}>
               <Select
                 value={request.noiseSchedule}
                 onValueChange={(v) => patch({ noiseSchedule: v })}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="w-52" aria-label={t('ui.noiseSchedule')}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -170,12 +175,12 @@ export function ParamsDialog({
             </Row>
           )}
 
-          <Row label={t('UC 프리셋')}>
+          <Row label={t('ui.ucPreset')}>
             <Select
               value={String(request.ucPreset)}
               onValueChange={(v) => patch({ ucPreset: Number(v) as UcPresetIndex })}
             >
-              <SelectTrigger className="w-52">
+              <SelectTrigger className="w-52" aria-label={t('ui.ucPreset')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -188,8 +193,9 @@ export function ParamsDialog({
             </Select>
           </Row>
 
-          <Row label={t('퀄리티 태그')}>
+          <Row label={t('ui.qualityTags')}>
             <Switch
+              aria-label={t('ui.qualityTags')}
               checked={request.qualityToggle}
               onCheckedChange={(v) => patch({ qualityToggle: v })}
             />
@@ -197,13 +203,18 @@ export function ParamsDialog({
 
           {capabilities.variety && (
             <Row label="Variety+">
-              <Switch checked={request.variety} onCheckedChange={(v) => patch({ variety: v })} />
+              <Switch
+                aria-label="Variety+"
+                checked={request.variety}
+                onCheckedChange={(v) => patch({ variety: v })}
+              />
             </Row>
           )}
 
           {supportsTransparency && (
-            <Row label={t('투명 배경')}>
+            <Row label={t('ui.transparentBackground')}>
               <Switch
+                aria-label={t('ui.transparentBackground')}
                 checked={request.transparentBackground ?? false}
                 onCheckedChange={(v) => patch({ transparentBackground: v })}
               />

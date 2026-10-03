@@ -1,3 +1,4 @@
+import type { MessageId } from '@shared/i18n'
 import {
   Check,
   Circle,
@@ -153,6 +154,8 @@ export function MaskWorkspace({
     actions.current = []
     historyIndex.current = 0
     initialMask.current = null
+    // Sync the React history controls after resetting the external canvas and history refs.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHistoryVersion((version) => version + 1)
 
     if (!initialMaskBase64) return
@@ -419,28 +422,28 @@ export function MaskWorkspace({
       <div className="absolute bottom-4 left-1/2 z-30 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-xl border border-line bg-surface/95 p-1.5 shadow-xl backdrop-blur no-scrollbar">
         <ToolButton
           active={tool === 'brush'}
-          title={t('칠하기 (B)')}
+          title={t('ui.maskBrushShortcut')}
           onClick={() => setTool('brush')}
         >
           <Paintbrush size={17} />
         </ToolButton>
         <ToolButton
           active={tool === 'erase'}
-          title={t('지우기 (E)')}
+          title={t('ui.maskEraseShortcut')}
           onClick={() => setTool('erase')}
         >
           <Eraser size={17} />
         </ToolButton>
         <ToolButton
           active={false}
-          title={t('마스크 전체 채우기')}
+          title={t('ui.fillMask')}
           onClick={() => pushAction({ type: 'fill' })}
         >
           <PaintBucket size={17} />
         </ToolButton>
         <ToolButton
           active={tool === 'rectangle'}
-          title={t('사각 영역 마스크 (R)')}
+          title={t('ui.rectangleMaskShortcut')}
           onClick={() => setTool('rectangle')}
         >
           <Scan size={17} />
@@ -448,7 +451,7 @@ export function MaskWorkspace({
         <div className="mx-1 h-6 w-px shrink-0 bg-line" />
         <ToolButton
           active={brushShape === 'round'}
-          title={t('원형 붓')}
+          title={t('ui.roundBrush')}
           onClick={() => {
             setBrushShape('round')
             persist('inpaint_brush_shape', 'round')
@@ -458,7 +461,7 @@ export function MaskWorkspace({
         </ToolButton>
         <ToolButton
           active={brushShape === 'square'}
-          title={t('사각 붓')}
+          title={t('ui.squareBrush')}
           onClick={() => {
             setBrushShape('square')
             persist('inpaint_brush_shape', 'square')
@@ -500,18 +503,18 @@ export function MaskWorkspace({
         />
         <ToolButton
           active={false}
-          title={t('마스크 초기화')}
+          title={t('ui.clearMask')}
           onClick={() => pushAction({ type: 'clear' })}
         >
           <Trash2 size={17} />
         </ToolButton>
-        <ToolButton active={false} title={t('화면에 맞춤')} onClick={resetView}>
+        <ToolButton active={false} title={t('ui.inpaintFitToView')} onClick={resetView}>
           <Maximize2 size={16} />
         </ToolButton>
         <div className="mx-1 h-6 w-px shrink-0 bg-line" />
         <ToolButton
           active={false}
-          title={t('실행 취소 (Ctrl+Z)')}
+          title={t('ui.maskUndoShortcut')}
           disabled={!canUndo}
           onClick={undo}
         >
@@ -519,7 +522,7 @@ export function MaskWorkspace({
         </ToolButton>
         <ToolButton
           active={false}
-          title={t('다시 실행 (Ctrl+Shift+Z)')}
+          title={t('ui.maskRedoShortcut')}
           disabled={!canRedo}
           onClick={redo}
         >
@@ -527,7 +530,7 @@ export function MaskWorkspace({
         </ToolButton>
         <div className="mx-1 h-6 w-px shrink-0 bg-line" />
         <Button size="sm" variant="ghost" className="shrink-0 gap-1" onClick={onCancel}>
-          <X size={14} /> {t('취소')}
+          <X size={14} /> {t('ui.cancel')}
         </Button>
         <Button
           size="sm"
@@ -535,7 +538,7 @@ export function MaskWorkspace({
           className="shrink-0 gap-1"
           onClick={() => onConfirm(exportMask())}
         >
-          <Check size={14} /> {t('적용')}
+          <Check size={14} /> {t('ui.directorApply')}
         </Button>
       </div>
     </div>
@@ -569,7 +572,7 @@ function MaskDisplayPopover({
           size="icon"
           variant="ghost"
           className="relative shrink-0"
-          title={t('마스크 표시 설정')}
+          title={t('ui.maskDisplaySettings')}
         >
           <Palette size={17} />
           <span
@@ -580,7 +583,7 @@ function MaskDisplayPopover({
       </PopoverTrigger>
       <PopoverContent side="top" className="w-[330px] space-y-4 p-4">
         <div>
-          <p className="mb-2 text-[12px] font-medium text-muted">{t('마스크 색상')}</p>
+          <p className="mb-2 text-[12px] font-medium text-muted">{t('ui.maskColor')}</p>
           <div className="flex flex-wrap gap-2">
             {MASK_COLORS.map((item) => (
               <button
@@ -598,7 +601,7 @@ function MaskDisplayPopover({
         </div>
         <div>
           <div className="mb-2 flex items-center justify-between text-[12px]">
-            <span className="font-medium text-muted">{t('마스크 불투명도')}</span>
+            <span className="font-medium text-muted">{t('ui.maskOpacity')}</span>
             <span className="font-mono text-ink">{opacity}%</span>
           </div>
           <Slider
@@ -611,10 +614,10 @@ function MaskDisplayPopover({
         </div>
         <label className="flex items-center gap-2 text-[12px] font-medium text-muted">
           <Switch checked={border} onCheckedChange={onBorder} />
-          {t('마스크 테두리')}
+          {t('ui.maskBorder')}
         </label>
         <div>
-          <p className="mb-2 text-[12px] font-medium text-muted">{t('마스크 패턴')}</p>
+          <p className="mb-2 text-[12px] font-medium text-muted">{t('ui.maskPattern')}</p>
           <div className="flex gap-1.5">
             {MASK_PATTERNS.map((item) => (
               <button
@@ -762,15 +765,15 @@ function patternAt(pattern: MaskPattern, x: number, y: number): boolean {
   if (pattern === 'grid') return x % 10 < 2 || y % 10 < 2
   return (Math.floor(x / 8) + Math.floor(y / 8)) % 2 === 0
 }
-function patternLabel(pattern: MaskPattern): string {
+function patternLabel(pattern: MaskPattern): MessageId {
   return (
     {
-      solid: '단색',
-      diagonal: '사선',
-      crosshatch: '교차선',
-      dots: '점',
-      grid: '격자',
-      checker: '체커보드'
+      solid: 'ui.maskPatternSolid',
+      diagonal: 'ui.maskPatternDiagonal',
+      crosshatch: 'ui.maskPatternCrosshatch',
+      dots: 'ui.maskPatternDots',
+      grid: 'ui.maskPatternGrid',
+      checker: 'ui.maskPatternChecker'
     } as const
   )[pattern]
 }

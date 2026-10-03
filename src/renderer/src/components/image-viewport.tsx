@@ -30,14 +30,14 @@ export function ZoomControls({
         size="icon"
         variant="ghost"
         className="size-7 rounded-full"
-        title={t('축소')}
+        title={t('ui.zoomOut')}
         onClick={onZoomOut}
       >
         <Minus size={14} />
       </Button>
       <button
         className="min-w-12 rounded px-1 font-mono text-[11px] text-muted hover:text-ink"
-        title={t('화면에 맞춤')}
+        title={t('ui.inpaintFitToView')}
         onClick={onReset}
       >
         {label}
@@ -46,7 +46,7 @@ export function ZoomControls({
         size="icon"
         variant="ghost"
         className="size-7 rounded-full"
-        title={t('확대')}
+        title={t('ui.zoomIn')}
         onClick={onZoomIn}
       >
         <Plus size={14} />
@@ -55,7 +55,7 @@ export function ZoomControls({
         size="icon"
         variant="ghost"
         className="size-7 rounded-full"
-        title={t('화면에 맞춤')}
+        title={t('ui.inpaintFitToView')}
         onClick={onReset}
       >
         <Maximize2 size={13} />

@@ -61,6 +61,44 @@ describe('payload builder', () => {
     expect(p.parameters.negative_prompt).not.toMatch(/^nsfw, /)
   })
 
+  it('V5는 인용된 한글을 품질 태그 뒤의 Auto Text 블록으로 전달한다', () => {
+    const p = buildGenerateImagePayload({
+      ...baseRequest,
+      prompt: '간판에 "텍스트"',
+      model: 'nai-diffusion-5-curated',
+      qualityToggle: true
+    })
+    const expected = '간판에 "텍스트", very aesthetic, masterpiece, no text, teXt: 텍스트'
+    expect(p.input).toBe(expected)
+    expect(
+      (p.parameters.v4_prompt as { caption: { base_caption: string } }).caption.base_caption
+    ).toBe(expected)
+  })
+
+  it('V5 Auto Text는 활성 캐릭터 프롬프트의 인용문도 포함한다', () => {
+    const p = buildGenerateImagePayload({
+      ...baseRequest,
+      prompt: 'two people',
+      model: 'nai-diffusion-5-full',
+      qualityToggle: false,
+      characterPrompts: [
+        { prompt: 'saying "왼쪽"', negativePrompt: '', enabled: true },
+        { prompt: 'saying "제외"', negativePrompt: '', enabled: false },
+        { prompt: 'saying "오른쪽"', negativePrompt: '', enabled: true }
+      ]
+    })
+    expect(p.input).toBe('two people, teXt: 왼쪽\n\n오른쪽')
+  })
+
+  it('V4.5 프롬프트에는 V5 Auto Text 변환을 적용하지 않는다', () => {
+    const p = buildGenerateImagePayload({
+      ...baseRequest,
+      prompt: '간판에 "텍스트"',
+      qualityToggle: false
+    })
+    expect(p.input).toBe('간판에 "텍스트"')
+  })
+
   it('V5 투명 배경은 태그·straight alpha·서버 힌트를 함께 보낸다', () => {
     const p = buildGenerateImagePayload(
       { ...baseRequest, model: 'nai-diffusion-5-curated', qualityToggle: true },
@@ -228,6 +266,90 @@ describe('payload builder', () => {
     }
     expect(v4.caption.char_captions[0].centers[0]).toEqual({ x: 0.5, y: 0.5 })
   })
+
+  it('활성 캐릭터가 1명이면 위치 지정을 비활성화한다', () => {
+    const p = buildGenerateImagePayload({
+      ...baseRequest,
+      useCoords: true,
+      characterPrompts: [
+        { prompt: 'girl', negativePrompt: '', center: { x: 0.1, y: 0.9 }, enabled: true }
+      ]
+    })
+    const v4 = p.parameters.v4_prompt as {
+      caption: { char_captions: { centers: { x: number; y: number }[] }[] }
+      use_coords: boolean
+    }
+    expect(p.parameters.use_coords).toBe(false)
+    expect(v4.use_coords).toBe(false)
+    expect(v4.caption.char_captions[0].centers[0]).toEqual({ x: 0.5, y: 0.5 })
+  })
+
+  it('V5 자유 위치 좌표를 세 payload 표현에 동일하게 보낸다', () => {
+    const center = { x: 0.176, y: 0.21 }
+    const p = buildGenerateImagePayload({
+      ...baseRequest,
+      model: 'nai-diffusion-5-full',
+      useCoords: true,
+      characterPrompts: [
+        { prompt: 'girl', negativePrompt: 'hat', center, enabled: true },
+        {
+          prompt: 'boy',
+          negativePrompt: 'glasses',
+          center: { x: 0.824, y: 0.79 },
+          enabled: true
+        }
+      ]
+    })
+    const parameters = p.parameters as {
+      v4_prompt: { caption: { char_captions: { centers: { x: number; y: number }[] }[] } }
+      v4_negative_prompt: {
+        caption: { char_captions: { centers: { x: number; y: number }[] }[] }
+      }
+      characterPrompts: { center: { x: number; y: number } }[]
+    }
+    expect(parameters.v4_prompt.caption.char_captions[0].centers[0]).toEqual(center)
+    expect(parameters.v4_negative_prompt.caption.char_captions[0].centers[0]).toEqual(center)
+    expect(parameters.characterPrompts[0].center).toEqual(center)
+  })
+
+  it.each(['nai-diffusion-5-full', 'nai-diffusion-5-curated'])(
+    '%s orders Auto Text by precise positions only when positioning is enabled',
+    (model) => {
+      const characterPrompts = [
+        {
+          prompt: 'girl, "right"',
+          negativePrompt: '',
+          center: { x: 0.824, y: 0.21 },
+          enabled: true
+        },
+        { prompt: '# "ignored"', negativePrompt: '', center: { x: 0, y: 0 }, enabled: true },
+        { prompt: 'boy, "left"', negativePrompt: '', center: { x: 0.176, y: 0.21 }, enabled: true }
+      ]
+      for (const useCoords of [true, false]) {
+        const payload = buildGenerateImagePayload({
+          ...baseRequest,
+          model,
+          useCoords,
+          characterPrompts
+        })
+        expect(payload.input).toContain(useCoords ? 'teXt: left\n\nright' : 'teXt: right\n\nleft')
+        expect(payload.input).not.toContain('ignored')
+        expect(payload.parameters.v4_prompt).toMatchObject({
+          use_coords: useCoords,
+          caption: { base_caption: payload.input }
+        })
+      }
+      const single = buildGenerateImagePayload({
+        ...baseRequest,
+        model,
+        useCoords: true,
+        characterPrompts: characterPrompts.slice(0, 2)
+      })
+      expect(single.parameters.use_coords).toBe(false)
+      expect(single.parameters.characterPrompts).toMatchObject([{ center: { x: 0.5, y: 0.5 } }])
+      expect(single.input).toContain('teXt: right')
+    }
+  )
 
   it('퀄리티 태그는 프롬프트 뒤에 그대로 이어 붙는다 (실캡처: ",,"이 생겨도 그대로)', () => {
     const p = buildGenerateImagePayload({
