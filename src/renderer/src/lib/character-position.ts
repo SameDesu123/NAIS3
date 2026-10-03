@@ -1,0 +1,102 @@
+import { modelCapabilities } from '@shared/nai-models'
+import { removeComments } from '@shared/nai-presets'
+
+export interface NormalizedPosition {
+  x: number
+  y: number
+}
+
+export interface PositionRect {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value))
+
+/** NovelAI web stores free positions at 0.1% precision. */
+export function pointToNormalizedPosition(
+  clientX: number,
+  clientY: number,
+  rect: PositionRect
+): NormalizedPosition {
+  if (rect.width <= 0 || rect.height <= 0) return { x: 0.5, y: 0.5 }
+  return {
+    x: Math.round(clamp01((clientX - rect.left) / rect.width) * 1000) / 1000,
+    y: Math.round(clamp01((clientY - rect.top) / rect.height) * 1000) / 1000
+  }
+}
+
+export function positionPercent(value: number): string {
+  return `${(clamp01(value) * 100).toFixed(1)}%`
+}
+
+export function nudgePosition(
+  center: NormalizedPosition,
+  key: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown',
+  coarse = false
+): NormalizedPosition {
+  const delta = coarse ? 0.01 : 0.001
+  const xDelta = key === 'ArrowLeft' ? -delta : key === 'ArrowRight' ? delta : 0
+  const yDelta = key === 'ArrowUp' ? -delta : key === 'ArrowDown' ? delta : 0
+  return {
+    x: Math.round(clamp01(center.x + xDelta) * 1000) / 1000,
+    y: Math.round(clamp01(center.y + yDelta) * 1000) / 1000
+  }
+}
+
+export const DEFAULT_CHARACTER_CENTER: NormalizedPosition = { x: 0.5, y: 0.5 }
+
+const isDefaultCenter = ({ x, y }: NormalizedPosition): boolean =>
+  x === DEFAULT_CHARACTER_CENTER.x && y === DEFAULT_CHARACTER_CENTER.y
+
+/**
+ * New cards all start at the image center, so their markers stack into one.
+ * Spread every character still on that default evenly across the width;
+ * positions the user already moved are left alone.
+ */
+export function spreadDefaultPositions<T extends { id: number; center: NormalizedPosition }>(
+  characters: T[]
+): { id: number; center: NormalizedPosition }[] {
+  const stacked = characters.filter((character) => isDefaultCenter(character.center))
+  if (stacked.length < 2) return []
+  return stacked.map((character, index) => ({
+    id: character.id,
+    center: { x: Math.round(((index + 1) / (stacked.length + 1)) * 1000) / 1000, y: 0.5 }
+  }))
+}
+
+/** Limit placement controls to nonempty prompts within the selected model's capacity. */
+export function getPositionableCharacters<T extends { enabled: boolean; prompt: string }>(
+  characters: T[],
+  model: string
+): T[] {
+  return characters
+    .filter((character) => character.enabled && removeComments(character.prompt).trim())
+    .slice(0, modelCapabilities(model).maxCharacters)
+}
+
+export type GuideMode = 'none' | 'thirds' | 'phi' | 'grid'
+
+export interface PositionGuideSettings {
+  mode: GuideMode
+  columns: number
+  rows: number
+}
+
+export const DEFAULT_POSITION_GUIDES: PositionGuideSettings = { mode: 'none', columns: 3, rows: 3 }
+
+const divisions = (count: number): number[] =>
+  Array.from({ length: count - 1 }, (_, index) => ((index + 1) / count) * 100)
+
+export function guideStops({ mode, columns, rows }: PositionGuideSettings): [number[], number[]] {
+  if (mode === 'thirds') return [divisions(3), divisions(3)]
+  if (mode === 'phi')
+    return [
+      [38.2, 61.8],
+      [38.2, 61.8]
+    ]
+  if (mode === 'grid') return [divisions(columns), divisions(rows)]
+  return [[], []]
+}
