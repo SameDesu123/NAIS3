@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getDb: vi.fn(),
-  imagesRoot: vi.fn(),
+  libraryRoot: vi.fn(),
   getSetting: vi.fn()
 }))
 
@@ -20,7 +20,7 @@ vi.mock('../src/main/db/settings', () => ({
       .run(key, value)
   }
 }))
-vi.mock('../src/main/images/storage', () => ({ imagesRoot: mocks.imagesRoot }))
+vi.mock('../src/main/images/storage', () => ({ libraryRoot: mocks.libraryRoot }))
 
 import { restoreBackupDatabase } from '../src/main/backup/repo'
 import type { BackupDatabaseV1 } from '../src/main/backup/types'
@@ -87,7 +87,7 @@ beforeEach(() => {
   `)
   imageRoot = mkdtempSync(join(tmpdir(), 'nais-backup-restore-'))
   mocks.getDb.mockReturnValue(db)
-  mocks.imagesRoot.mockReturnValue(imageRoot)
+  mocks.libraryRoot.mockReturnValue(imageRoot)
   mocks.getSetting.mockReturnValue(null)
 })
 

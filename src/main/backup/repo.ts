@@ -13,7 +13,7 @@ import {
 } from './types'
 import { getDb } from '../db'
 import { getSetting, setSetting } from '../db/settings'
-import { imagesRoot } from '../images/storage'
+import { libraryRoot } from '../images/storage'
 
 const FILE_BACKED_TABLES = new Set<BackupTableName>([
   'vibe_images',
@@ -163,7 +163,7 @@ export function restoreBackupDatabase(database: BackupDatabaseV1): { imported: n
   const fileMap = new Map(
     database.files.map((file) => [`${file.table}:${file.rowId}:${file.column}`, file])
   )
-  const importRoot = join(imagesRoot(), '_imported', randomUUID())
+  const importRoot = join(libraryRoot(), '_imported', randomUUID())
   let wroteFiles = false
 
   try {
