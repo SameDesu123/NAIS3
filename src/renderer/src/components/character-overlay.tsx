@@ -18,12 +18,21 @@ import { createPortal } from 'react-dom'
 import type { CharacterCard } from '@shared/types'
 import { canEnableAnotherCharacter, isV5Model, modelCapabilities } from '@shared/nai-models'
 import { cn } from '../lib/utils'
+import { useT } from '../lib/i18n'
 import { applyClickSelection, useSelectAllShortcut } from '../lib/edit-selection'
 import { buildDisplayRows } from '../lib/folder-list'
+import {
+  DEFAULT_POSITION_GUIDES,
+  getPositionableCharacters,
+  positionPercent,
+  type PositionGuideSettings
+} from '../lib/character-position'
 import { useCharactersStore } from '../stores/characters-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { askConfirm, askText } from '../stores/dialog-store'
+import { toast } from '../stores/toast-store'
 import { FolderListView } from './folder-list-view'
+import { CharacterPositionEditor, CharacterPositionPanel } from './character-position-editor'
 import { PromptEditor } from './prompt-editor'
 import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Button } from './ui/button'
@@ -32,10 +41,10 @@ import { Input } from './ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { Switch } from './ui/switch'
 
-/** NAI 웹의 5×5 수동 배치 그리드 (실캡처: 0.1~0.9) */
+/** V4/V4.5 웹의 5×5 수동 배치 그리드 (실캡처: 0.1~0.9). V5는 자유 배치 편집기를 쓴다. */
 const GRID = [0.1, 0.3, 0.5, 0.7, 0.9]
 
-function PositionPicker({
+function LegacyPositionPicker({
   center,
   onPick
 }: {
@@ -62,6 +71,7 @@ function PositionPicker({
 }
 
 export function CharacterOverlay(): React.JSX.Element {
+  const t = useT()
   const setOverlayOpen = useCharactersStore((s) => s.setOverlayOpen)
   const folders = useCharactersStore((s) => s.folders)
   const items = useCharactersStore((s) => s.items)
@@ -80,11 +90,17 @@ export function CharacterOverlay(): React.JSX.Element {
   const move = useCharactersStore((s) => s.move)
   const useCoords = useGenerationStore((s) => s.request.useCoords)
   const model = useGenerationStore((s) => s.request.model)
+  const outputWidth = useGenerationStore((s) => s.request.width)
+  const outputHeight = useGenerationStore((s) => s.request.height)
   const patch = useGenerationStore((s) => s.patchRequest)
   const maxCharacters = modelCapabilities(model).maxCharacters
+  const v5 = isV5Model(model)
 
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [positionEditorOpen, setPositionEditorOpen] = useState(false)
+  const [positionGuides, setPositionGuides] =
+    useState<PositionGuideSettings>(DEFAULT_POSITION_GUIDES)
   // 편집 모드 — 다중 선택 (일반 클릭=교체, Ctrl=토글, Shift=구간, Ctrl+A=전체)
   const [editMode, setEditMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -128,6 +144,26 @@ export function CharacterOverlay(): React.JSX.Element {
   }, [folders, items, searching, search])
 
   const enabledCount = items.filter((c) => c.enabled && c.prompt.trim()).length
+  const positionableCharacters = useMemo(
+    () => getPositionableCharacters(items, model),
+    [items, model]
+  )
+  const canPositionCharacters = positionableCharacters.length >= 2
+  const positioningEnabled = useCoords && canPositionCharacters
+  const openPositionEditor = (): void => {
+    if (!canPositionCharacters) return
+    patch({ useCoords: true })
+    setPositionEditorOpen(true)
+  }
+  const positionCharacter = (id: number, center: { x: number; y: number }): void =>
+    updateCard(id, { center })
+  const setPositioning = (enabled: boolean): void => {
+    if (!canPositionCharacters) {
+      toast(t('ui.positioningNeedsTwoPromptedCharactersValue', positionableCharacters.length))
+      return
+    }
+    patch({ useCoords: enabled })
+  }
 
   // 화면에 보이는 순서의 카드 id들 (Shift 구간/Ctrl+A 기준)
   const visibleIds = useMemo(
@@ -140,9 +176,9 @@ export function CharacterOverlay(): React.JSX.Element {
 
   const bulkDelete = async (): Promise<void> => {
     if (
-      !(await askConfirm('선택 삭제', {
-        message: `선택한 캐릭터 ${selected.size}개를 삭제합니다.`,
-        confirmLabel: '삭제',
+      !(await askConfirm(t('ui.deleteSelected'), {
+        message: t('ui.deletesValueSelectedCharacters', selected.size),
+        confirmLabel: t('ui.delete'),
         danger: true
       }))
     )
@@ -209,7 +245,9 @@ export function CharacterOverlay(): React.JSX.Element {
           </span>
         )}
         <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
-          {char.name || char.prompt.slice(0, 40) || <span className="text-faint">빈 캐릭터</span>}
+          {char.name || char.prompt.slice(0, 40) || (
+            <span className="text-faint">{t('ui.emptyCharacter')}</span>
+          )}
         </span>
       </div>
     )
@@ -242,12 +280,14 @@ export function CharacterOverlay(): React.JSX.Element {
       )}
       <button
         className="min-w-0 flex-1 truncate text-left text-[13px] text-ink"
-        title="눌러서 수정"
+        title={t('ui.clickToEdit')}
         onClick={() => setExpandedId((prev) => (prev === char.id ? null : char.id))}
       >
-        {char.name || char.prompt.slice(0, 40) || <span className="text-faint">빈 캐릭터</span>}
+        {char.name || char.prompt.slice(0, 40) || (
+          <span className="text-faint">{t('ui.emptyCharacter')}</span>
+        )}
       </button>
-      {useCoords && char.enabled && (
+      {positioningEnabled && positionableCharacters.some((c) => c.id === char.id) && !v5 && (
         <Popover>
           <PopoverTrigger asChild>
             <Button size="sm" variant="ghost" className="h-7 gap-1 px-1.5 font-mono text-[11px]">
@@ -256,12 +296,24 @@ export function CharacterOverlay(): React.JSX.Element {
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto">
-            <PositionPicker
+            <LegacyPositionPicker
               center={char.center}
               onPick={(c) => updateCard(char.id, { center: c })}
             />
           </PopoverContent>
         </Popover>
+      )}
+      {positioningEnabled && positionableCharacters.some((c) => c.id === char.id) && v5 && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 gap-1 px-1.5 font-mono text-[11px]"
+          title={t('ui.v5FreePositionEditor')}
+          onClick={openPositionEditor}
+        >
+          <Crosshair size={13} />
+          {positionPercent(char.center.x)}, {positionPercent(char.center.y)}
+        </Button>
       )}
     </div>
   )
@@ -272,7 +324,7 @@ export function CharacterOverlay(): React.JSX.Element {
         <Input
           className="h-8 flex-1 bg-surface-2 text-[12.5px]"
           value={char.name}
-          placeholder="이름"
+          placeholder={t('ui.name')}
           onChange={(e) => updateCard(char.id, { name: e.target.value })}
         />
         {/* F12: 썸네일이 있으면 "이미지 제거"로 (옆의 캐릭터 삭제와 구분되게 이미지 아이콘 명시) */}
@@ -281,10 +333,10 @@ export function CharacterOverlay(): React.JSX.Element {
             size="sm"
             variant="ghost"
             className="h-8 gap-1 px-2 text-[12px] hover:text-danger"
-            title="캐릭터 썸네일 제거"
+            title={t('ui.removeCharacterThumbnail')}
             onClick={() => void clearThumbnail(char.id)}
           >
-            <ImageOff size={14} /> 제거
+            <ImageOff size={14} /> {t('ui.remove')}
           </Button>
         ) : (
           <Button
@@ -293,14 +345,14 @@ export function CharacterOverlay(): React.JSX.Element {
             className="h-8 gap-1 px-2 text-[12px]"
             onClick={() => void pickThumbnail(char.id)}
           >
-            <ImagePlus size={14} /> 이미지
+            <ImagePlus size={14} /> {t('ui.image')}
           </Button>
         )}
         <Button
           size="sm"
           variant="ghost"
           className="h-8 w-8 p-0 hover:text-danger"
-          title="캐릭터 삭제"
+          title={t('ui.deleteCharacter')}
           onClick={() => removeCard(char.id)}
         >
           <Trash2 size={14} />
@@ -317,7 +369,7 @@ export function CharacterOverlay(): React.JSX.Element {
         negative
         className="h-24 max-h-96 min-h-14 resize-y bg-surface-2"
         value={char.negativePrompt}
-        placeholder="캐릭터 네거티브"
+        placeholder={t('ui.characterNegative')}
         onValueChange={(v) => updateCard(char.id, { negativePrompt: v })}
       />
     </div>
@@ -330,12 +382,12 @@ export function CharacterOverlay(): React.JSX.Element {
           size="icon"
           variant="ghost"
           className="h-7 w-7"
-          title="닫기"
+          title={t('ui.close')}
           onClick={() => setOverlayOpen(false)}
         >
           <X size={15} />
         </Button>
-        <span className="text-[13px] font-medium">캐릭터</span>
+        <span className="text-[13px] font-medium">{t('ui.character')}</span>
         {enabledCount > 0 && (
           <span
             className={cn(
@@ -344,7 +396,7 @@ export function CharacterOverlay(): React.JSX.Element {
                 ? 'bg-danger/15 text-danger'
                 : 'bg-accent-soft text-accent'
             )}
-            title={`활성 캐릭터 ${enabledCount}/${maxCharacters}`}
+            title={t('ui.activeCharactersValueValue', enabledCount, maxCharacters)}
           >
             {enabledCount}/{maxCharacters}
           </span>
@@ -354,10 +406,10 @@ export function CharacterOverlay(): React.JSX.Element {
             size="sm"
             variant="ghost"
             className="h-6 px-2 text-[11px]"
-            title="활성 캐릭터 전체 해제"
+            title={t('ui.disableAllActiveCharacters')}
             onClick={disableAll}
           >
-            전체 해제
+            {t('ui.disableAll')}
           </Button>
         )}
         {!isV5Model(model) && charTokens !== null && (
@@ -366,7 +418,7 @@ export function CharacterOverlay(): React.JSX.Element {
               'font-mono text-[10.5px]',
               charTokens > 512 ? 'text-danger' : 'text-faint'
             )}
-            title="기본 프롬프트 + 캐릭터 프롬프트 합산 (512 토큰 공유)"
+            title={t('ui.basePromptCharacterPromptsCombinedShared512Tokens')}
           >
             {charTokens}/512
           </span>
@@ -374,12 +426,33 @@ export function CharacterOverlay(): React.JSX.Element {
         <div className="flex-1" />
         <label
           className="flex items-center gap-1.5 text-[11.5px] text-muted"
-          title="끄면 AI's Choice (NAI가 위치 결정)"
+          title={
+            canPositionCharacters
+              ? t('ui.offAiSChoiceNaiDecidesPositions')
+              : t('ui.positioningRequiresTwoCharacters')
+          }
         >
-          위치 지정
-          <Switch checked={useCoords} onCheckedChange={(v) => patch({ useCoords: v })} />
+          {t('ui.setPositions')}
+          <Switch
+            aria-label={t('ui.setPositions')}
+            aria-disabled={!canPositionCharacters}
+            className={cn(!canPositionCharacters && 'cursor-not-allowed opacity-50')}
+            checked={positioningEnabled}
+            onCheckedChange={setPositioning}
+          />
         </label>
       </div>
+
+      {v5 && positioningEnabled && (
+        <CharacterPositionPanel
+          characters={positionableCharacters}
+          width={outputWidth}
+          height={outputHeight}
+          guides={positionGuides}
+          onPosition={positionCharacter}
+          onExpand={openPositionEditor}
+        />
+      )}
 
       <div className="flex items-center gap-1.5">
         <div className="relative flex-1">
@@ -387,22 +460,22 @@ export function CharacterOverlay(): React.JSX.Element {
           <Input
             className="pl-7"
             value={search}
-            placeholder="이름·프롬프트 검색"
+            placeholder={t('ui.searchNameOrPrompt')}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Button
           size="sm"
           variant="ghost"
-          title="폴더 추가"
-          onClick={() => void createFolder('새 폴더')}
+          title={t('ui.addFolder')}
+          onClick={() => void createFolder(t('ui.newFolder'))}
         >
           <FolderPlus size={14} />
         </Button>
         <Button
           size="sm"
           variant={editMode ? 'accent' : 'ghost'}
-          title="편집 모드 (다중 선택 — 클릭 토글, Shift+클릭 구간, Ctrl+A 전체)"
+          title={t('ui.editModeMultiSelectClickToToggleShiftClickForRangeCtrlAForAll')}
           onClick={toggleEditMode}
         >
           <CheckSquare size={14} />
@@ -413,16 +486,16 @@ export function CharacterOverlay(): React.JSX.Element {
           className="gap-1"
           onClick={() => void createCard(null, maxCharacters)}
         >
-          <Plus size={13} /> 캐릭터
+          <Plus size={13} /> {t('ui.character')}
         </Button>
       </div>
 
       {/* 편집 모드 일괄 작업 바 — 검색 아래 */}
       {editMode && (
         <div className="flex flex-wrap items-center gap-1 border-b border-line pb-2 text-[12px]">
-          <span className="text-muted">{selected.size}개</span>
+          <span className="text-muted">{t('ui.valueItems', selected.size)}</span>
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set(visibleIds))}>
-            전체
+            {t('ui.all')}
           </Button>
           <Button
             size="sm"
@@ -430,7 +503,7 @@ export function CharacterOverlay(): React.JSX.Element {
             disabled={selected.size === 0}
             onClick={() => setSelected(new Set())}
           >
-            해제
+            {t('ui.clear')}
           </Button>
           <div className="flex-1" />
           <Button
@@ -440,7 +513,7 @@ export function CharacterOverlay(): React.JSX.Element {
             disabled={selected.size === 0}
             onClick={() => void bulkDuplicate()}
           >
-            <Copy size={12} /> 복제
+            <Copy size={12} /> {t('ui.duplicate')}
           </Button>
           <Button
             size="sm"
@@ -449,7 +522,7 @@ export function CharacterOverlay(): React.JSX.Element {
             disabled={selected.size === 0}
             onClick={() => setBulkPromptOpen(true)}
           >
-            <TextCursorInput size={12} /> 프롬프트 주입
+            <TextCursorInput size={12} /> {t('ui.injectPrompt')}
           </Button>
           <Button
             size="sm"
@@ -458,7 +531,7 @@ export function CharacterOverlay(): React.JSX.Element {
             disabled={selected.size === 0}
             onClick={() => void bulkDelete()}
           >
-            <Trash2 size={12} /> 삭제
+            <Trash2 size={12} /> {t('ui.delete')}
           </Button>
         </div>
       )}
@@ -469,7 +542,11 @@ export function CharacterOverlay(): React.JSX.Element {
           searching={searching}
           expandedId={editMode ? null : expandedId}
           // 헤더가 item 밖 상태(좌표 토글/편집 선택)에 의존 — 바뀌면 카드 리렌더
-          renderKey={editMode ? selected : useCoords}
+          renderKey={
+            editMode
+              ? selected
+              : `${model}:${positioningEnabled}:${positionableCharacters.map((c) => c.id).join(',')}`
+          }
           folderActions={{
             rename: renameFolder,
             toggleCollapse,
@@ -492,22 +569,24 @@ export function CharacterOverlay(): React.JSX.Element {
             <>
               <ContextMenuItem
                 onSelect={async () => {
-                  const name = await askText('이름 변경', char.name)
+                  const name = await askText(t('ui.rename'), char.name)
                   if (name != null) updateCard(char.id, { name })
                 }}
               >
-                <Pencil size={13} /> 이름 변경
+                <Pencil size={13} /> {t('ui.rename')}
               </ContextMenuItem>
               <ContextMenuItem onSelect={() => void duplicateCard(char.id)}>
-                <Copy size={13} /> 복제
+                <Copy size={13} /> {t('ui.duplicate')}
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem danger onSelect={() => removeCard(char.id)}>
-                <Trash2 size={13} /> 삭제
+                <Trash2 size={13} /> {t('ui.delete')}
               </ContextMenuItem>
             </>
           )}
-          emptyText={items.length === 0 ? '캐릭터를 추가해보세요' : '검색 결과 없음'}
+          emptyText={
+            items.length === 0 ? t('ui.addACharacterToGetStarted') : t('ui.noSearchResults')
+          }
         />
       </div>
 
@@ -540,6 +619,19 @@ export function CharacterOverlay(): React.JSX.Element {
           />,
           document.body
         )}
+
+      {v5 && (
+        <CharacterPositionEditor
+          open={positionEditorOpen && canPositionCharacters}
+          characters={positionableCharacters}
+          width={outputWidth}
+          height={outputHeight}
+          guides={positionGuides}
+          onGuidesChange={setPositionGuides}
+          onPosition={positionCharacter}
+          onClose={() => setPositionEditorOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -562,47 +654,48 @@ function BulkPromptDialog({
   onApply: (positive: string, negative: string) => void
   onClose: () => void
 }): React.JSX.Element {
+  const t = useT()
   const [positive, setPositive] = useState('')
   const [negative, setNegative] = useState('')
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md p-4">
-        <DialogTitle className="mb-1">프롬프트 일괄 주입</DialogTitle>
+        <DialogTitle className="mb-1">{t('ui.bulkPromptInjection')}</DialogTitle>
         <p className="mb-3 text-[12px] text-muted">
-          선택한 캐릭터 {count}개의 프롬프트 하단(새 줄)에 이어붙입니다. 빈 칸은 건너뜁니다.
+          {t('ui.appendsToTheBottomNewLineOfThePromptsOfValueSelectedCharactersEm89cacee', count)}
         </p>
         <div className="flex flex-col gap-2">
           <div>
-            <p className="mb-1 text-[11.5px] text-muted">포지티브에 추가</p>
+            <p className="mb-1 text-[11.5px] text-muted">{t('ui.addToPositive')}</p>
             <PromptEditor
               className="h-24 min-h-16 resize-y bg-surface-2"
               value={positive}
               tokensOverride={null}
-              placeholder="예: smile, looking at viewer"
+              placeholder={t('ui.eGSmileLookingAtViewer')}
               onValueChange={setPositive}
             />
           </div>
           <div>
-            <p className="mb-1 text-[11.5px] text-muted">네거티브에 추가</p>
+            <p className="mb-1 text-[11.5px] text-muted">{t('ui.addToNegative')}</p>
             <PromptEditor
               className="h-20 min-h-16 resize-y bg-surface-2"
               value={negative}
               tokensOverride={null}
-              placeholder="(선택)"
+              placeholder={t('ui.optional')}
               onValueChange={setNegative}
             />
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            취소
+            {t('ui.cancel')}
           </Button>
           <Button
             variant="accent"
             disabled={!positive.trim() && !negative.trim()}
             onClick={() => onApply(positive, negative)}
           >
-            적용
+            {t('ui.apply')}
           </Button>
         </div>
       </DialogContent>

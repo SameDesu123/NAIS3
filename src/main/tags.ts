@@ -3,9 +3,9 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 
 /**
- * 단부루 태그 자동완성 데이터 (resources/tags.json, ~30만 개).
+ * 단부루 태그 자동완성 데이터 (resources/tags.json, 게시물 10건 이상).
  * NAIS2는 이걸 렌더러 번들에 넣었지만, NAIS3는 메인에서 lazy 로드 + IPC 검색으로 서빙
- * — 렌더러 메모리/번들에 28MB를 싣지 않는다.
+ * — 렌더러 메모리/번들에 대용량 데이터를 싣지 않는다.
  */
 
 export interface TagEntry {

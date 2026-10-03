@@ -12,12 +12,14 @@ interface LayoutState {
   sidebarWidth: number
   /** 상단 탭에서 숨긴 페이지 (메인은 숨길 수 없음) */
   hiddenPages: CenterMode[]
+  quickGenerationControlsEnabled: boolean
   toggleLeft: () => void
   toggleRight: () => void
   setSettingsOpen: (open: boolean) => void
   setCenterMode: (mode: CenterMode) => void
   setSidebarWidth: (w: number) => void
   setPageHidden: (page: CenterMode, hidden: boolean) => void
+  setQuickGenerationControlsEnabled: (enabled: boolean) => void
   hydrate: () => Promise<void>
 }
 
@@ -43,6 +45,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     localStorage.setItem('sidebar_width', String(clamped))
   },
   hiddenPages: [],
+  quickGenerationControlsEnabled: false,
+  setQuickGenerationControlsEnabled: (quickGenerationControlsEnabled) => {
+    set({ quickGenerationControlsEnabled })
+    persist('ui_quick_generation_controls', quickGenerationControlsEnabled)
+  },
   setCenterMode: (centerMode) => {
     if (centerMode !== get().centerMode) recordNav() // 마우스 뒤로/앞으로용 히스토리
     set({ centerMode })
@@ -72,10 +79,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   },
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   hydrate: async () => {
-    const [left, right, hidden] = await Promise.all([
+    const [left, right, hidden, quickGenerationControls] = await Promise.all([
       window.nais.invoke('settings:get', { key: 'ui_left_open' }),
       window.nais.invoke('settings:get', { key: 'ui_right_open' }),
-      window.nais.invoke('settings:get', { key: 'ui_hidden_pages' })
+      window.nais.invoke('settings:get', { key: 'ui_hidden_pages' }),
+      window.nais.invoke('settings:get', { key: 'ui_quick_generation_controls' })
     ])
     let hiddenPages: CenterMode[] = []
     try {
@@ -83,6 +91,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     } catch {
       // 손상된 값은 무시
     }
-    set({ leftOpen: left.value !== '0', rightOpen: right.value !== '0', hiddenPages })
+    set({
+      leftOpen: left.value !== '0',
+      rightOpen: right.value !== '0',
+      hiddenPages,
+      quickGenerationControlsEnabled: quickGenerationControls.value === '1'
+    })
   }
 }))

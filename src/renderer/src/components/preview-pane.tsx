@@ -5,10 +5,12 @@ import { useGenerationStore } from '../stores/generation-store'
 import { useMetadataStore } from '../stores/metadata-store'
 import { cn } from '../lib/utils'
 import { isLeavingDropZone, useDragEndCleanup } from '../lib/drop-zone'
+import { useT } from '../lib/i18n'
 import { DropOverlay } from './drop-overlay'
 import { ImageContextMenu } from './image-context-menu'
 
 export function PreviewPane(): React.JSX.Element {
+  const t = useT()
   const previewPng = useGenerationStore((s) => s.previewPng)
   const progress = useGenerationStore((s) => s.progress)
   const viewingFilePath = useGenerationStore((s) => s.viewingFilePath)
@@ -45,11 +47,10 @@ export function PreviewPane(): React.JSX.Element {
     setInfo(null)
     if (!viewingFilePath) return
     let alive = true
-    void window.nais
-      .invoke('images:readMetadata', { filePath: viewingFilePath })
-      .then((r) => {
-        if (alive && 'meta' in r) setInfo({ width: r.meta.width, height: r.meta.height, seed: r.meta.seed })
-      })
+    void window.nais.invoke('images:readMetadata', { filePath: viewingFilePath }).then((r) => {
+      if (alive && 'meta' in r)
+        setInfo({ width: r.meta.width, height: r.meta.height, seed: r.meta.seed })
+    })
     return () => {
       alive = false
     }
@@ -115,31 +116,40 @@ export function PreviewPane(): React.JSX.Element {
             />
           </ImageContextMenu>
         ) : (
-          <img src={src} className="h-full w-full rounded-md object-contain" draggable={false} alt="" />
+          <img
+            src={src}
+            className="h-full w-full rounded-md object-contain"
+            draggable={false}
+            alt=""
+          />
         )
       ) : generating ? (
         <div className="flex flex-col items-center gap-3 text-muted">
           <Loader2 size={38} className="animate-spin text-accent" strokeWidth={2} />
-          <span className="text-[13px]">생성 준비 중…</span>
+          <span className="text-[13px]">{t('ui.preparingToGenerate')}</span>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-2 text-faint">
           <ImageIcon size={40} strokeWidth={1.2} />
-          <span className="text-[13px]">생성된 이미지가 여기 표시됩니다</span>
+          <span className="text-[13px]">{t('ui.generatedImagesWillAppearHere')}</span>
         </div>
       )}
 
-      {generating && !viewingFilePath && (
+      {/* A batch retains the previous result path; only a user-pinned view hides progress. */}
+      {generating && !viewPinned && (
         <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2.5 rounded-full border border-line bg-paper/85 px-4 py-1.5 backdrop-blur">
           {preparing ? (
             <Loader2 size={14} className="animate-spin text-accent" />
           ) : (
             <div className="h-1.5 w-36 overflow-hidden rounded-full bg-surface-2">
-              <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} />
+              <div
+                className="h-full rounded-full bg-accent transition-all"
+                style={{ width: `${pct}%` }}
+              />
             </div>
           )}
           <span className="font-mono text-[11px] text-muted">
-            {preparing ? '준비 중' : `${progress?.stepIx}/${progress?.totalSteps}`}
+            {preparing ? t('ui.preparing') : `${progress?.stepIx}/${progress?.totalSteps}`}
           </span>
           <Eta startAt={genStartAt} avgMs={avgDurationMs} />
         </div>
@@ -161,8 +171,8 @@ export function PreviewPane(): React.JSX.Element {
               )}
               title={
                 seedLocked && requestSeed === info.seed
-                  ? '시드 고정됨 — 클릭하면 해제'
-                  : '클릭하면 이 시드로 고정'
+                  ? t('ui.seedLockedClickToUnlock')
+                  : t('ui.clickToLockThisSeed')
               }
               onClick={() => {
                 if (seedLocked && requestSeed === info.seed) {
@@ -173,7 +183,11 @@ export function PreviewPane(): React.JSX.Element {
                 }
               }}
             >
-              {seedLocked && requestSeed === info.seed ? <Lock size={11} /> : <LockOpen size={11} />}
+              {seedLocked && requestSeed === info.seed ? (
+                <Lock size={11} />
+              ) : (
+                <LockOpen size={11} />
+              )}
               {info.seed}
             </button>
           )}
@@ -183,15 +197,22 @@ export function PreviewPane(): React.JSX.Element {
       <DropOverlay
         show={dragOver}
         icon={ImageIcon}
-        label="여기 놓으면 메타데이터를 불러옵니다"
-        sub="프롬프트·설정을 확인하고 선택 적용"
+        label={t('ui.dropHereToLoadMetadata')}
+        sub={t('ui.reviewPromptSettingsAndApplySelectively')}
       />
     </div>
   )
 }
 
 /** 이전 기록 기반 남은 시간 표시 (매초 갱신) */
-function Eta({ startAt, avgMs }: { startAt: number | null; avgMs: number | null }): React.JSX.Element | null {
+function Eta({
+  startAt,
+  avgMs
+}: {
+  startAt: number | null
+  avgMs: number | null
+}): React.JSX.Element | null {
+  const t = useT()
   const [, tick] = useState(0)
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 500)
@@ -202,7 +223,7 @@ function Eta({ startAt, avgMs }: { startAt: number | null; avgMs: number | null 
   const sec = Math.ceil(remaining / 1000)
   return (
     <span className="border-l border-line pl-2.5 font-mono text-[11px] text-faint">
-      {sec > 0 ? `~${sec}초` : '곧 완료'}
+      {sec > 0 ? t('ui.valueS', sec) : t('ui.almostDone')}
     </span>
   )
 }

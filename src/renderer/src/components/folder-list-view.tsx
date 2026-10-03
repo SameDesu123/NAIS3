@@ -18,9 +18,16 @@ import { ChevronDown, ChevronRight, Palette, Pencil, Plus, Trash2, X } from 'luc
 import { AnimatePresence, motion } from 'motion/react'
 import { memo, useState, type CSSProperties } from 'react'
 import { FOLDER_COLORS, type ListFolder } from '@shared/types'
+import { useT } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { DIVIDER_KEY, rowKey, type DisplayRow, type FolderListItem } from '../lib/folder-list'
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from './ui/context-menu'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -55,6 +62,9 @@ function dndStyle(sortable: ReturnType<typeof useSortable>, grid: boolean): CSSP
   }
 }
 
+// dnd-kit supplies callback refs and render-time state through useSortable.
+// react-hooks/refs currently treats that entire return object as a ref.
+/* eslint-disable react-hooks/refs */
 /** 그리드 모드 아이템 타일 (이미지 중심 레퍼런스용) */
 function GridItem({
   id,
@@ -71,8 +81,8 @@ function GridItem({
       ref={sortable.setNodeRef}
       style={dndStyle(sortable, true)}
       className={cn('touch-none', sortable.isDragging && 'z-20 opacity-70')}
-      {...sortable.attributes}
-      {...sortable.listeners}
+      {...(disabled ? {} : sortable.attributes)}
+      {...(disabled ? {} : sortable.listeners)}
     >
       {children}
     </div>
@@ -96,6 +106,7 @@ function FolderRowInner({
   count: number
   searching: boolean
 }): React.JSX.Element {
+  const t = useT()
   const [editing, setEditing] = useState(false)
   const sortable = useSortable({ id: `f-${folder.id}`, disabled: searching || editing })
 
@@ -106,130 +117,137 @@ function FolderRowInner({
 
   return (
     <ContextMenu>
-    <ContextMenuTrigger asChild>
-    <div
-      ref={sortable.setNodeRef}
-      style={{ ...dndStyle(sortable, false), ...tintStyle }}
-      className={cn(
-        'group flex h-10 items-center gap-1.5 rounded-lg px-1.5',
-        !folder.color && 'bg-surface-2',
-        sortable.isDragging && 'relative z-20 opacity-75'
-      )}
-      {...sortable.attributes}
-      {...sortable.listeners}
-    >
-      <button className="text-muted" onClick={() => actions.toggleCollapse(folder.id)}>
-        {folder.collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
-      </button>
-      {editing ? (
-        <Input
-          autoFocus
-          className="h-7 w-0 flex-1 text-[13px]"
-          defaultValue={folder.name}
-          onPointerDown={(e) => e.stopPropagation()}
-          onBlur={(e) => {
-            if (e.target.value.trim()) actions.rename(folder.id, e.target.value.trim())
-            setEditing(false)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur()
-            if (e.key === 'Escape') setEditing(false)
-          }}
-        />
-      ) : (
-        // 이름 클릭 = 접기/펼치기 (이름 변경은 연필 버튼/우클릭으로만)
-        <button
-          className="min-w-0 flex-1 truncate text-left text-[13px] font-medium text-ink"
-          onClick={() => actions.toggleCollapse(folder.id)}
+      <ContextMenuTrigger asChild>
+        <div
+          ref={sortable.setNodeRef}
+          style={{ ...dndStyle(sortable, false), ...tintStyle }}
+          className={cn(
+            'group flex h-10 items-center gap-1.5 rounded-lg px-1.5',
+            !folder.color && 'bg-surface-2',
+            sortable.isDragging && 'relative z-20 opacity-75'
+          )}
+          {...(searching || editing ? {} : sortable.attributes)}
+          {...(searching || editing ? {} : sortable.listeners)}
         >
-          {folder.name}
-          <span className="ml-1.5 font-mono text-[10.5px] font-normal text-faint">{count}</span>
-        </button>
-      )}
-      {/* opacity로 숨김(display 아님) — 팝오버 열 때 트리거가 언마운트돼 앵커를 잃는 문제 방지 */}
-      <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 w-7 p-0"
-          title="이 폴더에 추가"
-          onClick={() => actions.addItem(folder.id)}
-        >
-          <Plus size={14} />
-        </Button>
-        <Popover>
-          <PopoverTrigger asChild>
+          <button className="text-muted" onClick={() => actions.toggleCollapse(folder.id)}>
+            {folder.collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+          </button>
+          {editing ? (
+            <Input
+              autoFocus
+              className="h-7 w-0 flex-1 text-[13px]"
+              defaultValue={folder.name}
+              onPointerDown={(e) => e.stopPropagation()}
+              onBlur={(e) => {
+                if (e.target.value.trim()) actions.rename(folder.id, e.target.value.trim())
+                setEditing(false)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur()
+                if (e.key === 'Escape') setEditing(false)
+              }}
+            />
+          ) : (
+            // 이름 클릭 = 접기/펼치기 (이름 변경은 연필 버튼/우클릭으로만)
+            <button
+              className="min-w-0 flex-1 truncate text-left text-[13px] font-medium text-ink"
+              onClick={() => actions.toggleCollapse(folder.id)}
+            >
+              {folder.name}
+              <span className="ml-1.5 font-mono text-[10.5px] font-normal text-faint">{count}</span>
+            </button>
+          )}
+          {/* opacity로 숨김(display 아님) — 팝오버 열 때 트리거가 언마운트돼 앵커를 잃는 문제 방지 */}
+          <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
             <Button
               size="sm"
               variant="ghost"
               className="h-7 w-7 p-0"
-              title="폴더 색상"
-              onPointerDown={(e) => e.stopPropagation()}
+              title={t('ui.addToThisFolder')}
+              onClick={() => actions.addItem(folder.id)}
             >
-              <Palette size={13} />
+              <Plus size={14} />
             </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-1.5" onPointerDown={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-1">
-              <button
-                className="grid size-6 place-items-center rounded-md border border-line text-faint hover:text-ink"
-                title="색 없음"
-                onClick={() => actions.setColor(folder.id, null)}
-              >
-                <X size={13} />
-              </button>
-              {FOLDER_COLORS.map((c) => (
-                <button
-                  key={c}
-                  className={cn(
-                    'size-6 rounded-md border transition-transform hover:scale-110',
-                    folder.color === c ? 'border-ink' : 'border-transparent'
-                  )}
-                  style={{ backgroundColor: c }}
-                  onClick={() => actions.setColor(folder.id, c)}
-                />
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="이름 수정" onClick={() => setEditing(true)}>
-          <Pencil size={13} />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 w-7 p-0 hover:text-danger"
-          title="폴더 삭제 (항목은 미분류로)"
-          onClick={() => actions.remove(folder.id)}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0"
+                  title={t('ui.folderColor')}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <Palette size={13} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-1.5" onPointerDown={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="grid size-6 place-items-center rounded-md border border-line text-faint hover:text-ink"
+                    title={t('ui.noColor')}
+                    onClick={() => actions.setColor(folder.id, null)}
+                  >
+                    <X size={13} />
+                  </button>
+                  {FOLDER_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      className={cn(
+                        'size-6 rounded-md border transition-transform hover:scale-110',
+                        folder.color === c ? 'border-ink' : 'border-transparent'
+                      )}
+                      style={{ backgroundColor: c }}
+                      onClick={() => actions.setColor(folder.id, c)}
+                    />
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              title={t('ui.rename.d3f4cb8')}
+              onClick={() => setEditing(true)}
+            >
+              <Pencil size={13} />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 hover:text-danger"
+              title={t('ui.deleteFolderItemsBecomeUncategorized')}
+              onClick={() => actions.remove(folder.id)}
+            >
+              <Trash2 size={13} />
+            </Button>
+          </div>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => actions.addItem(folder.id)}>
+          <Plus size={13} /> {t('ui.addToThisFolder')}
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={() => {
+            // 우클릭 메뉴가 닫힌 뒤 인라인 편집 시작
+            setTimeout(() => setEditing(true), 0)
+          }}
         >
-          <Trash2 size={13} />
-        </Button>
-      </div>
-    </div>
-    </ContextMenuTrigger>
-    <ContextMenuContent>
-      <ContextMenuItem onSelect={() => actions.addItem(folder.id)}>
-        <Plus size={13} /> 이 폴더에 추가
-      </ContextMenuItem>
-      <ContextMenuItem
-        onSelect={() => {
-          // 우클릭 메뉴가 닫힌 뒤 인라인 편집 시작
-          setTimeout(() => setEditing(true), 0)
-        }}
-      >
-        <Pencil size={13} /> 이름 변경
-      </ContextMenuItem>
-      <ContextMenuSeparator />
-      <ContextMenuItem danger onSelect={() => actions.remove(folder.id)}>
-        <Trash2 size={13} /> 폴더 삭제 (항목은 미분류로)
-      </ContextMenuItem>
-    </ContextMenuContent>
+          <Pencil size={13} /> {t('ui.rename')}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem danger onSelect={() => actions.remove(folder.id)}>
+          <Trash2 size={13} /> {t('ui.deleteFolderItemsBecomeUncategorized')}
+        </ContextMenuItem>
+      </ContextMenuContent>
     </ContextMenu>
   )
 }
 
 /** 폴더 섹션 / 미분류 섹션 경계 — 드래그 불가, 드롭 대상(여기로 놓으면 미분류) */
 function DividerRow(): React.JSX.Element {
+  const t = useT()
   const sortable = useSortable({
     id: DIVIDER_KEY,
     disabled: { draggable: true, droppable: false }
@@ -241,7 +259,7 @@ function DividerRow(): React.JSX.Element {
       className="flex items-center gap-2 py-0.5"
     >
       <div className="h-px flex-1 bg-line" />
-      <span className="text-[10.5px] text-faint">미분류</span>
+      <span className="text-[10.5px] text-faint">{t('ui.uncategorized')}</span>
       <div className="h-px flex-1 bg-line" />
     </div>
   )
@@ -272,13 +290,15 @@ function ItemRow({
         indent && 'ml-5',
         sortable.isDragging && 'relative z-20 opacity-75'
       )}
-      {...sortable.attributes}
-      {...sortable.listeners}
+      {...(disabled ? {} : sortable.attributes)}
+      {...(disabled ? {} : sortable.listeners)}
     >
       {children}
     </motion.div>
   )
 }
+
+/* eslint-enable react-hooks/refs */
 
 /**
  * 행 카드 — memo로 "자기 item이 바뀔 때만" 리렌더. 스토어가 items 배열을 통째로 갈아도
@@ -319,6 +339,9 @@ function ItemCardRowInner<T extends FolderListItem>({
   itemContextMenu?: (item: T) => React.ReactNode
   itemClassName?: (item: T) => string
 }): React.JSX.Element {
+  // The memo comparator intentionally ignores render callbacks. Subscribe here so
+  // translations produced by those callbacks update without remounting editors.
+  useT()
   // 카드 = paper, 내부 박스는 surface-2로 한 단계 대비
   const card = (
     <div className={cn('rounded-lg border border-line bg-paper', itemClassName?.(item))}>
@@ -374,6 +397,7 @@ function GridTileInner<T extends FolderListItem>({
   renderKey?: unknown
   renderTile: (item: T) => React.ReactNode
 }): React.JSX.Element {
+  useT()
   return (
     <GridItem id={rowId} disabled={disabled}>
       {renderTile(item)}
@@ -466,47 +490,47 @@ export function FolderListView<T extends FolderListItem>({
           style={grid ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}
         >
           <AnimatePresence initial={false}>
-          {visible.map((row) =>
-            row.type === 'divider' ? (
-              // 폴더/미분류 경계 — 여기 아래로 드롭하면 폴더에서 빠짐
-              <div key={DIVIDER_KEY} style={grid ? { gridColumn: '1 / -1' } : undefined}>
-                <DividerRow />
-              </div>
-            ) : row.type === 'folder' ? (
-              // 그리드에서 폴더 행은 전체 폭 차지
-              <div key={rowKey(row)} style={grid ? { gridColumn: '1 / -1' } : undefined}>
-                <FolderRow
-                  folder={row.folder}
-                  actions={folderActions}
-                  count={counts.get(row.folder.id) ?? 0}
-                  searching={searching}
+            {visible.map((row) =>
+              row.type === 'divider' ? (
+                // 폴더/미분류 경계 — 여기 아래로 드롭하면 폴더에서 빠짐
+                <div key={DIVIDER_KEY} style={grid ? { gridColumn: '1 / -1' } : undefined}>
+                  <DividerRow />
+                </div>
+              ) : row.type === 'folder' ? (
+                // 그리드에서 폴더 행은 전체 폭 차지
+                <div key={rowKey(row)} style={grid ? { gridColumn: '1 / -1' } : undefined}>
+                  <FolderRow
+                    folder={row.folder}
+                    actions={folderActions}
+                    count={counts.get(row.folder.id) ?? 0}
+                    searching={searching}
+                  />
+                </div>
+              ) : grid ? (
+                <GridTile
+                  key={rowKey(row)}
+                  rowId={rowKey(row)}
+                  item={row.item}
+                  disabled={searching}
+                  renderKey={renderKey}
+                  renderTile={renderTile!}
                 />
-              </div>
-            ) : grid ? (
-              <GridTile
-                key={rowKey(row)}
-                rowId={rowKey(row)}
-                item={row.item}
-                disabled={searching}
-                renderKey={renderKey}
-                renderTile={renderTile!}
-              />
-            ) : (
-              <ItemCardRow
-                key={rowKey(row)}
-                rowId={rowKey(row)}
-                item={row.item}
-                disabled={searching || expandedId === row.item.id}
-                indent={!searching && row.item.folderId != null}
-                expanded={expandedId === row.item.id}
-                renderKey={renderKey}
-                renderHeader={renderHeader}
-                renderExpanded={renderExpanded}
-                itemContextMenu={itemContextMenu}
-                itemClassName={itemClassName}
-              />
-            )
-          )}
+              ) : (
+                <ItemCardRow
+                  key={rowKey(row)}
+                  rowId={rowKey(row)}
+                  item={row.item}
+                  disabled={searching || expandedId === row.item.id}
+                  indent={!searching && row.item.folderId != null}
+                  expanded={expandedId === row.item.id}
+                  renderKey={renderKey}
+                  renderHeader={renderHeader}
+                  renderExpanded={renderExpanded}
+                  itemContextMenu={itemContextMenu}
+                  itemClassName={itemClassName}
+                />
+              )
+            )}
           </AnimatePresence>
         </div>
       </SortableContext>

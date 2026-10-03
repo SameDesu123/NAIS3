@@ -6,7 +6,11 @@ interface Rgb {
 
 function parseHex(hex: string): Rgb {
   let h = hex.trim().replace(/^#/, '')
-  if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+  if (h.length === 3)
+    h = h
+      .split('')
+      .map((c) => c + c)
+      .join('')
   if (h.length === 8) h = h.slice(0, 6)
   const n = parseInt(h.padEnd(6, '0').slice(0, 6), 16)
   if (Number.isNaN(n)) return { r: 0, g: 0, b: 0 }
@@ -14,7 +18,10 @@ function parseHex(hex: string): Rgb {
 }
 
 function toHex({ r, g, b }: Rgb): string {
-  const c = (v: number): string => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')
+  const c = (v: number): string =>
+    Math.max(0, Math.min(255, Math.round(v)))
+      .toString(16)
+      .padStart(2, '0')
   return `#${c(r)}${c(g)}${c(b)}`
 }
 

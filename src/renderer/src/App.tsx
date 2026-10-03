@@ -17,6 +17,7 @@ import { TextPromptHost } from './components/text-prompt-host'
 import { WebSearchMode } from './components/web-search-mode'
 import { TooltipProvider } from './components/ui/tooltip'
 import { useCharactersStore } from './stores/characters-store'
+import { useDirectorStore } from './stores/director-store'
 import { useFragmentsStore } from './stores/fragments-store'
 import { useCharRefsStore, useVibesStore } from './stores/refs-store'
 import { bindGenerationEvents, useGenerationStore } from './stores/generation-store'
@@ -24,6 +25,7 @@ import { bindSceneEvents } from './stores/scenes-store'
 import { bindShortcuts, useShortcutsStore } from './stores/shortcuts-store'
 import { bindUpdateEvents } from './stores/update-store'
 import { bindNavMouse } from './lib/nav-history'
+import { useLanguageStore } from './lib/i18n'
 import { useLayoutStore } from './stores/layout-store'
 import { useThemeStore } from './stores/theme-store'
 
@@ -58,6 +60,7 @@ export default function App(): React.JSX.Element {
     // 초기 하이드레이션 — 완료되면 로딩 스플래시 해제
     void (async () => {
       await Promise.allSettled([
+        useLanguageStore.getState().hydrate(),
         useThemeStore.getState().hydrate(),
         useLayoutStore.getState().hydrate(),
         useGenerationStore.getState().hydrate(),
@@ -65,7 +68,8 @@ export default function App(): React.JSX.Element {
         useFragmentsStore.getState().load(),
         useVibesStore.getState().load(),
         useCharRefsStore.getState().load(),
-        useShortcutsStore.getState().hydrate()
+        useShortcutsStore.getState().hydrate(),
+        useDirectorStore.getState().hydrate()
       ])
       // 스플래시가 너무 순식간에 사라지지 않게 최소 표시 시간 확보
       setTimeout(() => setReady(true), 350)
@@ -122,17 +126,19 @@ export default function App(): React.JSX.Element {
               </motion.div>
             )}
           </AnimatePresence>
-          {centerMode === 'scene' ? (
-            <SceneMode />
-          ) : centerMode === 'director' ? (
-            <DirectorMode />
-          ) : centerMode === 'library' ? (
-            <LibraryMode />
-          ) : centerMode === 'websearch' ? (
-            <WebSearchMode />
-          ) : (
-            <PreviewPane />
-          )}
+          <main className="flex min-h-0 min-w-0 flex-1">
+            {centerMode === 'scene' ? (
+              <SceneMode />
+            ) : centerMode === 'director' ? (
+              <DirectorMode />
+            ) : centerMode === 'library' ? (
+              <LibraryMode />
+            ) : centerMode === 'websearch' ? (
+              <WebSearchMode />
+            ) : (
+              <PreviewPane />
+            )}
+          </main>
           <AnimatePresence initial={false}>
             {rightOpen && (
               <motion.div

@@ -11,18 +11,18 @@ export const DialogClose = DialogPrimitive.Close
 function hasOpenNestedPopup(): boolean {
   return Boolean(
     hasActiveSelectPopup() ||
-      document.querySelector('[data-radix-popper-content-wrapper]') ||
-      document.querySelector('[data-radix-select-content]') ||
-      document.querySelector('[role="listbox"][data-state="open"]')
+    document.querySelector('[data-radix-popper-content-wrapper]') ||
+    document.querySelector('[data-radix-select-content]') ||
+    document.querySelector('[role="listbox"][data-state="open"]')
   )
 }
 
 function isNestedPopupInteraction(target: HTMLElement | null): boolean {
   return Boolean(
     hasOpenNestedPopup() ||
-      target?.closest('[data-radix-popper-content-wrapper]') ||
-      target?.closest('[data-radix-select-content]') ||
-      target?.closest('[role="listbox"][data-state="open"]')
+    target?.closest('[data-radix-popper-content-wrapper]') ||
+    target?.closest('[data-radix-select-content]') ||
+    target?.closest('[role="listbox"][data-state="open"]')
   )
 }
 
@@ -79,12 +79,12 @@ export function DialogContent({
   )
 }
 
-export function DialogTitle({
-  className,
-  ...props
-}: ComponentProps<typeof DialogPrimitive.Title>) {
+export function DialogTitle({ className, ...props }: ComponentProps<typeof DialogPrimitive.Title>) {
   return (
-    <DialogPrimitive.Title className={cn('text-[15px] font-semibold text-ink', className)} {...props} />
+    <DialogPrimitive.Title
+      className={cn('text-[15px] font-semibold text-ink', className)}
+      {...props}
+    />
   )
 }
 

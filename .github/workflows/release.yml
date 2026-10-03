@@ -1,44 +1,71 @@
 name: Release
 
-# v* 태그 푸시 시 Windows(exe)·macOS(dmg+zip) 빌드 → 단일 GitHub Release 초안에 업로드.
-# 초안 확인 후 수동으로 Publish하면 배포 + 자동 업데이트 감지 시작.
+# Tags build a fully validated draft. Publishing remains a separate manual step.
 on:
   push:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: node scripts/verify-release.mjs version "$GITHUB_REF_NAME"
+      - run: node scripts/verify-release.mjs draft "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   build:
+    needs: validate
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
             script: build:win
+            platform: win32
             arch: x64
           - os: macos-latest
             script: build:mac
+            platform: darwin
             arch: arm64
           - os: macos-15-intel
             script: build:mac
+            platform: darwin
             arch: x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      # 러너 라벨의 실제 CPU가 바뀌면 잘못된 네이티브 모듈을 만들기 전에 중단.
-      - run: node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('runner arch ' + process.arch + ' != expected ${{ matrix.arch }}')"
-      - run: npm ci
-      - run: npm run ${{ matrix.script }} -- --publish never
-      # macOS 네이티브 모듈(sharp/better-sqlite3)이 앱 실행 파일과 같은 아키텍처인지 검증.
-      # arm64 runner에서 x64까지 한 번에 만들면 optional dependency가 arm64로 섞이는 사고를 막는다.
+          cache: pnpm
+      - run: |
+          node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('Unexpected runner architecture: ' + process.arch)"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      # Both package scripts include typecheck. pnpm forwards these flags without an extra --.
+      - run: pnpm run ${{ matrix.script }} --publish never
       - if: runner.os == 'macOS'
         run: node scripts/verify-macos-native-deps.mjs
-      # 필요한 산출물만 수집 (latest-mac.yml·zip blockmap 등 잡파일 제외)
+      - run: node scripts/verify-packaged-app.mjs ${{ matrix.platform }} ${{ matrix.arch }}
+      - run: node scripts/verify-release.mjs assets ${{ matrix.platform }}-${{ matrix.arch }}
       - uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.os }}
@@ -48,18 +75,35 @@ jobs:
             dist/latest.yml
             dist/*.dmg
             dist/*-mac.zip
-          if-no-files-found: ignore
+          if-no-files-found: error
 
-  # 세 빌드를 모아 초안 릴리즈 하나로 (병렬 publish 시 초안이 갈리는 레이스 방지)
   release:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
           path: dist
+      - run: node scripts/verify-release.mjs assets all
+      # Recheck immediately before uploading, including on a manually rerun job.
+      - run: node scripts/verify-release.mjs draft "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
+          prerelease: false
+          fail_on_unmatched_files: true
+          body_path: release-notes/${{ github.ref_name }}.md
           files: dist/*

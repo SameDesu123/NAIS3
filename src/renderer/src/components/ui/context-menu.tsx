@@ -134,5 +134,7 @@ export function ContextMenuSeparator({
   className,
   ...props
 }: ComponentProps<typeof ContextMenuPrimitive.Separator>) {
-  return <ContextMenuPrimitive.Separator className={cn('my-1 h-px bg-line', className)} {...props} />
+  return (
+    <ContextMenuPrimitive.Separator className={cn('my-1 h-px bg-line', className)} {...props} />
+  )
 }

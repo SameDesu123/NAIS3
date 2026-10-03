@@ -1,16 +1,18 @@
 import { Globe, Image, LayoutGrid, Library, Wand2, type LucideIcon } from 'lucide-react'
 import { motion } from 'motion/react'
+import type { MessageId } from '@shared/i18n'
 import { cn } from '../lib/utils'
+import { useT } from '../lib/i18n'
 import { useLayoutStore } from '../stores/layout-store'
 
 type Page = 'main' | 'scene' | 'director' | 'library' | 'websearch'
 
-const PAGES: { id: Page; label: string; icon: LucideIcon }[] = [
-  { id: 'main', label: '메인', icon: Image },
-  { id: 'scene', label: '씬', icon: LayoutGrid },
-  { id: 'director', label: '디렉터', icon: Wand2 },
-  { id: 'library', label: '라이브러리', icon: Library },
-  { id: 'websearch', label: '웹', icon: Globe }
+const PAGES: { id: Page; label: MessageId; icon: LucideIcon }[] = [
+  { id: 'main', label: 'ui.main', icon: Image },
+  { id: 'scene', label: 'ui.scene', icon: LayoutGrid },
+  { id: 'director', label: 'ui.director', icon: Wand2 },
+  { id: 'library', label: 'ui.library', icon: Library },
+  { id: 'websearch', label: 'ui.web', icon: Globe }
 ]
 
 /**
@@ -18,19 +20,24 @@ const PAGES: { id: Page; label: string; icon: LucideIcon }[] = [
  * 활성 탭에 layoutId 슬라이딩 pill이 부드럽게 이동한다.
  */
 export function PageNav(): React.JSX.Element {
+  const t = useT()
   const centerMode = useLayoutStore((s) => s.centerMode)
   const setCenterMode = useLayoutStore((s) => s.setCenterMode)
   const hiddenPages = useLayoutStore((s) => s.hiddenPages)
   const visible = PAGES.filter((p) => p.id === 'main' || !hiddenPages.includes(p.id))
 
   return (
-    <nav className="no-drag pointer-events-auto flex items-center gap-1 rounded-full border border-line/70 bg-surface/95 p-1 shadow-md backdrop-blur">
+    <nav
+      aria-label={t('ui.pages')}
+      className="no-drag pointer-events-auto flex items-center gap-1 rounded-full border border-line/70 bg-surface/95 p-1 shadow-md backdrop-blur"
+    >
       {visible.map((page) => {
         const active = centerMode === page.id
         return (
           <button
             key={page.id}
             onClick={() => setCenterMode(page.id)}
+            aria-current={active ? 'page' : undefined}
             className={cn(
               'relative z-0 rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors',
               active ? 'text-ink' : 'text-muted hover:text-ink'
@@ -45,7 +52,7 @@ export function PageNav(): React.JSX.Element {
             )}
             <span className="relative z-10 flex items-center gap-2">
               <page.icon className="size-4" />
-              {page.label}
+              {t(page.label)}
             </span>
           </button>
         )

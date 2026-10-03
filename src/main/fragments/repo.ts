@@ -4,7 +4,9 @@ import { basename } from 'path'
 import JSZip from 'jszip'
 import type { CharacterOrderEntry, Fragment, ListFolder } from '../../shared/types'
 import { getDb } from '../db'
+import { t } from '../i18n'
 import type { FragmentSource } from './processor'
+import { normalizeFragmentPath } from '../../shared/fragment-path'
 
 interface Row {
   id: number
@@ -98,7 +100,7 @@ export function duplicateFragment(id: number): number | null {
     .prepare('SELECT name, content, folder_id FROM fragments WHERE id = ?')
     .get(id) as { name: string; content: string; folder_id: number | null } | undefined
   if (!r) return null
-  return createFragment(`${r.name} 복사`, r.folder_id, r.content)
+  return createFragment(t('ui.copyValue', r.name), r.folder_id, r.content)
 }
 
 export function reorderFragments(order: CharacterOrderEntry[]): void {
@@ -120,7 +122,9 @@ export function reorderFragments(order: CharacterOrderEntry[]): void {
 
 export function createFragmentFolder(name: string): number {
   const db = getDb()
-  const max = db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM fragment_folders').get() as {
+  const max = db
+    .prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM fragment_folders')
+    .get() as {
     m: number
   }
   return Number(
@@ -167,9 +171,9 @@ export function fragmentSource(): FragmentSource {
   for (const f of items) {
     const lines = contentToLines(f.content)
     // 참조 측(normalizePath)과 동일하게 trim — 이름/폴더에 공백이 섞여도 <이름>과 매칭되게
-    byPath.set(f.name.trim().toLowerCase(), lines)
+    byPath.set(normalizeFragmentPath(f.name), lines)
     const folder = f.folderId != null ? folderName.get(f.folderId) : null
-    if (folder) byPath.set(`${folder.trim()}/${f.name.trim()}`.toLowerCase(), lines)
+    if (folder) byPath.set(normalizeFragmentPath(`${folder}/${f.name}`), lines)
   }
   return { getLines: (path) => byPath.get(path) ?? null }
 }
@@ -178,9 +182,9 @@ export function fragmentSource(): FragmentSource {
 export async function importTxtFragments(): Promise<number> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showOpenDialog(win, {
-    title: '조각 TXT 가져오기',
+    title: t('ui.importFragmentTxt'),
     properties: ['openFile', 'multiSelections'],
-    filters: [{ name: '텍스트/ZIP', extensions: ['txt', 'zip'] }]
+    filters: [{ name: t('ui.textZip'), extensions: ['txt', 'zip'] }]
   })
   if (result.canceled) return 0
   let count = 0
@@ -208,7 +212,7 @@ export async function exportAllFragmentsZip(): Promise<number> {
   if (!rows.length) return 0
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showSaveDialog(win, {
-    title: '조각 전체 내보내기',
+    title: t('ui.exportAllFragments'),
     defaultPath: 'nais3-fragments.zip',
     filters: [{ name: 'ZIP', extensions: ['zip'] }]
   })
@@ -216,7 +220,7 @@ export async function exportAllFragmentsZip(): Promise<number> {
   const zip = new JSZip()
   const used = new Map<string, number>()
   for (const r of rows) {
-    let safe = r.name.replace(/[/\\:*?"<>|]/g, '_') || 'fragment'
+    const safe = r.name.replace(/[/\\:*?"<>|]/g, '_') || 'fragment'
     const n = used.get(safe) ?? 0
     used.set(safe, n + 1)
     zip.file(`${n > 0 ? `${safe}-${n}` : safe}.txt`, r.content)
@@ -227,15 +231,14 @@ export async function exportAllFragmentsZip(): Promise<number> {
 
 export async function exportTxtFragment(id: number): Promise<boolean> {
   const row = getDb().prepare('SELECT name, content FROM fragments WHERE id = ?').get(id) as
-    | { name: string; content: string }
-    | undefined
+    { name: string; content: string } | undefined
   if (!row) return false
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showSaveDialog(win, {
-    title: '조각 내보내기',
+    title: t('ui.exportFragment'),
     // Windows 금지 문자 제거 (이름은 사용자 입력)
     defaultPath: `${row.name.replace(/[/\\:*?"<>|]/g, '_') || 'fragment'}.txt`,
-    filters: [{ name: '텍스트', extensions: ['txt'] }]
+    filters: [{ name: t('ui.text'), extensions: ['txt'] }]
   })
   if (result.canceled || !result.filePath) return false
   writeFileSync(result.filePath, row.content, 'utf-8')

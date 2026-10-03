@@ -1,26 +1,39 @@
 {
   "name": "nais3",
-  "version": "1.0.23",
+  "version": "1.0.26",
   "description": "NAIS3 - NovelAI Image Studio 3",
   "main": "./out/main/index.js",
   "author": "sunanakgo",
   "license": "GPL-3.0",
   "homepage": "https://github.com/sunanakgo/NAIS3",
+  "packageManager": "pnpm@10.14.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "electron",
+      "electron-winstaller",
+      "esbuild",
+      "fsevents"
+    ]
+  },
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
-    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "start": "electron-vite preview",
     "dev": "electron-vite dev --watch",
-    "build": "npm run typecheck && electron-vite build",
+    "dev:web": "vite --config vite.web.config.ts --open",
+    "build": "pnpm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
-    "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac",
+    "build:unpack": "pnpm run build && electron-builder --dir",
+    "build:win": "pnpm run build && electron-builder --win",
+    "build:mac": "pnpm run build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
-    "test": "vitest run",
+    "test": "vitest run && pnpm run test:db",
+    "test:db": "node scripts/run-db-tests.mjs",
+    "i18n:check": "vitest run tests/i18n.test.ts tests/i18n-source.test.ts tests/i18n-renderer.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -40,6 +53,7 @@
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@electron/asar": "^3.4.1",
     "@gradio/client": "^2.3.1",
     "@radix-ui/react-context-menu": "^2.3.2",
     "@radix-ui/react-dialog": "^1.1.18",
@@ -67,6 +81,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
+    "happy-dom": "^20.14.5",
     "lucide-react": "^1.23.0",
     "motion": "^12.42.2",
     "prettier": "^3.7.4",
@@ -77,6 +92,7 @@
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
     "vitest": "^3.2.4",
+    "yaml": "^2.9.1",
     "zustand": "^5.0.8"
   }
 }
