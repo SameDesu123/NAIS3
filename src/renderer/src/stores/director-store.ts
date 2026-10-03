@@ -9,6 +9,8 @@ interface DirectorState {
   stack: string[]
   loading: boolean
   error: string | null
+  /** 툴 클릭 한 번으로 바로 실행 (기본 off — 고른 뒤 하단 버튼으로 실행) */
+  instantRun: boolean
 
   /** 현재 이미지 (스택 top) */
   current: () => string | null
@@ -19,12 +21,15 @@ interface DirectorState {
   applyLocal: (base64: string, kind: 'mosaic') => Promise<void>
   undo: () => void
   clear: () => void
+  setInstantRun: (on: boolean) => void
+  hydrate: () => Promise<void>
 }
 
 export const useDirectorStore = create<DirectorState>((set, get) => ({
   stack: [],
   loading: false,
   error: null,
+  instantRun: false,
 
   current: () => {
     const s = get().stack
@@ -89,6 +94,19 @@ export const useDirectorStore = create<DirectorState>((set, get) => ({
     if (gen.source && stack.includes(gen.source.imageBase64)) gen.setSource(null)
     if (gen.inpaintTarget && stack.includes(gen.inpaintTarget.base64)) gen.cancelInpaint()
     set({ stack: [], error: null })
+  },
+
+  setInstantRun: (instantRun) => {
+    set({ instantRun })
+    void window.nais.invoke('settings:set', {
+      key: 'director_instant_run',
+      value: instantRun ? '1' : '0'
+    })
+  },
+
+  hydrate: async () => {
+    const { value } = await window.nais.invoke('settings:get', { key: 'director_instant_run' })
+    set({ instantRun: value === '1' })
   }
 }))
 
