@@ -1,6 +1,20 @@
 import type { MessageCatalog } from './catalog-ko'
 
 export const EN = {
+  'ui.naisBackup': 'NAIS backup',
+  'ui.exportLegacyJson': 'Export legacy JSON',
+  'ui.importArchiveOrLegacyBackup': 'Import data (.nais / NAIS3 JSON / NAIS2 JSON)',
+  'ui.naisArchiveRestored': '.nais backup restored ({0} items)',
+  'ui.backupMissingImagesSkipped': ' · {0} missing images skipped',
+  'ui.nais3JsonRestored': 'NAIS3 JSON restored ({0} items{1})',
+  'ui.naisWorkspaceBackup': 'Workspace .nais backup · Supports importing legacy NAIS3/NAIS2 JSON',
+  'ui.backupExportError': 'Export error: {0}',
+  'ui.backupMissingSourcesSkipped': ' ({0} images with missing source files skipped)',
+  'ui.naisArchiveExported': '.nais export complete{0}',
+  'ui.legacyJsonExported': 'Legacy JSON export complete',
+  'ui.exportNaisArchive': 'Export .nais',
+  'ui.legacyJson': 'Legacy JSON',
+
   'ui.decreasePositionGridCount': 'Decrease number of {0}',
   'ui.increasePositionGridCount': 'Increase number of {0}',
   'ui.positioningNeedsTwoPromptedCharactersValue':

@@ -1,6 +1,20 @@
 import type { MessageCatalog } from './catalog-ko'
 
 export const ZH_CN = {
+  'ui.naisBackup': 'NAIS 备份',
+  'ui.exportLegacyJson': '导出旧版 JSON',
+  'ui.importArchiveOrLegacyBackup': '导入数据（.nais / NAIS3 JSON / NAIS2 JSON）',
+  'ui.naisArchiveRestored': '.nais 备份已恢复（{0} 项）',
+  'ui.backupMissingImagesSkipped': ' · 已跳过 {0} 张缺失图片',
+  'ui.nais3JsonRestored': 'NAIS3 JSON 已恢复（{0} 项{1}）',
+  'ui.naisWorkspaceBackup': '工作区 .nais 备份 · 支持导入旧版 NAIS3/NAIS2 JSON',
+  'ui.backupExportError': '导出错误：{0}',
+  'ui.backupMissingSourcesSkipped': '（已跳过 {0} 张原文件缺失的图片）',
+  'ui.naisArchiveExported': '.nais 导出完成{0}',
+  'ui.legacyJsonExported': '旧版 JSON 导出完成',
+  'ui.exportNaisArchive': '导出 .nais',
+  'ui.legacyJson': '旧版 JSON',
+
   'ui.decreasePositionGridCount': '减少{0}数',
   'ui.increasePositionGridCount': '增加{0}数',
   'ui.positioningNeedsTwoPromptedCharactersValue':

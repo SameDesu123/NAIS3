@@ -1,4 +1,18 @@
 export const KO = {
+  'ui.naisBackup': 'NAIS 백업',
+  'ui.exportLegacyJson': '레거시 JSON 내보내기',
+  'ui.importArchiveOrLegacyBackup': '데이터 가져오기 (.nais / NAIS3 JSON / NAIS2 JSON)',
+  'ui.naisArchiveRestored': '.nais 백업 복원 완료 ({0}개 항목)',
+  'ui.backupMissingImagesSkipped': ' · 누락 이미지 {0}개 제외',
+  'ui.nais3JsonRestored': 'NAIS3 JSON 복원 완료 ({0}개 항목{1})',
+  'ui.naisWorkspaceBackup': '전체 작업 데이터 .nais · 기존 NAIS3/NAIS2 JSON 불러오기 지원',
+  'ui.backupExportError': '내보내기 오류: {0}',
+  'ui.backupMissingSourcesSkipped': ' (원본 파일이 없는 이미지 {0}개 제외)',
+  'ui.naisArchiveExported': '.nais 내보내기 완료{0}',
+  'ui.legacyJsonExported': '레거시 JSON 내보내기 완료',
+  'ui.exportNaisArchive': '.nais 내보내기',
+  'ui.legacyJson': '레거시 JSON',
+
   'ui.decreasePositionGridCount': '{0} 개수 줄이기',
   'ui.increasePositionGridCount': '{0} 개수 늘리기',
   'ui.positioningNeedsTwoPromptedCharactersValue':
