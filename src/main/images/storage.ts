@@ -89,6 +89,25 @@ export function dropMemoryImage(filePath: string): void {
   memoryImages.delete(filePath)
 }
 
+// ── 목록 썸네일 ────────────────────────────────────────────
+// 목록 IPC에 webp BLOB(base64)을 싣지 않고 URL만 넘긴다 → 렌더러가 nais-image 프로토콜로
+// 보이는 것만 지연 로드하고, 같은 URL은 다시 받지도 디코딩하지도 않는다.
+
+export type ThumbnailTable = 'images' | 'library_images'
+const THUMBNAIL_TABLES: readonly string[] = ['images', 'library_images'] satisfies ThumbnailTable[]
+
+/** rev(created_at)는 INTEGER PRIMARY KEY id가 재사용될 때 예전 썸네일이 캐시로 남지 않게 하는 용도 */
+export function thumbnailUrl(table: ThumbnailTable, id: number, rev: string): string {
+  return `nais-image://local/?thumb=${table}&id=${id}&v=${encodeURIComponent(rev)}`
+}
+
+export function thumbnailById(table: string, id: number): Buffer | null {
+  if (!THUMBNAIL_TABLES.includes(table) || !Number.isInteger(id)) return null
+  const row = getDb().prepare(`SELECT thumbnail FROM ${table} WHERE id = ?`).get(id) as
+    { thumbnail: Buffer | null } | undefined
+  return row?.thumbnail ?? null
+}
+
 /** 원본이 만료됐을 때의 표시 폴백 — DB 썸네일(webp) */
 export function thumbnailByPath(filePath: string): Buffer | null {
   const row = getDb().prepare('SELECT thumbnail FROM images WHERE file_path = ?').get(filePath) as
@@ -286,7 +305,7 @@ function injectNais3Params(png: Buffer, meta: Pick<ImageMetadata, 'promptParts'>
 export interface HistoryItem {
   id: number
   filePath: string
-  /** webp 썸네일 base64 (data URL 아님) */
+  /** 썸네일 src (nais-image URL, 없으면 '') */
   thumbnail: string
   kind: string
   seed: number | null
@@ -298,13 +317,13 @@ export function listImages(limit: number, offset: number): { items: HistoryItem[
   const total = (db.prepare('SELECT COUNT(*) AS c FROM images').get() as { c: number }).c
   const rows = db
     .prepare(
-      `SELECT id, file_path, thumbnail, kind, seed, created_at
+      `SELECT id, file_path, thumbnail IS NOT NULL AS has_thumbnail, kind, seed, created_at
        FROM images ORDER BY id DESC LIMIT ? OFFSET ?`
     )
     .all(limit, offset) as {
     id: number
     file_path: string
-    thumbnail: Buffer | null
+    has_thumbnail: number
     kind: string
     seed: number | null
     created_at: string
@@ -315,7 +334,7 @@ export function listImages(limit: number, offset: number): { items: HistoryItem[
     items: rows.map((r) => ({
       id: r.id,
       filePath: r.file_path,
-      thumbnail: r.thumbnail ? r.thumbnail.toString('base64') : '',
+      thumbnail: r.has_thumbnail ? thumbnailUrl('images', r.id, r.created_at) : '',
       kind: r.kind,
       seed: r.seed,
       createdAt: r.created_at

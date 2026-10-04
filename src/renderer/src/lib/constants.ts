@@ -40,6 +40,13 @@ export const UC_PRESET_OPTIONS: { value: UcPresetIndex; label: string }[] = [
   { value: 4, label: 'None' }
 ]
 
+/** 목록 썸네일 src — 데스크톱은 nais-image 썸네일 URL, 브라우저 모드는 webp base64 */
+export function thumbnailSrc(thumbnail: string): string {
+  return /^(nais-image|data|blob):/.test(thumbnail)
+    ? thumbnail
+    : `data:image/webp;base64,${thumbnail}`
+}
+
 export function imageUrl(filePath: string): string {
   if (filePath.startsWith('data:') || filePath.startsWith('blob:')) return filePath
   return `nais-image://local/?path=${encodeURIComponent(filePath)}`

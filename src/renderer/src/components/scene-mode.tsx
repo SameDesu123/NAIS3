@@ -34,7 +34,7 @@ import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from '@d
 import { AnimatePresence, motion } from 'motion/react'
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { Scene, SceneCast } from '@shared/types'
-import { RESOLUTIONS, imageUrl } from '../lib/constants'
+import { RESOLUTIONS, imageUrl, thumbnailSrc } from '../lib/constants'
 import { useT } from '../lib/i18n'
 import { useGenerationStore } from '../stores/generation-store'
 import { loadCasts, useScenesStore } from '../stores/scenes-store'
@@ -552,7 +552,7 @@ function SceneGrid(): React.JSX.Element {
               >
                 {dragScene.thumbnail ? (
                   <img
-                    src={`data:image/webp;base64,${dragScene.thumbnail}`}
+                    src={thumbnailSrc(dragScene.thumbnail)}
                     className="h-full w-full object-cover"
                     draggable={false}
                     alt=""
@@ -831,7 +831,7 @@ const SceneCard = memo(function SceneCard({
   const src = live
     ? `data:image/png;base64,${live}`
     : scene.thumbnail
-      ? `data:image/webp;base64,${scene.thumbnail}`
+      ? thumbnailSrc(scene.thumbnail)
       : scene.thumbnailPath
         ? imageUrl(scene.thumbnailPath)
         : null

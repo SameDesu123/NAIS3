@@ -397,7 +397,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
 
   setSceneThumb: (sceneId, filePath) =>
     set({
-      // thumbnail(base64) 비우고 thumbnailPath로 → 카드가 새 원본을 즉시 표시.
+      // thumbnail 비우고 thumbnailPath로 → 카드가 새 원본을 즉시 표시.
       // 즐겨찾기가 있는 씬은 즐겨찾기가 썸네일 고정이라 교체하지 않는다 (개수만 갱신)
       scenes: get().scenes.map((s) =>
         s.id === sceneId

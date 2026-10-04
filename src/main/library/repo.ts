@@ -6,7 +6,7 @@ import sharp from 'sharp'
 import type { LibraryImage, LibraryStack } from '../../shared/types'
 import { getDb } from '../db'
 import { t } from '../i18n'
-import { libraryRoot } from '../images/storage'
+import { libraryRoot, thumbnailUrl } from '../images/storage'
 
 /**
  * 라이브러리 — 사용자가 직접 모아두는 큐레이션 컬렉션 (NAIS2 라이브러리 이식).
@@ -24,7 +24,8 @@ interface ImageRow {
   id: number
   name: string
   file_path: string
-  thumbnail: Buffer | null
+  has_thumbnail: number
+  created_at: string
   width: number | null
   height: number | null
   stack_id: number | null
@@ -35,7 +36,7 @@ function toImage(r: ImageRow): LibraryImage {
     id: r.id,
     name: r.name,
     filePath: r.file_path,
-    thumbnail: r.thumbnail ? r.thumbnail.toString('base64') : '',
+    thumbnail: r.has_thumbnail ? thumbnailUrl('library_images', r.id, r.created_at) : '',
     width: r.width,
     height: r.height,
     stackId: r.stack_id
@@ -55,7 +56,8 @@ export function listLibrary(
 
   const rows = db
     .prepare(
-      `SELECT id, name, file_path, thumbnail, width, height, stack_id
+      `SELECT id, name, file_path, thumbnail IS NOT NULL AS has_thumbnail, created_at,
+              width, height, stack_id
        FROM library_images WHERE ${where} ORDER BY sort_order DESC, id DESC LIMIT ? OFFSET ?`
     )
     .all(...params, limit, offset) as ImageRow[]
@@ -70,15 +72,28 @@ export function listLibrary(
           .prepare(
             `SELECT s.id, s.name,
                (SELECT COUNT(*) FROM library_images i WHERE i.stack_id = s.id) AS count,
-               (SELECT thumbnail FROM library_images i WHERE i.stack_id = s.id ORDER BY i.id DESC LIMIT 1) AS cover
-             FROM library_stacks s ORDER BY s.id DESC`
+               c.id AS cover_id, c.created_at AS cover_rev, c.thumbnail IS NOT NULL AS cover_has
+             FROM library_stacks s
+             LEFT JOIN library_images c ON c.id =
+               (SELECT id FROM library_images i WHERE i.stack_id = s.id ORDER BY i.id DESC LIMIT 1)
+             ORDER BY s.id DESC`
           )
-          .all() as { id: number; name: string; count: number; cover: Buffer | null }[]
+          .all() as {
+          id: number
+          name: string
+          count: number
+          cover_id: number | null
+          cover_rev: string | null
+          cover_has: number | null
+        }[]
       ).map((s) => ({
         id: s.id,
         name: s.name,
         count: s.count,
-        coverThumbnail: s.cover ? s.cover.toString('base64') : ''
+        coverThumbnail:
+          s.cover_id && s.cover_has
+            ? thumbnailUrl('library_images', s.cover_id, s.cover_rev ?? '')
+            : ''
       }))
 
   return { items: rows.map(toImage), stacks, total }

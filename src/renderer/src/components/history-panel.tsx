@@ -1,4 +1,5 @@
 import { History, Trash2 } from 'lucide-react'
+import { thumbnailSrc } from '../lib/constants'
 import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { KindBadge } from '../lib/kind-icon'
@@ -81,7 +82,7 @@ export function HistoryPanel(): React.JSX.Element {
                 >
                   {item.thumbnail && (
                     <img
-                      src={`data:image/webp;base64,${item.thumbnail}`}
+                      src={thumbnailSrc(item.thumbnail)}
                       className="size-full object-cover"
                       // 프리뷰로 드래그해서 메타데이터 열기
                       draggable

@@ -16,6 +16,7 @@ import {
   isUnderImagesRoot,
   saveEphemeralImage,
   saveGeneratedImage,
+  thumbnailById,
   thumbnailByPath
 } from './images/storage'
 import { broadcast, registerIpcHandlers } from './ipc'
@@ -107,6 +108,18 @@ app.whenReady().then(() => {
 
   protocol.handle('nais-image', (request) => {
     const url = new URL(request.url)
+    // 목록 썸네일 (images / library_images BLOB) — 행 썸네일은 불변이라 길게 캐시
+    const thumbTable = url.searchParams.get('thumb')
+    if (thumbTable) {
+      const thumb = thumbnailById(thumbTable, Number(url.searchParams.get('id')))
+      if (!thumb) return new Response('not found', { status: 404 })
+      return new Response(new Uint8Array(thumb), {
+        headers: {
+          'content-type': 'image/webp',
+          'cache-control': 'public, max-age=31536000, immutable'
+        }
+      })
+    }
     const filePath = decodeURIComponent(url.searchParams.get('path') ?? '')
     // 자동저장 OFF 임시 이미지 — 메모리 원본, 만료됐으면 DB 썸네일로 폴백
     if (isMemoryPath(filePath)) {

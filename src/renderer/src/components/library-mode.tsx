@@ -27,7 +27,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { LibraryImage, LibraryStack } from '@shared/types'
-import { imageUrl } from '../lib/constants'
+import { imageUrl, thumbnailSrc } from '../lib/constants'
 import { useT } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { askConfirm, askText } from '../stores/dialog-store'
@@ -434,7 +434,7 @@ export function LibraryMode(): React.JSX.Element {
                   <img
                     src={
                       dragImg.thumbnail
-                        ? `data:image/webp;base64,${dragImg.thumbnail}`
+                        ? thumbnailSrc(dragImg.thumbnail)
                         : imageUrl(dragImg.filePath)
                     }
                     className="h-full w-full object-cover"
@@ -563,7 +563,7 @@ function ImageCard({
         onClick={onClick}
       >
         <img
-          src={img.thumbnail ? `data:image/webp;base64,${img.thumbnail}` : imageUrl(img.filePath)}
+          src={img.thumbnail ? thumbnailSrc(img.thumbnail) : imageUrl(img.filePath)}
           className="h-full w-full object-cover"
           draggable={false}
           loading="lazy"
@@ -621,7 +621,7 @@ function StackCard({
           <div className="absolute inset-0 overflow-hidden rounded-lg">
             {stack.coverThumbnail ? (
               <img
-                src={`data:image/webp;base64,${stack.coverThumbnail}`}
+                src={thumbnailSrc(stack.coverThumbnail)}
                 className="h-full w-full object-cover"
                 draggable={false}
                 loading="lazy"

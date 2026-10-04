@@ -201,7 +201,7 @@ export interface Fragment {
 export interface HistoryItem {
   id: number
   filePath: string
-  /** webp 썸네일 base64 (data URL 프리픽스 없음) */
+  /** 썸네일 src (데스크톱: nais-image URL, 브라우저 모드: webp base64. 없으면 '') */
   thumbnail: string
   kind: string
   seed: number | null
@@ -340,7 +340,7 @@ export interface Scene {
   reserveCount: number
   /** 출연별 예약 내역 — 키는 출연 id ('' = 사이드바 설정) */
   reserves: Record<string, number>
-  /** 목록 카드용 썸네일 — 즐겨찾기가 있으면 최상단 즐겨찾기, 없으면 최신 이미지 (없으면 '') */
+  /** 목록 카드용 썸네일 src(nais-image URL) — 즐겨찾기가 있으면 최상단 즐겨찾기, 없으면 최신 이미지 (없으면 '') */
   thumbnail: string
   /** 썸네일 원본 파일 경로 (카드에 풀해상도로 선명하게 표시. 없으면 '') */
   thumbnailPath: string
@@ -364,7 +364,7 @@ export interface LibraryImage {
   id: number
   name: string
   filePath: string
-  /** webp 썸네일 base64 (없으면 '') */
+  /** 썸네일 src (nais-image URL, 없으면 '') */
   thumbnail: string
   width: number | null
   height: number | null
@@ -376,7 +376,7 @@ export interface LibraryStack {
   id: number
   name: string
   count: number
-  /** 스택 대표(최신) 이미지 썸네일 base64 (없으면 '') */
+  /** 스택 대표(최신) 이미지 썸네일 src (nais-image URL, 없으면 '') */
   coverThumbnail: string
 }
 

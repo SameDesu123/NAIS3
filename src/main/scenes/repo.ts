@@ -6,7 +6,7 @@ import { planSceneReservations } from '../../shared/scene-request'
 import type { GenerationQueue } from '../queue/generation-queue'
 import type { IpcInvokeMap, Scene, SceneImage, ScenePreset } from '../../shared/types'
 import { getDb } from '../db'
-import { dropMemoryImage, isMemoryPath, libraryRoot } from '../images/storage'
+import { dropMemoryImage, isMemoryPath, libraryRoot, thumbnailUrl } from '../images/storage'
 import { t } from '../i18n'
 
 interface Row {
@@ -54,7 +54,9 @@ export function setSceneReserves(id: number, reserves: Record<string, number>): 
 function toScene(
   r: Row & {
     image_count: number
-    thumb?: Buffer | null
+    thumb_id?: number | null
+    thumb_rev?: string | null
+    thumb_has?: number | null
     thumb_path?: string | null
     has_favorite?: number
   }
@@ -69,7 +71,8 @@ function toScene(
     height: r.height,
     reserveCount: r.reserve_count,
     reserves: parseReserves(r.reserve_json ?? null),
-    thumbnail: r.thumb ? r.thumb.toString('base64') : '',
+    thumbnail:
+      r.thumb_id && r.thumb_has ? thumbnailUrl('images', r.thumb_id, r.thumb_rev ?? '') : '',
     thumbnailPath: r.thumb_path ?? '',
     imageCount: r.image_count,
     hasFavorite: r.has_favorite === 1
@@ -142,14 +145,19 @@ export function listScenes(presetId: number): Scene[] {
     .prepare(
       `SELECT s.id, s.preset_id, s.name, s.prompt, s.negative_prompt, s.width, s.height, s.reserve_count, s.reserve_json,
               (SELECT COUNT(*) FROM images WHERE scene_id = s.id) AS image_count,
-              (SELECT thumbnail FROM images WHERE scene_id = s.id ORDER BY favorite DESC, id DESC LIMIT 1) AS thumb,
-              (SELECT file_path FROM images WHERE scene_id = s.id ORDER BY favorite DESC, id DESC LIMIT 1) AS thumb_path,
+              t.id AS thumb_id, t.created_at AS thumb_rev, t.thumbnail IS NOT NULL AS thumb_has,
+              t.file_path AS thumb_path,
               EXISTS(SELECT 1 FROM images WHERE scene_id = s.id AND favorite = 1) AS has_favorite
-       FROM gen_scenes s WHERE s.preset_id = ? ORDER BY s.sort_order, s.id`
+       FROM gen_scenes s
+       LEFT JOIN images t ON t.id =
+         (SELECT id FROM images WHERE scene_id = s.id ORDER BY favorite DESC, id DESC LIMIT 1)
+       WHERE s.preset_id = ? ORDER BY s.sort_order, s.id`
     )
     .all(presetId) as (Row & {
     image_count: number
-    thumb: Buffer | null
+    thumb_id: number | null
+    thumb_rev: string | null
+    thumb_has: number | null
     thumb_path: string | null
     has_favorite: number
   })[]
@@ -405,13 +413,14 @@ export function sceneImages(
   ).c
   const rows = db
     .prepare(
-      `SELECT id, file_path, thumbnail, seed, favorite FROM images
-       WHERE scene_id = ?${fav} ORDER BY id DESC LIMIT ? OFFSET ?`
+      `SELECT id, file_path, thumbnail IS NOT NULL AS has_thumbnail, created_at, seed, favorite
+       FROM images WHERE scene_id = ?${fav} ORDER BY id DESC LIMIT ? OFFSET ?`
     )
     .all(sceneId, limit, offset) as {
     id: number
     file_path: string
-    thumbnail: Buffer | null
+    has_thumbnail: number
+    created_at: string
     seed: number | null
     favorite: number
   }[]
@@ -420,7 +429,7 @@ export function sceneImages(
     items: rows.map((r) => ({
       id: r.id,
       filePath: r.file_path,
-      thumbnail: r.thumbnail ? r.thumbnail.toString('base64') : '',
+      thumbnail: r.has_thumbnail ? thumbnailUrl('images', r.id, r.created_at) : '',
       seed: r.seed,
       favorite: r.favorite === 1
     }))
