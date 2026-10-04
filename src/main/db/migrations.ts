@@ -343,5 +343,21 @@ export const migrations: ((db: Database.Database) => void)[] = [
   // v18: lightweight Danbooru-based defaults. Existing fragments win on name collisions.
   (db) => {
     seedDefaultDanbooruFragments(db)
+  },
+
+  // v19: 히스토리 payload_json에서 대용량 base64 제거 (i2i 소스·마스크·캐릭레퍼 원본·인코딩 바이브).
+  // 메타데이터 복원은 프롬프트·파라미터만 읽으므로 영향 없음. 신규 행은 storedPayload()가 같은 키를 뺀다.
+  (db) => {
+    db.exec(`
+      UPDATE images SET payload_json = json_remove(payload_json,
+        '$.parameters.image', '$.parameters.mask',
+        '$.parameters.director_reference_images', '$.parameters.reference_image_multiple')
+      WHERE json_valid(payload_json) AND (
+        json_type(payload_json, '$.parameters.image') IS NOT NULL OR
+        json_type(payload_json, '$.parameters.mask') IS NOT NULL OR
+        json_type(payload_json, '$.parameters.director_reference_images') IS NOT NULL OR
+        json_type(payload_json, '$.parameters.reference_image_multiple') IS NOT NULL
+      );
+    `)
   }
 ]

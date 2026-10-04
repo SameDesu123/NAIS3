@@ -128,7 +128,7 @@ export async function saveEphemeralImage(input: {
       thumbnail,
       input.kind,
       input.seed,
-      payloadWithLocalMetadata(input.sentPayload, input.localMetadata)
+      storedPayload(input.sentPayload, input.localMetadata)
     )
 
   const stale = db
@@ -223,20 +223,41 @@ export async function saveGeneratedImage(input: {
       thumbnail,
       input.kind,
       input.seed,
-      payloadWithLocalMetadata(input.sentPayload, input.localMetadata),
+      storedPayload(input.sentPayload, input.localMetadata),
       input.sceneId ?? null
     )
 
   return { id: Number(result.lastInsertRowid), filePath }
 }
 
-function payloadWithLocalMetadata(
+const STORED_PAYLOAD_OMITTED_PARAMS = [
+  'image',
+  'mask',
+  'director_reference_images',
+  'reference_image_multiple'
+] as const
+
+/**
+ * 전송 payload에서 히스토리에 남길 필요 없는 대용량 base64를 뺀다.
+ * i2i 소스·마스크·캐릭레퍼 원본·인코딩 바이브가 장마다 수 MB씩 DB에 쌓이는 것 방지.
+ * 메타데이터 복원(metadataFromPayloadJson)은 프롬프트·파라미터만 읽으므로 영향 없음.
+ */
+export function storedPayload(
   sentPayload: string,
   localMetadata?: Pick<ImageMetadata, 'promptParts'>
 ): string {
-  if (!localMetadata) return sentPayload
   try {
-    return JSON.stringify({ ...JSON.parse(sentPayload), nais3: localMetadata })
+    const payload = JSON.parse(sentPayload) as { parameters?: Record<string, unknown> }
+    const params = payload.parameters
+    const hasOmitted = !!params && STORED_PAYLOAD_OMITTED_PARAMS.some((key) => key in params)
+    if (!hasOmitted && !localMetadata) return sentPayload
+    const parameters = params ? { ...params } : undefined
+    if (parameters) for (const key of STORED_PAYLOAD_OMITTED_PARAMS) delete parameters[key]
+    return JSON.stringify({
+      ...payload,
+      ...(parameters ? { parameters } : {}),
+      ...(localMetadata ? { nais3: localMetadata } : {})
+    })
   } catch {
     return sentPayload
   }
