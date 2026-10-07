@@ -122,7 +122,7 @@ function PresetDropdown(): React.JSX.Element {
                     onClick={() => choose(p.id)}
                     className={cn(
                       'flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px]',
-                      p.id === activePresetId && 'font-semibold text-accent'
+                      p.id === activePresetId && 'font-semibold text-accent-ink'
                     )}
                   >
                     <span className="truncate">{p.name}</span>
@@ -163,7 +163,7 @@ function PresetDropdown(): React.JSX.Element {
           </div>
           <div className="my-1 h-px bg-line" />
           <button
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-accent hover:bg-surface-2"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-accent-ink hover:bg-surface-2"
             onClick={async () => {
               const name = await askText(t('ui.newPresetName'), t('ui.newPreset'))
               if (name) void createPreset(name)
@@ -223,7 +223,7 @@ function CastSelector(): React.JSX.Element {
           <button
             className={cn(
               'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-surface-2',
-              !active && 'font-semibold text-accent'
+              !active && 'font-semibold text-accent-ink'
             )}
             onClick={() => {
               setActiveCast('')
@@ -249,7 +249,7 @@ function CastSelector(): React.JSX.Element {
                   <div
                     className={cn(
                       'flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px]',
-                      c.id === activeCastId && 'font-semibold text-accent'
+                      c.id === activeCastId && 'font-semibold text-accent-ink'
                     )}
                   >
                     <span
@@ -287,7 +287,7 @@ function CastSelector(): React.JSX.Element {
           </div>
           <div className="my-1 h-px bg-line" />
           <button
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-accent hover:bg-surface-2"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-accent-ink hover:bg-surface-2"
             onClick={() => {
               setOpen(false)
               setTimeout(() => setManageOpen(true), 0) // 팝오버 dismiss 레이스 회피
@@ -535,7 +535,7 @@ function SceneGrid(): React.JSX.Element {
               ))}
               <button
                 onClick={() => void create(t('ui.newScene'))}
-                className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-line text-faint transition hover:text-accent"
+                className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-line text-faint transition hover:text-accent-ink"
                 style={{ aspectRatio: CARD_ASPECT[cardOrientation] }}
               >
                 <Plus size={22} />

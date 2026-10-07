@@ -436,7 +436,7 @@ export function CharacterOverlay(): React.JSX.Element {
               'rounded-full px-1.5 font-mono text-[10.5px]',
               enabledCount >= maxCharacters
                 ? 'bg-danger/15 text-danger'
-                : 'bg-accent-soft text-accent'
+                : 'bg-accent-soft text-accent-ink'
             )}
             title={t('ui.activeCharactersValueValue', enabledCount, maxCharacters)}
           >

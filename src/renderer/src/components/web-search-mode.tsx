@@ -180,7 +180,7 @@ export function WebSearchMode(): React.JSX.Element {
         <Button
           size="sm"
           variant="ghost"
-          className={cn('h-7 px-2 text-[12px]', editLinks && 'text-accent')}
+          className={cn('h-7 px-2 text-[12px]', editLinks && 'text-accent-ink')}
           onClick={() => setEditLinks(!editLinks)}
         >
           {editLinks ? t('ui.done') : t('ui.edit')}

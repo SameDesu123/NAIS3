@@ -271,7 +271,7 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
           {kind === 'vibe' ? t('ui.vibeTransfer') : t('ui.characterReference')}
         </span>
         {enabledCount > 0 && (
-          <span className="rounded-full bg-accent-soft px-1.5 font-mono text-[10.5px] text-accent">
+          <span className="rounded-full bg-accent-soft px-1.5 font-mono text-[10.5px] text-accent-ink">
             {enabledCount}
           </span>
         )}

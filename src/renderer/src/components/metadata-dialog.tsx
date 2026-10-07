@@ -357,7 +357,7 @@ function ReadonlyPrompt({
       value={value}
       placeholder={t('ui.none')}
       className={cn(
-        'block w-full resize-none overflow-y-auto whitespace-pre-wrap break-words bg-transparent font-mono leading-relaxed text-ink outline-none placeholder:font-sans placeholder:text-faint',
+        'block w-full resize-none overflow-y-auto whitespace-pre-wrap break-words bg-transparent font-mono leading-relaxed text-ink outline-none placeholder:font-sans placeholder:text-muted',
         'cursor-text select-text',
         className
       )}

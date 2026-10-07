@@ -4,7 +4,11 @@ interface Rgb {
   b: number
 }
 
+const RGB_FN = /^rgb\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*\)$/
+
 function parseHex(hex: string): Rgb {
+  const fn = RGB_FN.exec(hex.trim())
+  if (fn) return { r: Number(fn[1]), g: Number(fn[2]), b: Number(fn[3]) }
   let h = hex.trim().replace(/^#/, '')
   if (h.length === 3)
     h = h
@@ -25,12 +29,29 @@ function toHex({ r, g, b }: Rgb): string {
   return `#${c(r)}${c(g)}${c(b)}`
 }
 
-export function mixHex(a: string, b: string, t: number): string {
+function mixRgb(a: string, b: string, t: number): Rgb {
   const ca = parseHex(a)
   const cb = parseHex(b)
   const lerp = (x: number, y: number): number => x + (y - x) * t
-  return toHex({ r: lerp(ca.r, cb.r), g: lerp(ca.g, cb.g), b: lerp(ca.b, cb.b) })
+  return { r: lerp(ca.r, cb.r), g: lerp(ca.g, cb.g), b: lerp(ca.b, cb.b) }
 }
+
+/** Color for token output — #rrggbb with channels rounded to integers */
+export function mixHex(a: string, b: string, t: number): string {
+  return toHex(mixRgb(a, b, t))
+}
+
+/**
+ * Composites over onto bg at alpha. Meant only for contrast checks, so it returns an
+ * unrounded rgb(): rounding to integers would let a failing 4.49:1 pass as 4.5:1.
+ */
+export function composite(bg: string, over: string, alpha: number): string {
+  const { r, g, b } = mixRgb(bg, over, alpha)
+  return `rgb(${r} ${g} ${b})`
+}
+
+/** 0, 0.05, …, 1 — reaches the endpoint 1 exactly, without float accumulation */
+const STEPS = Array.from({ length: 21 }, (_, i) => i / 20)
 
 /** WCAG 2.x relative luminance */
 function luminance(hex: string): number {
@@ -60,13 +81,35 @@ export function ensureContrast(
   target = 4.5,
   tint = 0
 ): string {
-  for (let t = 0; t <= 1; t += 0.05) {
+  for (const t of STEPS) {
     const candidate = mixHex(fg, toward, t)
     const bgs =
       tint > 0
-        ? [...backgrounds, ...backgrounds.map((bg) => mixHex(bg, candidate, tint))]
+        ? [...backgrounds, ...backgrounds.map((bg) => composite(bg, candidate, tint))]
         : backgrounds
     if (bgs.every((bg) => contrastRatio(candidate, bg) >= target)) return candidate
+  }
+  return toward
+}
+
+/**
+ * Nudges highlight color mark, laid behind text at alpha, toward `toward` until text color
+ * text reaches target contrast on the mark composited over every background.
+ */
+export function ensureMarkContrast(
+  mark: string,
+  text: string,
+  backgrounds: string[],
+  toward: string,
+  alpha: number,
+  target = 4.5
+): string {
+  for (const t of STEPS) {
+    const candidate = mixHex(mark, toward, t)
+    const ok = backgrounds.every(
+      (bg) => contrastRatio(text, composite(bg, candidate, alpha)) >= target
+    )
+    if (ok) return candidate
   }
   return toward
 }

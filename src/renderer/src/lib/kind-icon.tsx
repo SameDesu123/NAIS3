@@ -36,7 +36,7 @@ const KIND_MAP: Record<string, KindMeta> = {
   declutter: { Icon: Sparkles, className: 'text-hue-violet', label: 'ui.declutter' },
   'declutter-keep-bubbles': {
     Icon: MessageSquareText,
-    className: 'text-hue-violet/70',
+    className: 'text-hue-violet',
     label: 'ui.declutter.85446fc'
   },
   mosaic: { Icon: Grid3x3, className: 'text-hue-orange', label: 'ui.mosaic' }
@@ -52,7 +52,7 @@ export function KindBadge({ kind, size = 12 }: { kind: string; size?: number }):
   const { Icon, className, label } = kindMeta(kind)
   return (
     <span
-      className="pointer-events-none absolute bottom-1 left-1 grid place-items-center on-image rounded bg-black/55 p-0.5 backdrop-blur-sm"
+      className="pointer-events-none absolute bottom-1 left-1 grid place-items-center on-image rounded bg-black/80 p-0.5 backdrop-blur-sm"
       title={t(label)}
     >
       <Icon size={size} className={className} />

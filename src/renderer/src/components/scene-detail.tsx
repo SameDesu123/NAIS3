@@ -326,7 +326,7 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
                   />
                 ) : (
                   <div className="grid h-full w-full place-items-center">
-                    <Loader2 size={26} className="animate-spin text-accent" />
+                    <Loader2 size={26} className="animate-spin text-accent-ink" />
                   </div>
                 )}
                 {streaming && (

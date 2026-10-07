@@ -239,7 +239,7 @@ export function LibraryMode(): React.JSX.Element {
           </>
         ) : (
           <>
-            <Library size={15} className="text-accent" />
+            <Library size={15} className="text-accent-ink" />
             <span className="text-[13.5px] font-semibold">{t('ui.library')}</span>
           </>
         )}

@@ -493,9 +493,9 @@ function EmptyNote({ text }: { text: string }): React.JSX.Element {
 }
 
 const CHIP_COLORS = {
-  sky: 'bg-hue-sky/12 text-hue-sky',
-  emerald: 'bg-hue-emerald/12 text-hue-emerald',
-  violet: 'bg-hue-violet/12 text-hue-violet'
+  sky: 'bg-hue-sky/12 text-hue-sky hover:bg-hue-sky/20',
+  emerald: 'bg-hue-emerald/12 text-hue-emerald hover:bg-hue-emerald/20',
+  violet: 'bg-hue-violet/12 text-hue-violet hover:bg-hue-violet/20'
 } as const
 
 function Chip({
@@ -511,7 +511,7 @@ function Chip({
   return (
     <button
       className={cn(
-        'max-w-[180px] truncate rounded-md px-2 py-1 text-[11px] transition hover:opacity-70',
+        'max-w-[180px] truncate rounded-md px-2 py-1 text-[11px] transition',
         CHIP_COLORS[color]
       )}
       title={t('ui.clickToDeselect')}
