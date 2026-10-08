@@ -7,6 +7,7 @@ import { closeDb, getDb, initDb } from '../src/main/db'
 import { migrations } from '../src/main/db/migrations'
 import { listLibrary } from '../src/main/library/repo'
 import { listScenes, sceneImages } from '../src/main/scenes/repo'
+import { thumbnailUrl } from '../src/shared/thumbnail-url'
 
 const environment = vi.hoisted(() => ({ directory: '' }))
 vi.mock('electron', () => ({
@@ -107,6 +108,8 @@ describe('listScenes cover lookup', () => {
         `SELECT s.id,
                 (SELECT COUNT(*) FROM images WHERE scene_id = s.id) AS image_count,
                 (SELECT thumbnail FROM images WHERE scene_id = s.id ORDER BY favorite DESC, id DESC LIMIT 1) AS thumb,
+                (SELECT id FROM images WHERE scene_id = s.id ORDER BY favorite DESC, id DESC LIMIT 1) AS thumb_id,
+                (SELECT created_at FROM images WHERE scene_id = s.id ORDER BY favorite DESC, id DESC LIMIT 1) AS thumb_created_at,
                 (SELECT file_path FROM images WHERE scene_id = s.id ORDER BY favorite DESC, id DESC LIMIT 1) AS thumb_path,
                 EXISTS(SELECT 1 FROM images WHERE scene_id = s.id AND favorite = 1) AS has_favorite
          FROM gen_scenes s WHERE s.preset_id = ? ORDER BY s.sort_order, s.id`
@@ -115,6 +118,8 @@ describe('listScenes cover lookup', () => {
       id: number
       image_count: number
       thumb: Buffer | null
+      thumb_id: number | null
+      thumb_created_at: string | null
       thumb_path: string | null
       has_favorite: number
     }[]
@@ -125,7 +130,7 @@ describe('listScenes cover lookup', () => {
       scenes.map((s) => ({
         id: s.id,
         imageCount: s.imageCount,
-        thumbnail: s.thumbnail,
+        thumbnailUrl: s.thumbnailUrl,
         thumbnailPath: s.thumbnailPath,
         hasFavorite: s.hasFavorite
       }))
@@ -133,7 +138,7 @@ describe('listScenes cover lookup', () => {
       previous.map((r) => ({
         id: r.id,
         imageCount: r.image_count,
-        thumbnail: r.thumb ? r.thumb.toString('base64') : '',
+        thumbnailUrl: r.thumb ? thumbnailUrl('image', r.thumb_id!, r.thumb_created_at!) : '',
         thumbnailPath: r.thumb_path ?? '',
         hasFavorite: r.has_favorite === 1
       }))
@@ -141,7 +146,7 @@ describe('listScenes cover lookup', () => {
     // Spot-check the expectations themselves, not only parity with the old query.
     expect(scenes[1]).toMatchObject({ thumbnailPath: '/s2/3.png', hasFavorite: false })
     expect(scenes[2]).toMatchObject({ thumbnailPath: '/s3/6.png', hasFavorite: true })
-    expect(scenes[3]).toMatchObject({ thumbnail: '', thumbnailPath: '/s4/8.png', imageCount: 1 })
+    expect(scenes[3]).toMatchObject({ thumbnailUrl: '', thumbnailPath: '/s4/8.png', imageCount: 1 })
   })
 
   it('keeps scene and library paging order unchanged', () => {
