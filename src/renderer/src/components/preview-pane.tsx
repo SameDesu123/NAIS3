@@ -21,22 +21,24 @@ function Greeting(): React.JSX.Element {
     return () => window.clearInterval(id)
   }, [])
   return (
-    <div className="flex flex-col items-center gap-3 px-6 text-center">
-      {/* 로고를 마스크로 써서 테마 액센트 색으로 칠한다 (라이트/다크 모두 보이게) */}
+    <div className="flex flex-col items-center gap-4 px-6 text-center">
+      {/* 로고를 마스크로 쓰고 강조색 기반 그라데이션으로 칠한다 (테마 프리셋을 따라감) */}
       <div
         aria-hidden
-        className="h-11 w-11 bg-accent"
+        className="h-14 w-14"
         style={{
+          background:
+            'linear-gradient(135deg, color-mix(in srgb, var(--accent) 55%, white) 0%, var(--accent) 50%, color-mix(in srgb, var(--accent) 70%, black) 100%)',
           maskImage: `url("${nais3Logo}")`,
           maskSize: 'contain',
           maskRepeat: 'no-repeat',
           maskPosition: 'center'
         }}
       />
-      <h2 className="text-[22px] font-medium tracking-tight text-ink">
+      <h2 className="text-[30px] font-medium tracking-tight text-ink">
         {t(greetingFor(hour, pick))}
       </h2>
-      <span className="text-[13px] text-faint">{t('ui.generatedImagesWillAppearHere')}</span>
+      <span className="text-[14px] text-faint">{t('ui.generatedImagesWillAppearHere')}</span>
     </div>
   )
 }

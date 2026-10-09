@@ -19,7 +19,13 @@ describe('greeting', () => {
 
   it('picks a variant for the current day part', () => {
     expect(greetingFor(9, 0)).toBe('ui.greetingMorning1')
-    expect(greetingFor(9, 0.99)).toBe('ui.greetingMorning2')
-    expect(greetingFor(2, 1)).toBe('ui.greetingDawn2')
+    expect(greetingFor(9, 0.99)).toBe('ui.greetingMorning6')
+    expect(greetingFor(2, 1)).toBe('ui.greetingDawn6')
   })
+})
+
+it('uses greeting IDs that exist in the catalog', async () => {
+  const { KO } = await import('../src/shared/i18n/catalog-ko')
+  for (let hour = 0; hour < 24; hour++)
+    for (let n = 0; n < 6; n++) expect(KO).toHaveProperty([greetingFor(hour, n / 6)])
 })

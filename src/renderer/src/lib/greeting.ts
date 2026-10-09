@@ -11,12 +11,15 @@ export function dayPartOf(hour: number): DayPart {
   return 'night'
 }
 
+const ids = (part: string): readonly MessageId[] =>
+  [1, 2, 3, 4, 5, 6].map((n) => `ui.greeting${part}${n}` as MessageId)
+
 const GREETINGS: Record<DayPart, readonly MessageId[]> = {
-  dawn: ['ui.greetingDawn1', 'ui.greetingDawn2'],
-  morning: ['ui.greetingMorning1', 'ui.greetingMorning2'],
-  afternoon: ['ui.greetingAfternoon1', 'ui.greetingAfternoon2'],
-  evening: ['ui.greetingEvening1', 'ui.greetingEvening2'],
-  night: ['ui.greetingNight1', 'ui.greetingNight2']
+  dawn: ids('Dawn'),
+  morning: ids('Morning'),
+  afternoon: ids('Afternoon'),
+  evening: ids('Evening'),
+  night: ids('Night')
 }
 
 /** 시간대별 인사 문구 ID. pick(0 이상 1 미만)으로 변형 중 하나를 고른다 */
