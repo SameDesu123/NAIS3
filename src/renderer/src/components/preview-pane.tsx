@@ -22,13 +22,11 @@ function Greeting(): React.JSX.Element {
   }, [])
   return (
     <div className="flex flex-col items-center gap-4 px-6 text-center">
-      {/* 로고를 마스크로 쓰고 강조색 기반 그라데이션으로 칠한다 (테마 프리셋을 따라감) */}
+      {/* 로고를 마스크로 써서 본문 글자색(ink)으로 칠한다 — 다크=흰색, 라이트=검정 */}
       <div
         aria-hidden
-        className="h-14 w-14"
+        className="h-14 w-14 bg-ink"
         style={{
-          background:
-            'linear-gradient(135deg, color-mix(in srgb, var(--accent) 55%, white) 0%, var(--accent) 50%, color-mix(in srgb, var(--accent) 70%, black) 100%)',
           maskImage: `url("${nais3Logo}")`,
           maskSize: 'contain',
           maskRepeat: 'no-repeat',
