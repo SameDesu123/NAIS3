@@ -1,13 +1,45 @@
 import { ImageIcon, Loader2, Lock, LockOpen } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import nais3Logo from '../assets/nais3-logo.svg'
 import { imageUrl } from '../lib/constants'
 import { useGenerationStore } from '../stores/generation-store'
 import { useMetadataStore } from '../stores/metadata-store'
 import { cn } from '../lib/utils'
 import { isLeavingDropZone, useDragEndCleanup } from '../lib/drop-zone'
 import { useT } from '../lib/i18n'
+import { greetingFor } from '../lib/greeting'
 import { DropOverlay } from './drop-overlay'
 import { ImageContextMenu } from './image-context-menu'
+
+/** 빈 미리보기의 시간대별 인사. 변형은 마운트 때 한 번 고르고, 시간대는 1분마다 다시 판정 */
+function Greeting(): React.JSX.Element {
+  const t = useT()
+  const [pick] = useState(Math.random)
+  const [hour, setHour] = useState(() => new Date().getHours())
+  useEffect(() => {
+    const id = window.setInterval(() => setHour(new Date().getHours()), 60_000)
+    return () => window.clearInterval(id)
+  }, [])
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 text-center">
+      {/* 로고를 마스크로 써서 테마 액센트 색으로 칠한다 (라이트/다크 모두 보이게) */}
+      <div
+        aria-hidden
+        className="h-11 w-11 bg-accent"
+        style={{
+          maskImage: `url("${nais3Logo}")`,
+          maskSize: 'contain',
+          maskRepeat: 'no-repeat',
+          maskPosition: 'center'
+        }}
+      />
+      <h2 className="text-[22px] font-medium tracking-tight text-ink">
+        {t(greetingFor(hour, pick))}
+      </h2>
+      <span className="text-[13px] text-faint">{t('ui.generatedImagesWillAppearHere')}</span>
+    </div>
+  )
+}
 
 export function PreviewPane(): React.JSX.Element {
   const t = useT()
@@ -129,10 +161,7 @@ export function PreviewPane(): React.JSX.Element {
           <span className="text-[13px]">{t('ui.preparingToGenerate')}</span>
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-2 text-faint">
-          <ImageIcon size={40} strokeWidth={1.2} />
-          <span className="text-[13px]">{t('ui.generatedImagesWillAppearHere')}</span>
-        </div>
+        <Greeting />
       )}
 
       {/* A batch retains the previous result path; only a user-pinned view hides progress. */}
