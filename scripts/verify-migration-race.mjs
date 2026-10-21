@@ -2,10 +2,10 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { buildSync } from 'esbuild'
 
 // Launches the packaged app a second time while its first start is still migrating a large
 // v18 workspace, then checks what both launches did to the database and its backups.
@@ -48,6 +48,12 @@ const appData = {
 }[platform]
 // The unpacked Linux build has no setuid chrome-sandbox, and Ubuntu 24.04 blocks user namespaces.
 const guiArgs = platform === 'linux' ? ['--no-sandbox'] : []
+
+// esbuild is not a direct dependency, so pnpm does not link it at the top level. Use the copy
+// electron-vite bundles the main process with.
+const { buildSync } = createRequire(
+  createRequire(import.meta.url).resolve('electron-vite/package.json')
+)('esbuild')
 
 const work = mkdtempSync(join(tmpdir(), 'nais3-race-'))
 const migrations = join(work, 'migrations.cjs')
