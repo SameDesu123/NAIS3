@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { extractFile } from '@electron/asar'
+import { extractFile, listPackage } from '@electron/asar'
 
 const [platform = process.platform, arch = process.arch, suppliedDirectory] = process.argv.slice(2)
 assert.equal(platform, process.platform, 'Run the packaged app on its target OS')
@@ -123,5 +124,54 @@ if (platform === 'linux') {
     }
   )
   console.log(wasmOutput.trim())
+}
+// The app migrates the database in a worker thread (src/main/db/migrate.worker.ts). Run the
+// shipped worker from app.asar on a new database: it must load better-sqlite3 inside a worker
+// and apply every migration.
+const [migrationWorker, ...extraWorkers] = listPackage(asar, { isPack: false }).filter((file) =>
+  /^[\\/]out[\\/]main[\\/]migrate\.worker-[^\\/]+\.js$/.test(file)
+)
+assert.ok(migrationWorker && extraWorkers.length === 0, 'Expected one packaged migration worker')
+const workspace = mkdtempSync(join(tmpdir(), 'nais3-packaged-worker-'))
+try {
+  const workerOutput = execFileSync(
+    executable,
+    [
+      '-e',
+      `
+      const assert = require('node:assert/strict');
+      const path = require('node:path');
+      const { Worker } = require('node:worker_threads');
+      const [root, workerFile, directory] = process.argv.slice(1);
+      const Database = require(path.join(root, 'node_modules/better-sqlite3'));
+      const file = path.join(directory, 'nais3.db');
+      new Database(file).close();
+      const worker = new Worker(path.join(root, workerFile), {
+        workerData: { path: file, backupDir: path.join(directory, 'backups') }
+      });
+      worker.once('error', error => { console.error(error); process.exitCode = 1; });
+      worker.once('message', result => {
+        assert.deepEqual(result, { ok: true });
+        const db = new Database(file, { readonly: true });
+        const version = db.pragma('user_version', { simple: true });
+        db.close();
+        assert.ok(version > 0, 'Migration worker left user_version at ' + version);
+        console.log('Packaged migration worker passed: ' + process.platform + ' ' + process.arch +
+          ', user_version ' + version);
+      });
+    `,
+      asar,
+      migrationWorker,
+      workspace
+    ],
+    {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      encoding: 'utf8',
+      timeout: 60_000
+    }
+  )
+  console.log(workerOutput.trim())
+} finally {
+  rmSync(workspace, { recursive: true, force: true })
 }
 console.log(`Packaged app version verified: ${version}`)
