@@ -1,0 +1,108 @@
+name: Branch Build
+
+on:
+  push:
+    branches:
+      - 'ci/build-db-migration-race-*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: build:win
+            platform: win32
+            arch: x64
+          - os: macos-latest
+            script: build:mac
+            platform: darwin
+            arch: arm64
+          - os: macos-15-intel
+            script: build:mac
+            platform: darwin
+            arch: x64
+          - os: ubuntu-latest
+            script: build:linux
+            platform: linux
+            arch: x64
+            display: xvfb-run -a
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: |
+          node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('Unexpected runner architecture: ' + process.arch)"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      # All package scripts include typecheck. pnpm forwards these flags without an extra --.
+      - run: pnpm run ${{ matrix.script }} --publish never
+      - if: runner.os == 'macOS'
+        run: node scripts/verify-macos-native-deps.mjs
+      - run: node scripts/verify-packaged-app.mjs ${{ matrix.platform }} ${{ matrix.arch }}
+      - if: runner.os == 'Linux'
+        run: command -v xvfb-run || (sudo apt-get update && sudo apt-get install -y xvfb)
+      # Launch the packaged app again while its first start migrates a large v18 workspace.
+      - run: ${{ matrix.display }} node scripts/verify-migration-race.mjs fixed ${{ matrix.platform }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
+            dist/*.dmg
+            dist/*-mac.zip
+            dist/*.AppImage
+            dist/latest-linux.yml
+          if-no-files-found: error
+
+  # The same check on the v1.0.28 startup code must reproduce the race; otherwise a pass
+  # above would prove nothing.
+  control:
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: build:win
+            platform: win32
+            arch: x64
+          - os: macos-latest
+            script: build:mac
+            platform: darwin
+            arch: arm64
+          - os: ubuntu-latest
+            script: build:linux
+            platform: linux
+            arch: x64
+            display: xvfb-run -a
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore the v1.0.28 main process
+        shell: bash
+        run: |
+          git fetch --depth=1 origin 54bf86ce8b733ee0ad7316a96363ce8f145970a6
+          git checkout FETCH_HEAD -- src/main
+          git diff --stat HEAD
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run ${{ matrix.script }} --publish never
+      - if: runner.os == 'Linux'
+        run: command -v xvfb-run || (sudo apt-get update && sudo apt-get install -y xvfb)
+      - run: ${{ matrix.display }} node scripts/verify-migration-race.mjs race ${{ matrix.platform }} ${{ matrix.arch }}
