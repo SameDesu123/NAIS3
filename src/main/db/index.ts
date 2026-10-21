@@ -93,8 +93,9 @@ function writeSnapshot(destination: string): void {
 
 function pruneBackups(backupDir: string, keep: number): void {
   const entries = readdirSync(backupDir)
-  // 스냅샷 도중 강제 종료되면 DB 크기만 한 .tmp가 남는다 — 실행마다 쌓여 디스크를 채우지 않게 정리
-  for (const f of entries.filter((f) => f.endsWith('.tmp'))) {
+  // 스냅샷 도중 강제 종료되면 DB 크기만 한 .tmp(와 그 -journal)가 남는다 — 실행마다 쌓여
+  // 디스크를 채우지 않게 정리
+  for (const f of entries.filter((f) => f.endsWith('.tmp') || f.endsWith('.tmp-journal'))) {
     rmSync(join(backupDir, f), { force: true })
   }
   const files = entries.filter((f) => f.endsWith('.db')).sort()

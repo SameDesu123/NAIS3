@@ -190,6 +190,7 @@ describe('existing workspace migration', () => {
     mkdirSync(backups)
     const stale = 'pre-migration-v17.db.00000000-0000-0000-0000-000000000000.tmp'
     writeFileSync(join(backups, stale), 'partial snapshot')
+    writeFileSync(join(backups, `${stale}-journal`), 'journal of the partial snapshot')
     initDb()
     expect(readdirSync(backups)).toEqual(['pre-migration-v17.db'])
   })
