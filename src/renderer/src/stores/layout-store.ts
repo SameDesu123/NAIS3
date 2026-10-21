@@ -17,7 +17,9 @@ interface LayoutState {
   toggleRight: () => void
   setSettingsOpen: (open: boolean) => void
   setCenterMode: (mode: CenterMode) => void
-  setSidebarWidth: (w: number) => void
+  /** `persist: false` while dragging — saveSidebarWidth() writes the final width on release */
+  setSidebarWidth: (w: number, persist?: boolean) => void
+  saveSidebarWidth: () => void
   setPageHidden: (page: CenterMode, hidden: boolean) => void
   setQuickGenerationControlsEnabled: (enabled: boolean) => void
   hydrate: () => Promise<void>
@@ -39,11 +41,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     SIDEBAR_MAX,
     Math.max(SIDEBAR_MIN, Number(localStorage.getItem('sidebar_width')) || 400)
   ),
-  setSidebarWidth: (w) => {
+  setSidebarWidth: (w, persist = true) => {
     const clamped = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Math.round(w)))
-    set({ sidebarWidth: clamped })
-    localStorage.setItem('sidebar_width', String(clamped))
+    if (clamped !== get().sidebarWidth) set({ sidebarWidth: clamped })
+    if (persist) get().saveSidebarWidth()
   },
+  saveSidebarWidth: () => localStorage.setItem('sidebar_width', String(get().sidebarWidth)),
   hiddenPages: [],
   quickGenerationControlsEnabled: false,
   setQuickGenerationControlsEnabled: (quickGenerationControlsEnabled) => {

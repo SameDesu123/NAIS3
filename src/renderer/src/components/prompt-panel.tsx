@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { effectiveGenerationStrength, estimateAnlas, formatAnlasEstimate } from '@shared/anlas'
 import type { MessageId } from '@shared/i18n'
 import { snapNaiResolution } from '@shared/nai-resolution'
@@ -43,10 +44,13 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
 export function PromptPanel(): React.JSX.Element {
   const t = useT()
-  const request = useGenerationStore((s) => s.request)
-  const patch = useGenerationStore((s) => s.patchRequest)
-  const patchPromptParts = useGenerationStore((s) => s.patchPromptParts)
-  const promptSplitEnabled = useGenerationStore((s) => s.promptSplitEnabled)
+  // Prompt text is read by the prompt sections below — subscribing to the whole request here
+  // would re-render the panel (overlays, tool rows, params dialog) on every keystroke
+  const model = useGenerationStore((s) => s.request.model)
+  const width = useGenerationStore((s) => s.request.width)
+  const height = useGenerationStore((s) => s.request.height)
+  const steps = useGenerationStore((s) => s.request.steps)
+  const i2iStrength = useGenerationStore((s) => s.request.i2iStrength)
   const queue = useGenerationStore((s) => s.queue)
   const batchCount = useGenerationStore((s) => s.batchCount)
   const setBatchCount = useGenerationStore((s) => s.setBatchCount)
@@ -54,26 +58,26 @@ export function PromptPanel(): React.JSX.Element {
   const cancelAll = useGenerationStore((s) => s.cancelAll)
   const charOverlayOpen = useCharactersStore((s) => s.overlayOpen)
   const toggleCharOverlay = useCharactersStore((s) => s.toggleOverlay)
-  const charItems = useCharactersStore((s) => s.items)
+  const activeChars = useCharactersStore(
+    (s) => s.items.filter((c) => c.enabled && c.prompt.trim()).length
+  )
   const fragOverlayOpen = useFragmentsStore((s) => s.overlayOpen)
   const setFragOverlayOpen = useFragmentsStore((s) => s.setOverlayOpen)
   const vibeOverlayOpen = useVibesStore((s) => s.overlayOpen)
   const setVibeOverlayOpen = useVibesStore((s) => s.setOverlayOpen)
   const enabledVibes = useVibesStore((s) => s.items.filter((v) => v.enabled).length)
   const unencodedVibes = useVibesStore(
-    (s) => s.items.filter((v) => v.enabled && !v.encodedModels?.includes(request.model)).length
+    (s) => s.items.filter((v) => v.enabled && !v.encodedModels?.includes(model)).length
   )
   const crefOverlayOpen = useCharRefsStore((s) => s.overlayOpen)
   const setCrefOpen = useCharRefsStore((s) => s.setOverlayOpen)
   const enabledCrefs = useCharRefsStore((s) => s.items.filter((c) => c.enabled).length)
   const source = useGenerationStore((s) => s.source)
   const opusUsage = useGenerationStore((s) => s.opusUsage)
-  const capabilities = modelCapabilities(request.model)
-  const tokenLimit = promptTokenLimit(request.model)
-  const estimateModel = source?.maskBase64 ? inpaintingModelFor(request.model) : request.model
-  const estimateSize = source
-    ? snapNaiResolution(source.width, source.height)
-    : { width: request.width, height: request.height }
+  const capabilities = modelCapabilities(model)
+  const tokenLimit = promptTokenLimit(model)
+  const estimateModel = source?.maskBase64 ? inpaintingModelFor(model) : model
+  const estimateSize = source ? snapNaiResolution(source.width, source.height) : { width, height }
   const [paramsOpen, setParamsOpen] = useState(false)
   const quickGenerationControlsEnabled = useLayoutStore((s) => s.quickGenerationControlsEnabled)
 
@@ -125,60 +129,17 @@ export function PromptPanel(): React.JSX.Element {
   const queueCount =
     queue?.items.filter((i) => i.state === 'pending' || i.state === 'generating').length ?? 0
   const generating = queueCount > 0
-  const activeChars = charItems.filter((c) => c.enabled && c.prompt.trim()).length
-
-  // 토큰 표시: 포지티브는 기본+캐릭터 합산(공홈과 동일), 네거티브는 메인 것만 —
-  // 공홈이 메인 네거와 캐릭터 네거를 별개로 세므로 합산하지 않는다 (캐릭 네거는 카드에서 자체 표시)
-  const [tokenTotals, setTokenTotals] = useState<{ pos: number | null; neg: number | null }>({
-    pos: null,
-    neg: null
-  })
-  const enabledChars = useMemo(
-    () => charItems.filter((c) => c.enabled && c.prompt.trim()),
-    [charItems]
-  )
-  useEffect(() => {
-    const posTexts = [request.prompt, ...enabledChars.map((c) => c.prompt)].filter((t) => t.trim())
-    const negTexts = [request.negativePrompt].filter((t) => t.trim())
-    if (posTexts.length === 0 && negTexts.length === 0) {
-      const timer = setTimeout(() => setTokenTotals({ pos: null, neg: null }))
-      return () => clearTimeout(timer)
-    }
-    let cancelled = false
-    const timer = setTimeout(() => {
-      void window.nais
-        .invoke('tokens:count', { texts: [...posTexts, ...negTexts], model: request.model })
-        .then(({ counts }) => {
-          if (cancelled) return
-          // 캡션별로 센 결과를 그대로 합산한다 (T5만 각 캡션에 EOS 포함).
-          const sum = (arr: number[]): number | null =>
-            arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0)
-          setTokenTotals({
-            pos: sum(counts.slice(0, posTexts.length)),
-            neg: sum(counts.slice(posTexts.length))
-          })
-        })
-        .catch(() => {
-          if (!cancelled) setTokenTotals({ pos: null, neg: null })
-        })
-    }, 250)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [request.model, request.prompt, request.negativePrompt, enabledChars])
-
   const anlas = useMemo(
     () =>
       estimateAnlas({
         model: estimateModel,
         width: estimateSize.width,
         height: estimateSize.height,
-        steps: request.steps,
+        steps,
         strength: effectiveGenerationStrength(
           Boolean(source),
           Boolean(source?.maskBase64),
-          request.i2iStrength
+          i2iStrength
         ),
         charRefCount: capabilities.characterReferences ? enabledCrefs : 0,
         isOpus: subscriptionTier === 'opus',
@@ -191,8 +152,8 @@ export function PromptPanel(): React.JSX.Element {
       estimateModel,
       estimateSize.width,
       estimateSize.height,
-      request.steps,
-      request.i2iStrength,
+      steps,
+      i2iStrength,
       source,
       subscriptionTier,
       opusUsage,
@@ -281,33 +242,11 @@ export function PromptPanel(): React.JSX.Element {
                 : undefined
           }
         >
-          <CollapseHeader
-            label="ui.prompt"
+          <PositivePromptSection
             collapsed={posCollapsed}
             onToggle={() => setPosCollapsed((v) => !v)}
-            action={
-              <div className="flex items-center gap-1">
-                {promptSplitEnabled && <TokenBadge tokens={tokenTotals.pos} limit={tokenLimit} />}
-                <SyntaxHelp />
-              </div>
-            }
+            tokenLimit={tokenLimit}
           />
-          {!posCollapsed &&
-            (promptSplitEnabled ? (
-              <SplitPromptFields
-                parts={request.promptParts ?? { base: request.prompt, additional: '', detail: '' }}
-                onChange={patchPromptParts}
-              />
-            ) : (
-              <PromptEditor
-                className="min-h-0 flex-1"
-                value={request.prompt}
-                tokensOverride={tokenTotals.pos}
-                tokenLimit={tokenLimit}
-                placeholder={t('ui.value1girlTagAutocompleteFragment')}
-                onValueChange={(v) => patch({ prompt: v })}
-              />
-            ))}
         </div>
         {/* 세로 비율 조절 스플리터 (둘 다 펼쳐졌을 때만) */}
         {bothOpen && (
@@ -328,29 +267,11 @@ export function PromptPanel(): React.JSX.Element {
                 : undefined
           }
         >
-          <CollapseHeader
-            label="ui.negative"
+          <NegativePromptSection
             collapsed={negCollapsed}
             onToggle={() => setNegCollapsed((v) => !v)}
+            tokenLimit={tokenLimit}
           />
-          {!negCollapsed && isMediumEffortModel(request.model) && (
-            // Medium effort는 사용자 UC를 보내지 않는다 (공지 권장: 프롬프트에 -3::hat:: 같은 음수 강조)
-            <p className="shrink-0 text-[11.5px] leading-snug text-faint">
-              {t('ui.negativeUnusedAtMediumEffort')}
-            </p>
-          )}
-          {!negCollapsed && (
-            <PromptEditor
-              negative
-              className="min-h-0 flex-1"
-              value={request.negativePrompt}
-              // Medium effort는 사용자 UC를 보내지 않으므로 토큰 수·한도 경고도 숨김
-              tokensOverride={isMediumEffortModel(request.model) ? null : tokenTotals.neg}
-              tokenLimit={tokenLimit}
-              placeholder={t('ui.appendedAfterTheUcPreset')}
-              onValueChange={(v) => patch({ negativePrompt: v })}
-            />
-          )}
         </div>
       </div>
 
@@ -474,18 +395,148 @@ export function PromptPanel(): React.JSX.Element {
   )
 }
 
+/**
+ * Debounced token count of the texts as actually sent (fragments/comments resolved by main).
+ * Captions are counted separately and summed (only T5 adds EOS per caption).
+ */
+function usePromptTokens(texts: string[], model: string): number | null {
+  const [total, setTotal] = useState<number | null>(null)
+  const key = JSON.stringify(texts.filter((text) => text.trim()))
+  useEffect(() => {
+    const live = JSON.parse(key) as string[]
+    if (live.length === 0) {
+      const timer = setTimeout(() => setTotal(null))
+      return () => clearTimeout(timer)
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      void window.nais
+        .invoke('tokens:count', { texts: live, model })
+        .then(({ counts }) => {
+          if (!cancelled) setTotal(counts.reduce((a, b) => a + b, 0))
+        })
+        .catch(() => {
+          if (!cancelled) setTotal(null)
+        })
+    }, 250)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [key, model])
+  return total
+}
+
+// 토큰 표시: 포지티브는 기본+캐릭터 합산(공홈과 동일), 네거티브는 메인 것만 —
+// 공홈이 메인 네거와 캐릭터 네거를 별개로 세므로 합산하지 않는다 (캐릭 네거는 카드에서 자체 표시)
+function PositivePromptSection({
+  collapsed,
+  onToggle,
+  tokenLimit
+}: {
+  collapsed: boolean
+  onToggle: () => void
+  tokenLimit: number
+}): React.JSX.Element {
+  const t = useT()
+  const prompt = useGenerationStore((s) => s.request.prompt)
+  const promptParts = useGenerationStore((s) => s.request.promptParts)
+  const model = useGenerationStore((s) => s.request.model)
+  const patch = useGenerationStore((s) => s.patchRequest)
+  const patchPromptParts = useGenerationStore((s) => s.patchPromptParts)
+  const promptSplitEnabled = useGenerationStore((s) => s.promptSplitEnabled)
+  const charPrompts = useCharactersStore(
+    useShallow((s) => s.items.filter((c) => c.enabled && c.prompt.trim()).map((c) => c.prompt))
+  )
+  const tokens = usePromptTokens([prompt, ...charPrompts], model)
+  return (
+    <>
+      <CollapseHeader
+        label="ui.prompt"
+        collapsed={collapsed}
+        onToggle={onToggle}
+        action={
+          <div className="flex items-center gap-1">
+            {promptSplitEnabled && <TokenBadge tokens={tokens} limit={tokenLimit} />}
+            <SyntaxHelp />
+          </div>
+        }
+      />
+      {!collapsed &&
+        (promptSplitEnabled ? (
+          <SplitPromptFields
+            parts={promptParts ?? { base: prompt, additional: '', detail: '' }}
+            onChange={patchPromptParts}
+          />
+        ) : (
+          <PromptEditor
+            className="min-h-0 flex-1"
+            value={prompt}
+            tokensOverride={tokens}
+            tokenLimit={tokenLimit}
+            placeholder={t('ui.value1girlTagAutocompleteFragment')}
+            onValueChange={(v) => patch({ prompt: v })}
+          />
+        ))}
+    </>
+  )
+}
+
+function NegativePromptSection({
+  collapsed,
+  onToggle,
+  tokenLimit
+}: {
+  collapsed: boolean
+  onToggle: () => void
+  tokenLimit: number
+}): React.JSX.Element {
+  const t = useT()
+  const negativePrompt = useGenerationStore((s) => s.request.negativePrompt)
+  const model = useGenerationStore((s) => s.request.model)
+  const patch = useGenerationStore((s) => s.patchRequest)
+  const tokens = usePromptTokens([negativePrompt], model)
+  const medium = isMediumEffortModel(model)
+  return (
+    <>
+      <CollapseHeader label="ui.negative" collapsed={collapsed} onToggle={onToggle} />
+      {!collapsed && medium && (
+        // Medium effort는 사용자 UC를 보내지 않는다 (공지 권장: 프롬프트에 -3::hat:: 같은 음수 강조)
+        <p className="shrink-0 text-[11.5px] leading-snug text-faint">
+          {t('ui.negativeUnusedAtMediumEffort')}
+        </p>
+      )}
+      {!collapsed && (
+        <PromptEditor
+          negative
+          className="min-h-0 flex-1"
+          value={negativePrompt}
+          // Medium effort는 사용자 UC를 보내지 않으므로 토큰 수·한도 경고도 숨김
+          tokensOverride={medium ? null : tokens}
+          tokenLimit={tokenLimit}
+          placeholder={t('ui.appendedAfterTheUcPreset')}
+          onValueChange={(v) => patch({ negativePrompt: v })}
+        />
+      )}
+    </>
+  )
+}
+
 function QuickGenerationControls(): React.JSX.Element {
   const t = useT()
-  const request = useGenerationStore((s) => s.request)
+  const model = useGenerationStore((s) => s.request.model)
+  const width = useGenerationStore((s) => s.request.width)
+  const height = useGenerationStore((s) => s.request.height)
+  const steps = useGenerationStore((s) => s.request.steps)
   const patch = useGenerationStore((s) => s.patchRequest)
-  const medium = isMediumEffortModel(request.model)
+  const medium = isMediumEffortModel(model)
 
   return (
     <div className="grid grid-cols-2 gap-2">
       <ResolutionPicker
         className="h-9 w-full"
-        width={request.width}
-        height={request.height}
+        width={width}
+        height={height}
         ariaLabel={t('ui.resolution')}
         onPick={(width, height) => patch({ width, height })}
       />
@@ -506,7 +557,7 @@ function QuickGenerationControls(): React.JSX.Element {
           step={1}
           inputMode="numeric"
           disabled={medium}
-          value={medium ? MEDIUM_EFFORT_FIXED.steps : request.steps}
+          value={medium ? MEDIUM_EFFORT_FIXED.steps : steps}
           onChange={(event) => {
             const parsed = Number.parseInt(event.target.value, 10)
             if (!Number.isNaN(parsed)) patch({ steps: Math.max(1, Math.min(50, parsed)) })

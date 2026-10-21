@@ -32,4 +32,16 @@ describe('layout settings', () => {
       value: '0'
     })
   })
+
+  it('writes the sidebar width to localStorage only when the drag ends', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const { setSidebarWidth, saveSidebarWidth } = useLayoutStore.getState()
+    for (let w = 401; w <= 420; w++) setSidebarWidth(w, false)
+
+    expect(useLayoutStore.getState().sidebarWidth).toBe(420)
+    expect(setItem).not.toHaveBeenCalled()
+    saveSidebarWidth()
+    expect(setItem).toHaveBeenCalledExactlyOnceWith('sidebar_width', '420')
+    setItem.mockRestore()
+  })
 })

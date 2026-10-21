@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { HistoryPanel } from './components/history-panel'
 import { LoadingScreen } from './components/loading-screen'
 import { Toaster } from './components/toaster'
@@ -30,14 +30,16 @@ import { useLanguageStore } from './lib/i18n'
 import { useLayoutStore } from './stores/layout-store'
 import { useThemeStore } from './stores/theme-store'
 
-export default function App(): React.JSX.Element {
+// No props — a sidebar width drag re-renders the sidebar shell without re-rendering the panel
+const MemoPromptPanel = memo(PromptPanel)
+
+/**
+ * Left sidebar with its width handle. Width lives here, not in App, so a drag re-renders only
+ * this shell instead of the whole window; the width is written to localStorage on mouseup.
+ */
+function LeftSidebar(): React.JSX.Element {
   const leftOpen = useLayoutStore((s) => s.leftOpen)
-  const rightOpen = useLayoutStore((s) => s.rightOpen)
-  const settingsOpen = useLayoutStore((s) => s.settingsOpen)
-  const setSettingsOpen = useLayoutStore((s) => s.setSettingsOpen)
-  const centerMode = useLayoutStore((s) => s.centerMode)
   const sidebarWidth = useLayoutStore((s) => s.sidebarWidth)
-  const [ready, setReady] = useState(false)
   const [resizing, setResizing] = useState(false)
 
   // 사이드바 폭 드래그 조절
@@ -47,15 +49,49 @@ export default function App(): React.JSX.Element {
     const startX = e.clientX
     const startW = useLayoutStore.getState().sidebarWidth
     const onMove = (ev: MouseEvent): void =>
-      useLayoutStore.getState().setSidebarWidth(startW + (ev.clientX - startX))
+      useLayoutStore.getState().setSidebarWidth(startW + (ev.clientX - startX), false)
     const onUp = (): void => {
       setResizing(false)
+      useLayoutStore.getState().saveSidebarWidth()
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }
+
+  return (
+    <AnimatePresence initial={false}>
+      {leftOpen && (
+        <motion.div
+          key="left"
+          className="relative h-full shrink-0 overflow-hidden"
+          initial={{ width: 0, opacity: 0 }}
+          animate={{ width: sidebarWidth, opacity: 1 }}
+          exit={{ width: 0, opacity: 0 }}
+          // 드래그 중엔 즉시 반영 (애니메이션이 따라오면 답답함)
+          transition={resizing ? { duration: 0 } : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <div style={{ width: sidebarWidth }} className="h-full">
+            <MemoPromptPanel />
+          </div>
+          {/* 폭 조절 핸들 */}
+          <div
+            className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-accent/30"
+            onMouseDown={startResize}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+export default function App(): React.JSX.Element {
+  const rightOpen = useLayoutStore((s) => s.rightOpen)
+  const settingsOpen = useLayoutStore((s) => s.settingsOpen)
+  const setSettingsOpen = useLayoutStore((s) => s.setSettingsOpen)
+  const centerMode = useLayoutStore((s) => s.centerMode)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     // 초기 하이드레이션 — 완료되면 로딩 스플래시 해제
@@ -103,30 +139,7 @@ export default function App(): React.JSX.Element {
       <div className="flex h-screen flex-col bg-paper">
         <Titlebar />
         <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3">
-          <AnimatePresence initial={false}>
-            {leftOpen && (
-              <motion.div
-                key="left"
-                className="relative h-full shrink-0 overflow-hidden"
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: sidebarWidth, opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                // 드래그 중엔 즉시 반영 (애니메이션이 따라오면 답답함)
-                transition={
-                  resizing ? { duration: 0 } : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
-                }
-              >
-                <div style={{ width: sidebarWidth }} className="h-full">
-                  <PromptPanel />
-                </div>
-                {/* 폭 조절 핸들 */}
-                <div
-                  className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-accent/30"
-                  onMouseDown={startResize}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <LeftSidebar />
           <main className="flex min-h-0 min-w-0 flex-1">
             {centerMode === 'scene' ? (
               <SceneMode />

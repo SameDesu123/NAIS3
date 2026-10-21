@@ -153,29 +153,32 @@ export function Titlebar(): React.JSX.Element {
   const opusUsage = useGenerationStore((s) => s.opusUsage)
 
   // 이번 생성에 소모될 Anlas 추정 (고해상도·캐릭터 레퍼런스·미인코딩 바이브 등)
-  const request = useGenerationStore((s) => s.request)
+  // Only the fields the estimate reads — the whole request changes on every prompt keystroke
+  const model = useGenerationStore((s) => s.request.model)
+  const width = useGenerationStore((s) => s.request.width)
+  const height = useGenerationStore((s) => s.request.height)
+  const steps = useGenerationStore((s) => s.request.steps)
+  const i2iStrength = useGenerationStore((s) => s.request.i2iStrength)
   const source = useGenerationStore((s) => s.source)
   const batchCount = useGenerationStore((s) => s.batchCount)
   const tier = useGenerationStore((s) => s.subscriptionTier)
   const enabledCrefs = useCharRefsStore((s) => s.items.filter((c) => c.enabled).length)
   const unencodedVibes = useVibesStore(
-    (s) => s.items.filter((v) => v.enabled && !v.encodedModels?.includes(request.model)).length
+    (s) => s.items.filter((v) => v.enabled && !v.encodedModels?.includes(model)).length
   )
   const enabledVibes = useVibesStore((s) => s.items.filter((v) => v.enabled).length)
-  const capabilities = modelCapabilities(request.model)
-  const estimateModel = source?.maskBase64 ? inpaintingModelFor(request.model) : request.model
-  const estimateSize = source
-    ? snapNaiResolution(source.width, source.height)
-    : { width: request.width, height: request.height }
+  const capabilities = modelCapabilities(model)
+  const estimateModel = source?.maskBase64 ? inpaintingModelFor(model) : model
+  const estimateSize = source ? snapNaiResolution(source.width, source.height) : { width, height }
   const anlasCost = estimateAnlas({
     model: estimateModel,
     width: estimateSize.width,
     height: estimateSize.height,
-    steps: request.steps,
+    steps,
     strength: effectiveGenerationStrength(
       Boolean(source),
       Boolean(source?.maskBase64),
-      request.i2iStrength
+      i2iStrength
     ),
     charRefCount: capabilities.characterReferences ? enabledCrefs : 0,
     isOpus: tier === 'opus',
