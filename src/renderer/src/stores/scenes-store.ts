@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { applySceneRequest } from '@shared/scene-request'
 import { toast } from './toast-store'
 import { recordNav } from '../lib/nav-history'
+import { cancelSave, invokeAfterSaves, queueSave } from '../lib/pending-saves'
 import type { GenerationRequest, Scene, SceneCast, SceneImage, ScenePreset } from '@shared/types'
 import { enabledCharacters, useCharactersStore } from './characters-store'
 import { randomSeed, useGenerationStore } from './generation-store'
@@ -164,7 +165,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
   favoritesOnly: false,
 
   loadPresets: async () => {
-    const { items } = await window.nais.invoke('scenePresets:list', undefined)
+    const { items } = await invokeAfterSaves('scenePresets:list', undefined)
     set({ presets: items })
     if (!items.some((p) => p.id === get().activePresetId) && items[0]) {
       set({ activePresetId: items[0].id })
@@ -177,22 +178,22 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     await get().load()
   },
   createPreset: async (name) => {
-    const { id } = await window.nais.invoke('scenePresets:create', { name })
+    const { id } = await invokeAfterSaves('scenePresets:create', { name })
     await get().loadPresets()
     await get().setActivePreset(id)
   },
   renamePreset: async (id, name) => {
     set({ presets: get().presets.map((p) => (p.id === id ? { ...p, name } : p)) })
-    await window.nais.invoke('scenePresets:rename', { id, name })
+    await invokeAfterSaves('scenePresets:rename', { id, name })
   },
   deletePreset: async (id) => {
-    await window.nais.invoke('scenePresets:delete', { id })
+    await invokeAfterSaves('scenePresets:delete', { id })
     await get().loadPresets()
   },
   reorderPresets: async (ids) => {
     const byId = new Map(get().presets.map((p) => [p.id, p]))
     set({ presets: ids.map((pid) => byId.get(pid)!).filter(Boolean) })
-    await window.nais.invoke('scenePresets:reorder', { ids })
+    await invokeAfterSaves('scenePresets:reorder', { ids })
   },
   setPresetDefaultResolution: async (id, width, height) => {
     set({
@@ -200,14 +201,14 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
         p.id === id ? { ...p, defaultWidth: width, defaultHeight: height } : p
       )
     })
-    await window.nais.invoke('scenePresets:setDefaultResolution', { id, width, height })
+    await invokeAfterSaves('scenePresets:setDefaultResolution', { id, width, height })
   },
 
   load: async () => {
     // 시퀀스 가드: 생성 중 scenes:changed가 연달아 오면 응답이 뒤섞여 옛 썸네일이 남을 수 있음
     const seq = ++loadSeq
     const presetId = get().activePresetId
-    const { items } = await window.nais.invoke('scenes:list', { presetId })
+    const { items } = await invokeAfterSaves('scenes:list', { presetId })
     void get().refreshReservedTotal() // 예약 총합(전 프리셋)도 함께 갱신
     if (seq !== loadSeq || get().activePresetId !== presetId) return // 더 최신 로드가 있으면 폐기
     set({ scenes: items })
@@ -252,40 +253,50 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
   clearSelection: () => set({ selection: new Set() }),
 
   create: async (name) => {
-    await window.nais.invoke('scenes:create', { presetId: get().activePresetId, name })
+    await invokeAfterSaves('scenes:create', { presetId: get().activePresetId, name })
     await get().load()
   },
   update: async (id, patch) => {
     set({ scenes: get().scenes.map((s) => (s.id === id ? { ...s, ...patch } : s)) })
-    await window.nais.invoke('scenes:update', {
-      id,
-      patch: {
+    // Name and prompt fields are saved per keystroke — coalesce the DB write.
+    // Resolution and reserve changes are discrete and go out at once.
+    queueSave(
+      `scenes:${id}`,
+      {
         name: patch.name,
         prompt: patch.prompt,
         negativePrompt: patch.negativePrompt,
         width: patch.width,
         height: patch.height,
         reserveCount: patch.reserveCount
+      },
+      (p) => void window.nais.invoke('scenes:update', { id, patch: p }),
+      {
+        immediate:
+          patch.width !== undefined ||
+          patch.height !== undefined ||
+          patch.reserveCount !== undefined
       }
-    })
+    )
   },
   duplicate: async (id) => {
-    await window.nais.invoke('scenes:duplicate', { id })
+    await invokeAfterSaves('scenes:duplicate', { id })
     await get().load()
   },
   remove: async (id) => {
-    await window.nais.invoke('scenes:delete', { id })
+    cancelSave(`scenes:${id}`)
+    await invokeAfterSaves('scenes:delete', { id })
     if (get().selectedId === id) set({ selectedId: null })
     await get().load()
   },
   reorder: async (ids) => {
     set({ scenes: ids.map((id) => get().scenes.find((s) => s.id === id)!).filter(Boolean) })
-    await window.nais.invoke('scenes:reorder', { ids })
+    await invokeAfterSaves('scenes:reorder', { ids })
   },
 
   reservedTotal: 0,
   refreshReservedTotal: async () => {
-    const { total } = await window.nais.invoke('scenes:reservedTotal', undefined)
+    const { total } = await invokeAfterSaves('scenes:reservedTotal', undefined)
     set({ reservedTotal: total })
   },
   adjustReserve: async (id, delta) => {
@@ -303,7 +314,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     set({
       scenes: get().scenes.map((s) => (s.id === id ? { ...s, reserves, reserveCount } : s))
     })
-    await window.nais.invoke('scenes:setReserves', { id, reserves })
+    await invokeAfterSaves('scenes:setReserves', { id, reserves })
     void get().refreshReservedTotal()
   },
   setReserve: async (id, count) => {
@@ -319,7 +330,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     set({
       scenes: get().scenes.map((s) => (s.id === id ? { ...s, reserves, reserveCount } : s))
     })
-    await window.nais.invoke('scenes:setReserves', { id, reserves })
+    await invokeAfterSaves('scenes:setReserves', { id, reserves })
     void get().refreshReservedTotal()
   },
   adjustReserveAll: async (delta) => {
@@ -334,7 +345,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
         return { ...s, reserves, reserveCount: Object.values(reserves).reduce((a, b) => a + b, 0) }
       })
     })
-    await window.nais.invoke('scenes:adjustReserveAll', {
+    await invokeAfterSaves('scenes:adjustReserveAll', {
       presetId: get().activePresetId,
       castId,
       delta: step
@@ -343,25 +354,25 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
   },
   clearReserveAll: async () => {
     set({ scenes: get().scenes.map((s) => ({ ...s, reserveCount: 0, reserves: {} })) })
-    await window.nais.invoke('scenes:setReserveAll', { presetId: get().activePresetId, count: 0 })
+    await invokeAfterSaves('scenes:setReserveAll', { presetId: get().activePresetId, count: 0 })
     void get().refreshReservedTotal()
   },
 
   bulkMove: async (presetId) => {
     const ids = [...get().selection]
-    await window.nais.invoke('scenes:bulkMove', { ids, presetId })
+    await invokeAfterSaves('scenes:bulkMove', { ids, presetId })
     set({ selection: new Set() })
     await get().load()
   },
   bulkDelete: async () => {
     const ids = [...get().selection]
-    await window.nais.invoke('scenes:bulkDelete', { ids })
+    await invokeAfterSaves('scenes:bulkDelete', { ids })
     set({ selection: new Set() })
     await get().load()
   },
   bulkSetResolution: async (width, height) => {
     const ids = [...get().selection]
-    await window.nais.invoke('scenes:bulkSetResolution', { ids, width, height })
+    await invokeAfterSaves('scenes:bulkSetResolution', { ids, width, height })
     await get().load()
   },
   bulkAdjustReserve: async (delta) => {
@@ -380,19 +391,19 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
         return { ...s, reserves, reserveCount: Object.values(reserves).reduce((a, b) => a + b, 0) }
       })
     })
-    await window.nais.invoke('scenes:bulkAdjustReserve', { ids: [...ids], castId, delta: step })
+    await invokeAfterSaves('scenes:bulkAdjustReserve', { ids: [...ids], castId, delta: step })
     void get().refreshReservedTotal()
   },
   bulkClearFavorites: async () => {
-    await window.nais.invoke('scenes:bulkClearFavorites', { ids: [...get().selection] })
+    await invokeAfterSaves('scenes:bulkClearFavorites', { ids: [...get().selection] })
   },
   bulkClearImages: async () => {
-    await window.nais.invoke('scenes:bulkClearImages', { ids: [...get().selection] })
+    await invokeAfterSaves('scenes:bulkClearImages', { ids: [...get().selection] })
     set({ selection: new Set() })
     await get().load()
   },
   bulkExportZip: async () => {
-    await window.nais.invoke('scenes:bulkExportZip', { ids: [...get().selection] })
+    await invokeAfterSaves('scenes:bulkExportZip', { ids: [...get().selection] })
   },
 
   setSceneThumb: (sceneId, filePath) =>
@@ -413,7 +424,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     const seq = ++imagesSeq
     set({ imagesLoading: true })
     const offset = reset ? 0 : get().images.length
-    const { items, total } = await window.nais.invoke('scenes:images', {
+    const { items, total } = await invokeAfterSaves('scenes:images', {
       sceneId,
       limit: PAGE,
       offset,
@@ -431,7 +442,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     if (!img) return
     const favorite = !img.favorite
     set({ images: get().images.map((i) => (i.id === imageId ? { ...i, favorite } : i)) })
-    await window.nais.invoke('images:setFavorite', { id: imageId, favorite })
+    await invokeAfterSaves('images:setFavorite', { id: imageId, favorite })
     // 카드 썸네일이 즐겨찾기 우선이라 목록도 갱신
     await get().load()
   },
@@ -445,7 +456,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     const gen = useGenerationStore.getState()
     if (target && gen.viewingFilePath === target.filePath) gen.view(null)
     // 씬 상세의 명시적 삭제 — 파일까지 삭제 (히스토리 삭제와 달리)
-    await window.nais.invoke('images:delete', { id: imageId, deleteFile: true })
+    await invokeAfterSaves('images:delete', { id: imageId, deleteFile: true })
     void gen.refreshHistory()
   },
   setFavoritesOnly: (v) => {
@@ -455,7 +466,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     if (id != null) void get().loadImages(id, true)
   },
   deleteNonFavorites: async (sceneId) => {
-    const { deleted } = await window.nais.invoke('scenes:deleteNonFavorites', { sceneId })
+    const { deleted } = await invokeAfterSaves('scenes:deleteNonFavorites', { sceneId })
     if (deleted > 0) {
       await get().loadImages(sceneId, true)
       void get().load() // 카드 썸네일/카운트 갱신
@@ -473,7 +484,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
         castId: cast?.id ?? '',
         request: buildCastRequest(cast)
       }))
-      await window.nais.invoke('scenes:enqueueReserved', {
+      await invokeAfterSaves('scenes:enqueueReserved', {
         casts,
         seedLocked: useGenerationStore.getState().seedLocked
       })
@@ -496,7 +507,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     // 단건 생성도 현재 선택된 출연으로 (셀렉터가 곧 "지금 누구로 뽑는지")
     const castId = get().activeCastId
     const cast = castId === '' ? null : (get().casts.find((c) => c.id === castId) ?? null)
-    await window.nais.invoke('queue:enqueue', {
+    await invokeAfterSaves('queue:enqueue', {
       request: { ...applySceneRequest(buildCastRequest(cast), scene), seed: sceneSeed(0) },
       count: 1
     })
@@ -568,7 +579,7 @@ let castsSaveTimer: ReturnType<typeof setTimeout> | undefined
 function persistCasts(): void {
   clearTimeout(castsSaveTimer)
   castsSaveTimer = setTimeout(() => {
-    void window.nais.invoke('settings:set', {
+    void invokeAfterSaves('settings:set', {
       key: 'scene_casts',
       value: JSON.stringify(useScenesStore.getState().casts)
     })
@@ -580,7 +591,7 @@ let castsLoaded = false
 export async function loadCasts(): Promise<void> {
   if (castsLoaded) return
   castsLoaded = true
-  const { value } = await window.nais.invoke('settings:get', { key: 'scene_casts' })
+  const { value } = await invokeAfterSaves('settings:get', { key: 'scene_casts' })
   if (!value) return
   try {
     const casts = JSON.parse(value) as SceneCast[]

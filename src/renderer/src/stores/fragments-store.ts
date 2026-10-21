@@ -3,6 +3,7 @@ import type { Fragment, ListFolder } from '@shared/types'
 import { normalizeFragmentPath } from '@shared/fragment-path'
 import { canonicalize, moveRow, toOrderEntries } from '../lib/folder-list'
 import { t } from '../lib/i18n'
+import { cancelSave, invokeAfterSaves, queueSave } from '../lib/pending-saves'
 
 interface FragmentsState {
   folders: ListFolder[]
@@ -54,7 +55,7 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   closeEditor: () => set({ editingId: null, editorTrigger: null }),
 
   load: async () => {
-    const { folders, items } = await window.nais.invoke('frags:list', undefined)
+    const { folders, items } = await invokeAfterSaves('frags:list', undefined)
     set({
       folders,
       items: canonicalize(folders, items),
@@ -64,14 +65,22 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   },
 
   create: async (folderId) => {
-    const { id } = await window.nais.invoke('frags:create', { name: t('ui.newFragment'), folderId })
+    const { id } = await invokeAfterSaves('frags:create', { name: t('ui.newFragment'), folderId })
     await get().load() // 이름 중복 처리(name-2 등)가 메인에서 일어나므로 재로드
     return id
   },
 
   update: (id, patch) => {
     set({ items: get().items.map((f) => (f.id === id ? { ...f, ...patch } : f)) })
-    void window.nais.invoke('frags:update', { id, patch })
+    // Content is saved per keystroke; renames are discrete commits and go out at once
+    queueSave(
+      `frags:${id}`,
+      patch,
+      (p) => void window.nais.invoke('frags:update', { id, patch: p }),
+      {
+        immediate: patch.name !== undefined
+      }
+    )
   },
 
   remove: (id) => {
@@ -80,17 +89,18 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
       editingId: get().editingId === id ? null : get().editingId,
       editorTrigger: get().editingId === id ? null : get().editorTrigger
     })
-    void window.nais.invoke('frags:delete', { id })
+    cancelSave(`frags:${id}`)
+    void invokeAfterSaves('frags:delete', { id })
   },
 
   createFolder: async (name) => {
-    const { id } = await window.nais.invoke('frags:folderCreate', { name })
+    const { id } = await invokeAfterSaves('frags:folderCreate', { name })
     set({ folders: [...get().folders, { id, name, collapsed: false, color: null }] })
   },
 
   renameFolder: (id, name) => {
     set({ folders: get().folders.map((f) => (f.id === id ? { ...f, name } : f)) })
-    void window.nais.invoke('frags:folderRename', { id, name })
+    void invokeAfterSaves('frags:folderRename', { id, name })
   },
 
   toggleCollapse: (id) => {
@@ -99,12 +109,12 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
     set({
       folders: get().folders.map((f) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f))
     })
-    void window.nais.invoke('frags:folderCollapse', { id, collapsed: !folder.collapsed })
+    void invokeAfterSaves('frags:folderCollapse', { id, collapsed: !folder.collapsed })
   },
 
   setFolderColor: (id, color) => {
     set({ folders: get().folders.map((f) => (f.id === id ? { ...f, color } : f)) })
-    void window.nais.invoke('frags:folderColor', { id, color })
+    void invokeAfterSaves('frags:folderColor', { id, color })
   },
 
   removeFolder: (id) => {
@@ -112,7 +122,7 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
     const nextItems = items.map((c) => (c.folderId === id ? { ...c, folderId: null } : c))
     const nextFolders = folders.filter((f) => f.id !== id)
     set({ folders: nextFolders, items: canonicalize(nextFolders, nextItems) })
-    void window.nais.invoke('frags:folderDelete', { id })
+    void invokeAfterSaves('frags:folderDelete', { id })
   },
 
   move: (activeKey, overKey) => {
@@ -123,31 +133,31 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
       ...next,
       referenceOrder: order.filter((entry) => entry.type === 'char').map((entry) => entry.id)
     })
-    void window.nais.invoke('frags:reorder', { order })
+    void invokeAfterSaves('frags:reorder', { order })
   },
 
   importTxt: async () => {
-    const { count } = await window.nais.invoke('frags:importTxt', undefined)
+    const { count } = await invokeAfterSaves('frags:importTxt', undefined)
     if (count > 0) await get().load()
     return count
   },
 
   exportTxt: async (id) => {
-    await window.nais.invoke('frags:exportTxt', { id })
+    await invokeAfterSaves('frags:exportTxt', { id })
   },
 
   exportAll: async () => {
-    const { count } = await window.nais.invoke('frags:exportAll', undefined)
+    const { count } = await invokeAfterSaves('frags:exportAll', undefined)
     return count
   },
 
   duplicate: async (id) => {
-    await window.nais.invoke('frags:duplicate', { id })
+    await invokeAfterSaves('frags:duplicate', { id })
     await get().load()
   },
 
   resetSequential: async () => {
-    await window.nais.invoke('frags:resetSequential', undefined)
+    await invokeAfterSaves('frags:resetSequential', undefined)
   }
 }))
 

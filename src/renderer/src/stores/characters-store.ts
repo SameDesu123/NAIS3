@@ -3,6 +3,7 @@ import type { CharacterCard, CharacterCardPatch, ListFolder } from '@shared/type
 import { planRandomCharacterActivation } from '@shared/random-character'
 import { canonicalize, moveRow, toOrderEntries } from '../lib/folder-list'
 import { t } from '../lib/i18n'
+import { cancelSave, invokeAfterSaves, queueSave } from '../lib/pending-saves'
 
 /**
  * 캐릭터 단일 리스트 모델 (공용 폴더 리스트 로직 사용):
@@ -52,12 +53,12 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
   setOverlayOpen: (overlayOpen) => set({ overlayOpen }),
 
   load: async () => {
-    const { folders, items } = await window.nais.invoke('chars:list', undefined)
+    const { folders, items } = await invokeAfterSaves('chars:list', undefined)
     set({ folders, items: canonicalize(folders, items), loaded: true })
   },
 
   createCard: async (folderId, maxCharacters = 6) => {
-    const { id } = await window.nais.invoke('chars:create', { name: '', folderId })
+    const { id } = await invokeAfterSaves('chars:create', { name: '', folderId })
     const enabled = get().items.filter((c) => c.enabled && c.prompt.trim()).length < maxCharacters
     const card: CharacterCard = {
       id,
@@ -73,7 +74,7 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
     const next = canonicalize(folders, [...items, card])
     set({ items: next })
     get().updateCard(id, { enabled }, maxCharacters)
-    void window.nais.invoke('chars:reorder', { order: toOrderEntries(folders, next) })
+    void invokeAfterSaves('chars:reorder', { order: toOrderEntries(folders, next) })
   },
 
   updateCard: (id, patch, maxCharacters = 6) => {
@@ -87,7 +88,15 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
       items: get().items.map((c) => (c.id === id ? { ...c, ...patch } : c)),
       ...(patch.enabled === undefined ? {} : { randomCandidateIds: [] })
     })
-    void window.nais.invoke('chars:update', { id, patch })
+    // Position drags and typing call this per pointer move / keystroke — coalesce the DB write
+    queueSave(
+      `chars:${id}`,
+      patch,
+      (p) => void window.nais.invoke('chars:update', { id, patch: p }),
+      {
+        immediate: patch.enabled !== undefined
+      }
+    )
   },
 
   disableAll: () => {
@@ -97,7 +106,7 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
       randomCandidateIds: []
     })
     for (const c of enabled)
-      void window.nais.invoke('chars:update', { id: c.id, patch: { enabled: false } })
+      void invokeAfterSaves('chars:update', { id: c.id, patch: { enabled: false } })
   },
 
   activateRandom: (candidateIds) => {
@@ -110,7 +119,7 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
         .map((item) => item.id)
     })
     for (const change of plan.changed) {
-      void window.nais.invoke('chars:update', { id: change.id, patch: { enabled: change.enabled } })
+      void invokeAfterSaves('chars:update', { id: change.id, patch: { enabled: change.enabled } })
     }
     return plan.picked
   },
@@ -123,32 +132,33 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
         ? []
         : randomCandidateIds.filter((candidateId) => candidateId !== id)
     })
-    void window.nais.invoke('chars:delete', { id })
+    cancelSave(`chars:${id}`)
+    void invokeAfterSaves('chars:delete', { id })
   },
 
   duplicateCard: async (id) => {
-    await window.nais.invoke('chars:duplicate', { id })
+    await invokeAfterSaves('chars:duplicate', { id })
     await get().load()
   },
 
   pickThumbnail: async (id) => {
-    const { thumbnail } = await window.nais.invoke('chars:pickThumbnail', { id })
+    const { thumbnail } = await invokeAfterSaves('chars:pickThumbnail', { id })
     if (thumbnail === null) return
     set({ items: get().items.map((c) => (c.id === id ? { ...c, thumbnail } : c)) })
   },
   clearThumbnail: async (id) => {
     set({ items: get().items.map((c) => (c.id === id ? { ...c, thumbnail: '' } : c)) })
-    await window.nais.invoke('chars:clearThumbnail', { id })
+    await invokeAfterSaves('chars:clearThumbnail', { id })
   },
 
   createFolder: async (name) => {
-    const { id } = await window.nais.invoke('chars:folderCreate', { name })
+    const { id } = await invokeAfterSaves('chars:folderCreate', { name })
     set({ folders: [...get().folders, { id, name, collapsed: false, color: null }] })
   },
 
   renameFolder: (id, name) => {
     set({ folders: get().folders.map((f) => (f.id === id ? { ...f, name } : f)) })
-    void window.nais.invoke('chars:folderRename', { id, name })
+    void invokeAfterSaves('chars:folderRename', { id, name })
   },
 
   toggleCollapse: (id) => {
@@ -157,12 +167,12 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
     set({
       folders: get().folders.map((f) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f))
     })
-    void window.nais.invoke('chars:folderCollapse', { id, collapsed: !folder.collapsed })
+    void invokeAfterSaves('chars:folderCollapse', { id, collapsed: !folder.collapsed })
   },
 
   setFolderColor: (id, color) => {
     set({ folders: get().folders.map((f) => (f.id === id ? { ...f, color } : f)) })
-    void window.nais.invoke('chars:folderColor', { id, color })
+    void invokeAfterSaves('chars:folderColor', { id, color })
   },
 
   removeFolder: (id) => {
@@ -170,7 +180,7 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
     const nextItems = items.map((c) => (c.folderId === id ? { ...c, folderId: null } : c))
     const nextFolders = folders.filter((f) => f.id !== id)
     set({ folders: nextFolders, items: canonicalize(nextFolders, nextItems) })
-    void window.nais.invoke('chars:folderDelete', { id })
+    void invokeAfterSaves('chars:folderDelete', { id })
   },
 
   importFromMetadata: async (chars, maxCharacters = 6) => {
@@ -179,7 +189,7 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
     // 2) 메타 캐릭터를 모델별 상한까지 새 카드로 생성
     for (let i = 0; i < Math.min(chars.length, maxCharacters); i++) {
       const ch = chars[i]
-      const { id } = await window.nais.invoke('chars:create', {
+      const { id } = await invokeAfterSaves('chars:create', {
         name: t('ui.importedCharacterValue', i + 1),
         folderId: null
       })
@@ -212,7 +222,7 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
     const { folders, items } = get()
     const next = moveRow(folders, items, activeKey, overKey)
     set(next)
-    void window.nais.invoke('chars:reorder', { order: toOrderEntries(next.folders, next.items) })
+    void invokeAfterSaves('chars:reorder', { order: toOrderEntries(next.folders, next.items) })
   }
 }))
 

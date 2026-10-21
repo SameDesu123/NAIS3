@@ -21,6 +21,7 @@ import type { NaiAccountInfo } from '@shared/types'
 import discordSvg from '../assets/discord.svg'
 import nais3Logo from '../assets/nais3-logo.svg'
 import { playChime } from '../lib/completion-alert'
+import { invokeAfterSaves } from '../lib/pending-saves'
 import { useLanguageStore, useT } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { THEME_PRESETS } from '../lib/theme-presets'
@@ -586,7 +587,7 @@ function BackupButtons(): React.JSX.Element {
   const t = useT()
   const browser = window.nais.runtime === 'browser'
   async function exportArchive(): Promise<void> {
-    const result = await window.nais.invoke('backup:export', undefined)
+    const result = await invokeAfterSaves('backup:export', undefined)
     if (result.error) {
       toast(t('ui.backupExportError', result.error), 'error')
       return
@@ -602,7 +603,7 @@ function BackupButtons(): React.JSX.Element {
   }
 
   async function exportLegacy(): Promise<void> {
-    const result = await window.nais.invoke('backup:exportLegacy', undefined)
+    const result = await invokeAfterSaves('backup:exportLegacy', undefined)
     if (result.error) {
       toast(t('ui.backupExportError', result.error), 'error')
       return
@@ -630,7 +631,7 @@ function BackupButtons(): React.JSX.Element {
             danger: true
           })
           if (!ok) return
-          const r = await window.nais.invoke('backup:import', undefined)
+          const r = await invokeAfterSaves('backup:import', undefined)
           if ('canceled' in r) return
           if ('error' in r) {
             toast(t('ui.importErrorValue', r.error), 'error')

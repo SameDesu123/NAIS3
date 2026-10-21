@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { CharRefItem, CharRefType, ListFolder, VibeItem } from '@shared/types'
 import { canonicalize, moveRow, toOrderEntries } from '../lib/folder-list'
+import { cancelSave, invokeAfterSaves, queueSave } from '../lib/pending-saves'
 
 /**
  * 바이브 / 캐릭터 레퍼런스 라이브러리 스토어 팩토리.
@@ -43,17 +44,6 @@ function makeRefsStore<T extends { id: number; folderId: number | null }>(ns: st
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any
 
-  // 슬라이더 드래그가 포인터 이동마다 update를 부르므로 IPC(DB 쓰기)만 디바운스 —
-  // 화면 반영(set)은 즉시, 저장은 항목별로 마지막 값만 보낸다
-  const pendingPatch = new Map<number, Record<string, unknown>>()
-  const patchTimers = new Map<number, ReturnType<typeof setTimeout>>()
-  const flushPatch = (id: number): void => {
-    const patch = pendingPatch.get(id)
-    pendingPatch.delete(id)
-    patchTimers.delete(id)
-    if (patch) void window.nais.invoke(ch.update, { id, patch })
-  }
-
   return create<RefsState<T>>((set, get) => ({
     folders: [],
     items: [],
@@ -63,39 +53,35 @@ function makeRefsStore<T extends { id: number; folderId: number | null }>(ns: st
     setOverlayOpen: (overlayOpen) => set({ overlayOpen }),
 
     load: async () => {
-      const { folders, items } = await window.nais.invoke(ch.list, undefined)
+      const { folders, items } = await invokeAfterSaves(ch.list, undefined)
       set({ folders, items: canonicalize(folders, items as T[]), loaded: true })
     },
     add: async (folderId) => {
-      const { count } = await window.nais.invoke(ch.add, { folderId })
+      const { count } = await invokeAfterSaves(ch.add, { folderId })
       if (count > 0) await get().load()
     },
     update: (id, patch) => {
       set({ items: get().items.map((c) => (c.id === id ? { ...c, ...patch } : c)) })
-      pendingPatch.set(id, { ...(pendingPatch.get(id) ?? {}), ...patch })
-      clearTimeout(patchTimers.get(id))
-      patchTimers.set(
-        id,
-        setTimeout(() => flushPatch(id), 250)
-      )
+      // 슬라이더 드래그가 포인터 이동마다 update를 부르므로 IPC(DB 쓰기)만 디바운스 —
+      // 화면 반영(set)은 즉시, 저장은 항목별로 마지막 값만 보낸다
+      queueSave(`${ns}:${id}`, patch, (p) => void window.nais.invoke(ch.update, { id, patch: p }))
     },
     duplicate: async (id) => {
-      await window.nais.invoke(ch.duplicate, { id })
+      await invokeAfterSaves(ch.duplicate, { id })
       await get().load()
     },
     remove: (id) => {
-      clearTimeout(patchTimers.get(id))
-      pendingPatch.delete(id)
+      cancelSave(`${ns}:${id}`)
       set({ items: get().items.filter((c) => c.id !== id) })
-      void window.nais.invoke(ch.delete, { id })
+      void invokeAfterSaves(ch.delete, { id })
     },
     createFolder: async (name) => {
-      const { id } = await window.nais.invoke(ch.folderCreate, { name })
+      const { id } = await invokeAfterSaves(ch.folderCreate, { name })
       set({ folders: [...get().folders, { id, name, collapsed: false, color: null }] })
     },
     renameFolder: (id, name) => {
       set({ folders: get().folders.map((f) => (f.id === id ? { ...f, name } : f)) })
-      void window.nais.invoke(ch.folderRename, { id, name })
+      void invokeAfterSaves(ch.folderRename, { id, name })
     },
     toggleCollapse: (id) => {
       const folder = get().folders.find((f) => f.id === id)
@@ -103,24 +89,24 @@ function makeRefsStore<T extends { id: number; folderId: number | null }>(ns: st
       set({
         folders: get().folders.map((f) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f))
       })
-      void window.nais.invoke(ch.folderCollapse, { id, collapsed: !folder.collapsed })
+      void invokeAfterSaves(ch.folderCollapse, { id, collapsed: !folder.collapsed })
     },
     setFolderColor: (id, color) => {
       set({ folders: get().folders.map((f) => (f.id === id ? { ...f, color } : f)) })
-      void window.nais.invoke(ch.folderColor, { id, color })
+      void invokeAfterSaves(ch.folderColor, { id, color })
     },
     removeFolder: (id) => {
       const { folders, items } = get()
       const nextItems = items.map((c) => (c.folderId === id ? { ...c, folderId: null } : c))
       const nextFolders = folders.filter((f) => f.id !== id)
       set({ folders: nextFolders, items: canonicalize(nextFolders, nextItems) })
-      void window.nais.invoke(ch.folderDelete, { id })
+      void invokeAfterSaves(ch.folderDelete, { id })
     },
     move: (activeKey, overKey) => {
       const { folders, items } = get()
       const next = moveRow(folders, items, activeKey, overKey)
       set(next)
-      void window.nais.invoke(ch.reorder, { order: toOrderEntries(next.folders, next.items) })
+      void invokeAfterSaves(ch.reorder, { order: toOrderEntries(next.folders, next.items) })
     }
   }))
 }

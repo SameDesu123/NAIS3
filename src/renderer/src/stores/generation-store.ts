@@ -8,6 +8,7 @@ import type {
 } from '@shared/types'
 import { queueDoneAlert } from '../lib/completion-alert'
 import { t } from '../lib/i18n'
+import { invokeAfterSaves } from '../lib/pending-saves'
 import { enabledCharacters, randomCharacterCandidates } from './characters-store'
 import { useVibesStore } from './refs-store'
 import { toast } from './toast-store'
@@ -247,7 +248,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       value: JSON.stringify(baseRequest)
     })
     set({ previewPng: null, progress: null, viewingFilePath: null })
-    await window.nais.invoke('queue:enqueue', {
+    await invokeAfterSaves('queue:enqueue', {
       request: finalRequest,
       count: batchCount,
       ...(randomCharacterPrompts.length > 0 ? { randomCharacterPrompts } : {})

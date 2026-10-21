@@ -8,6 +8,7 @@ import { PromptEditor } from '../src/renderer/src/components/prompt-editor'
 import { FragmentEditorDialog } from '../src/renderer/src/components/fragment-editor-dialog'
 import { fragmentAtSelection, useFragmentsStore } from '../src/renderer/src/stores/fragments-store'
 import { useLanguageStore } from '../src/renderer/src/lib/i18n'
+import { flushPendingSaves } from '../src/renderer/src/lib/pending-saves'
 import type { NaisApi } from '../src/preload/index'
 
 let root: Root
@@ -35,6 +36,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
+  flushPendingSaves()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   invoke.mockReset()
@@ -113,6 +115,9 @@ describe('large fragment editor', () => {
       editor.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(useFragmentsStore.getState().items[0].content).toBe('office, window')
+    // Content saves are coalesced; flushing sends the last value
+    expect(invoke).not.toHaveBeenCalledWith('frags:update', expect.anything())
+    flushPendingSaves()
     expect(invoke).toHaveBeenCalledWith('frags:update', {
       id: 1,
       patch: { content: 'office, window' }

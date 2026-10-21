@@ -36,6 +36,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties 
 import type { Scene, SceneCast } from '@shared/types'
 import { RESOLUTIONS, imageUrl, thumbnailFallback } from '../lib/constants'
 import { useT } from '../lib/i18n'
+import { invokeAfterSaves } from '../lib/pending-saves'
 import { useGenerationStore } from '../stores/generation-store'
 import { loadCasts, useScenesStore } from '../stores/scenes-store'
 import { useResolutionsStore } from '../stores/resolutions-store'
@@ -387,10 +388,10 @@ function SceneGrid(): React.JSX.Element {
   )
 
   async function exportJson(): Promise<void> {
-    await window.nais.invoke('scenes:exportJson', { presetId: activePresetId })
+    await invokeAfterSaves('scenes:exportJson', { presetId: activePresetId })
   }
   async function importJson(): Promise<void> {
-    const { count } = await window.nais.invoke('scenes:importJson', { presetId: activePresetId })
+    const { count } = await invokeAfterSaves('scenes:importJson', { presetId: activePresetId })
     if (count > 0) {
       toast(t('ui.importedValueScenes', count), 'success')
       void useScenesStore.getState().load()
@@ -399,7 +400,7 @@ function SceneGrid(): React.JSX.Element {
     }
   }
   async function exportZip(): Promise<void> {
-    await window.nais.invoke('scenes:exportZip', { presetId: activePresetId })
+    await invokeAfterSaves('scenes:exportZip', { presetId: activePresetId })
   }
 
   return (
@@ -836,7 +837,7 @@ const SceneCard = memo(function SceneCard({
     if (name) void update(scene.id, { name })
   }
   const openFolder = async (): Promise<void> => {
-    const { ok } = await window.nais.invoke('scenes:openFolder', { sceneId: scene.id })
+    const { ok } = await invokeAfterSaves('scenes:openFolder', { sceneId: scene.id })
     if (!ok) toast(t('ui.noGeneratedImageFolderYet'), 'info')
   }
   const removeScene = async (): Promise<void> => {
