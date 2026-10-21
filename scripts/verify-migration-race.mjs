@@ -20,8 +20,8 @@ import { setTimeout as sleep } from 'node:timers/promises'
 //
 // Chromium's ProcessSingleton gives a relaunch 20 s for the running app to answer; after that it
 // kills the running app and takes over. Whether the first start answers depends on its main thread:
-//   fixed:   migrating in a worker, it answers at once. Both relaunches hand over and quit, and the
-//            first start finishes the upgrade with a single snapshot.
+//   fixed:   migrating in a worker, it keeps answering. Both relaunches hand over and quit before
+//            the first start finishes the upgrade with a single snapshot.
 //   control: v1.0.29 migrates on the main thread, so a relaunch kills the first start (the bug).
 // It seeds the app's real userData directory, so it only runs on CI.
 const [expectation, platform = process.platform, arch = process.arch] = process.argv.slice(2)
@@ -33,7 +33,6 @@ assert.equal(arch, process.arch, 'Run the packaged app on its target architectur
 const TARGET_SECONDS = Number(process.env.RACE_TARGET_SECONDS ?? 45)
 const TRIALS = Number(process.env.RACE_TRIALS ?? 3)
 const MAX_BYTES = Number(process.env.RACE_MAX_GIB ?? 12) * 2 ** 30
-const HANDOVER_MS = 15_000
 const SINGLETON_TIMEOUT_MS = 20_000
 // The schema each user_version must have; anything else is a half-applied migration.
 const INDEXES_BY_VERSION = {
@@ -114,10 +113,17 @@ function launch(name, port) {
     output: '',
     exit: null,
     windowAt: null,
-    progressAt: null
+    progressAt: null,
+    // When Chromium started the DevTools server: tells a slow process start from a slow answer.
+    devToolsAt: null
   }
-  child.stdout.on('data', (chunk) => (run.output += chunk))
-  child.stderr.on('data', (chunk) => (run.output += chunk))
+  const record = (chunk) => {
+    run.output += chunk
+    if (run.devToolsAt === null && run.output.includes('DevTools listening'))
+      run.devToolsAt = Date.now()
+  }
+  child.stdout.on('data', record)
+  child.stderr.on('data', record)
   run.exited = new Promise((done) =>
     child.on('exit', (code, signal) => done((run.exit = { code, signal, at: Date.now() })))
   )
@@ -174,15 +180,19 @@ const tail = (run) => run.output.trim().split('\n').slice(-40).join('\n')
 const killedByRelaunch = (run) =>
   run.exit !== null &&
   (run.exit.signal === 'SIGKILL' || (platform === 'win32' && run.exit.code === 2))
-const handedOver = (run) =>
+// A relaunch that handed over to the first start quits cleanly without a window, while the first
+// start is still migrating. One that waited out the 20 s would kill the first start instead.
+const handedOver = (run, first) =>
   run.exit !== null &&
   run.exit.signal === null &&
   run.exit.code === 0 &&
   run.windowAt === null &&
-  run.exit.at - run.started < HANDOVER_MS
+  first.windowAt !== null &&
+  run.exit.at < first.windowAt
 
 function describe(run, origin) {
   const events = []
+  if (run.devToolsAt !== null) events.push(`DevTools at ${seconds(run.devToolsAt - origin)}`)
   if (run.progressAt !== null) events.push(`progress window at ${seconds(run.progressAt - origin)}`)
   if (run.windowAt !== null) events.push(`main window at ${seconds(run.windowAt - origin)}`)
   if (run.exit)
@@ -275,8 +285,8 @@ async function trial(number) {
       ? [
           ['the first start was not killed and opened its main window', first.windowAt !== null],
           [
-            `both relaunches handed over and quit with code 0 within ${seconds(HANDOVER_MS)}`,
-            relaunches.every(handedOver)
+            'both relaunches quit with code 0 and no window before the first start finished',
+            relaunches.every((run) => handedOver(run, first))
           ],
           [
             'the first start showed its progress window and answered DevTools while migrating',
