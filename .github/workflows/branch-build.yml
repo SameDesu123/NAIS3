@@ -1,0 +1,119 @@
+name: Branch Build
+
+on:
+  push:
+    branches:
+      - 'ci/build-db-migration-*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: build:win
+            platform: win32
+            arch: x64
+          # macOS arm64 runners kept getting cancelled for capacity; the Intel runner is also the
+          # slower one, which is what the race check needs.
+          - os: macos-15-intel
+            script: build:mac
+            platform: darwin
+            arch: x64
+          - os: ubuntu-latest
+            script: build:linux
+            platform: linux
+            arch: x64
+            display: xvfb-run -a
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: |
+          node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('Unexpected runner architecture: ' + process.arch)"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      # All package scripts include typecheck. pnpm forwards these flags without an extra --.
+      - run: pnpm run ${{ matrix.script }} --publish never
+      - if: runner.os == 'macOS'
+        run: node scripts/verify-macos-native-deps.mjs
+      - run: node scripts/verify-packaged-app.mjs ${{ matrix.platform }} ${{ matrix.arch }}
+      - if: runner.os == 'Linux'
+        run: command -v xvfb-run || (sudo apt-get update && sudo apt-get install -y xvfb)
+      # The race check needs several copies of a multi-GiB workspace; the root disk is small.
+      - if: runner.os == 'Linux'
+        run: |
+          df -h / /mnt || true
+          sudo mkdir -p /mnt/nais3-config
+          sudo chown "$(id -u):$(id -g)" /mnt/nais3-config
+          echo "XDG_CONFIG_HOME=/mnt/nais3-config" >> "$GITHUB_ENV"
+      # Relaunch the packaged app twice while its first start migrates a large v18 workspace.
+      - run: ${{ matrix.display }} node scripts/verify-migration-race.mjs fixed ${{ matrix.platform }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
+            dist/*.dmg
+            dist/*-mac.zip
+            dist/*.AppImage
+            dist/latest-linux.yml
+          if-no-files-found: error
+
+  # The same check on the v1.0.29 main process must show the relaunch killing the migrating
+  # first start; otherwise a pass above would prove nothing.
+  control:
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: build:win
+            platform: win32
+            arch: x64
+          - os: macos-15-intel
+            script: build:mac
+            platform: darwin
+            arch: x64
+          - os: ubuntu-latest
+            script: build:linux
+            platform: linux
+            arch: x64
+            display: xvfb-run -a
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore the v1.0.29 main process
+        shell: bash
+        run: |
+          git fetch --depth=1 origin a1b5592ebace9338a039212730af00c65cfb1132
+          git checkout FETCH_HEAD -- src/main
+          git diff --stat HEAD
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run ${{ matrix.script }} --publish never
+      - if: runner.os == 'Linux'
+        run: command -v xvfb-run || (sudo apt-get update && sudo apt-get install -y xvfb)
+      - if: runner.os == 'Linux'
+        run: |
+          df -h / /mnt || true
+          sudo mkdir -p /mnt/nais3-config
+          sudo chown "$(id -u):$(id -g)" /mnt/nais3-config
+          echo "XDG_CONFIG_HOME=/mnt/nais3-config" >> "$GITHUB_ENV"
+      - run: ${{ matrix.display }} node scripts/verify-migration-race.mjs control ${{ matrix.platform }} ${{ matrix.arch }}
