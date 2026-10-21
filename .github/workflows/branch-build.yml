@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    timeout-minutes: 40
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -19,10 +19,8 @@ jobs:
             script: build:win
             platform: win32
             arch: x64
-          - os: macos-latest
-            script: build:mac
-            platform: darwin
-            arch: arm64
+          # macOS arm64 runners kept getting cancelled for capacity; the Intel runner is also the
+          # slower one, which is what the race check needs.
           - os: macos-15-intel
             script: build:mac
             platform: darwin
@@ -51,7 +49,14 @@ jobs:
       - run: node scripts/verify-packaged-app.mjs ${{ matrix.platform }} ${{ matrix.arch }}
       - if: runner.os == 'Linux'
         run: command -v xvfb-run || (sudo apt-get update && sudo apt-get install -y xvfb)
-      # Launch the packaged app again while its first start migrates a large v18 workspace.
+      # The race check needs several copies of a multi-GiB workspace; the root disk is small.
+      - if: runner.os == 'Linux'
+        run: |
+          df -h / /mnt || true
+          sudo mkdir -p /mnt/nais3-config
+          sudo chown "$(id -u):$(id -g)" /mnt/nais3-config
+          echo "XDG_CONFIG_HOME=/mnt/nais3-config" >> "$GITHUB_ENV"
+      # Relaunch the packaged app twice while its first start migrates a large v18 workspace.
       - run: ${{ matrix.display }} node scripts/verify-migration-race.mjs fixed ${{ matrix.platform }} ${{ matrix.arch }}
       - uses: actions/upload-artifact@v4
         with:
@@ -69,7 +74,7 @@ jobs:
   # The same check on the v1.0.28 startup code must reproduce the race; otherwise a pass
   # above would prove nothing.
   control:
-    timeout-minutes: 40
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -78,10 +83,10 @@ jobs:
             script: build:win
             platform: win32
             arch: x64
-          - os: macos-latest
+          - os: macos-15-intel
             script: build:mac
             platform: darwin
-            arch: arm64
+            arch: x64
           - os: ubuntu-latest
             script: build:linux
             platform: linux
@@ -105,4 +110,10 @@ jobs:
       - run: pnpm run ${{ matrix.script }} --publish never
       - if: runner.os == 'Linux'
         run: command -v xvfb-run || (sudo apt-get update && sudo apt-get install -y xvfb)
+      - if: runner.os == 'Linux'
+        run: |
+          df -h / /mnt || true
+          sudo mkdir -p /mnt/nais3-config
+          sudo chown "$(id -u):$(id -g)" /mnt/nais3-config
+          echo "XDG_CONFIG_HOME=/mnt/nais3-config" >> "$GITHUB_ENV"
       - run: ${{ matrix.display }} node scripts/verify-migration-race.mjs race ${{ matrix.platform }} ${{ matrix.arch }}
