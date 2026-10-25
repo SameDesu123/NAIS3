@@ -23,3 +23,13 @@ export function thumbnailUrl(
   const version = encodeURIComponent(`${createdAt}~${size}`)
   return `nais-image://local/?thumb=${source}&id=${id}&v=${version}`
 }
+
+/**
+ * A scene card's cover, served from the cover cache. The main process checks the cover against
+ * the scene's current cover image and its file on every request, so the response is not cached;
+ * the version only makes the card reload when the cover moves to another image.
+ */
+export function coverUrl(sceneId: number, imageId: number, createdAt: string): string {
+  const version = encodeURIComponent(`${imageId}~${createdAt}`)
+  return `nais-image://local/?cover=${sceneId}&v=${version}`
+}

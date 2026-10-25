@@ -7,7 +7,7 @@ import { closeDb, getDb, initDb } from '../src/main/db'
 import { migrations } from '../src/main/db/migrations'
 import { listLibrary } from '../src/main/library/repo'
 import { listScenes, sceneImages } from '../src/main/scenes/repo'
-import { thumbnailUrl } from '../src/shared/thumbnail-url'
+import { coverUrl } from '../src/shared/thumbnail-url'
 
 const environment = vi.hoisted(() => ({ directory: '' }))
 vi.mock('electron', () => ({
@@ -138,9 +138,8 @@ describe('listScenes cover lookup', () => {
       previous.map((r) => ({
         id: r.id,
         imageCount: r.image_count,
-        thumbnailUrl: r.thumb?.length
-          ? thumbnailUrl('image', r.thumb_id!, r.thumb_created_at!, r.thumb.length)
-          : '',
+        // The cover is served from the cover cache, with or without a stored thumbnail
+        thumbnailUrl: r.thumb_id ? coverUrl(r.id, r.thumb_id, r.thumb_created_at!) : '',
         thumbnailPath: r.thumb_path ?? '',
         hasFavorite: r.has_favorite === 1
       }))
@@ -148,7 +147,11 @@ describe('listScenes cover lookup', () => {
     // Spot-check the expectations themselves, not only parity with the old query.
     expect(scenes[1]).toMatchObject({ thumbnailPath: '/s2/3.png', hasFavorite: false })
     expect(scenes[2]).toMatchObject({ thumbnailPath: '/s3/6.png', hasFavorite: true })
-    expect(scenes[3]).toMatchObject({ thumbnailUrl: '', thumbnailPath: '/s4/8.png', imageCount: 1 })
+    expect(scenes[3]).toMatchObject({
+      thumbnailUrl: expect.stringContaining('cover=4&'),
+      thumbnailPath: '/s4/8.png',
+      imageCount: 1
+    })
   })
 
   it('keeps scene and library paging order unchanged', () => {

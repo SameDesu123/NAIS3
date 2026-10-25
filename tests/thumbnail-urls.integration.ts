@@ -3,10 +3,11 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { closeDb, getDb, initDb } from '../src/main/db'
+import { sceneCoverForUrl } from '../src/main/images/covers'
 import { listImages, thumbnailForUrl } from '../src/main/images/storage'
 import { listLibrary } from '../src/main/library/repo'
 import { listScenes, sceneImages } from '../src/main/scenes/repo'
-import { thumbnailUrl } from '../src/shared/thumbnail-url'
+import { coverUrl, thumbnailUrl } from '../src/shared/thumbnail-url'
 
 const environment = vi.hoisted(() => ({ directory: '' }))
 vi.mock('electron', () => ({
@@ -19,8 +20,12 @@ vi.mock('electron', () => ({
 const T1 = '2026-01-02 03:04:05'
 const T2 = '2026-02-03 04:05:06'
 
-function fetchThumb(url: string): string | null {
-  return thumbnailForUrl(new URL(url))?.toString('hex') ?? null
+async function fetchThumb(url: string): Promise<string | null> {
+  return (await thumbnailForUrl(new URL(url)))?.toString('hex') ?? null
+}
+
+async function fetchCover(url: string): Promise<string | null> {
+  return (await sceneCoverForUrl(new URL(url)))?.toString('hex') ?? null
 }
 
 describe('thumbnail URLs', () => {
@@ -35,7 +40,7 @@ describe('thumbnail URLs', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('lists history items with protocol URLs that resolve to the stored thumbnail', () => {
+  it('lists history items with protocol URLs that resolve to the stored thumbnail', async () => {
     getDb().exec(`
       INSERT INTO images (id, file_path, thumbnail, payload_json, created_at, seq) VALUES
         (1, '/a.png', X'0102', '{}', '${T1}', 1),
@@ -52,10 +57,10 @@ describe('thumbnail URLs', () => {
     expect(items[2].thumbnailUrl).toBe(
       'nais-image://local/?thumb=image&id=1&v=2026-01-02%2003%3A04%3A05~2'
     )
-    expect(fetchThumb(items[2].thumbnailUrl)).toBe('0102')
+    expect(await fetchThumb(items[2].thumbnailUrl)).toBe('0102')
   })
 
-  it('changes the URL when a deleted id is reused', () => {
+  it('changes the URL when a deleted id is reused', async () => {
     const db = getDb()
     db.exec(`INSERT INTO images (id, file_path, thumbnail, payload_json, created_at, seq)
              VALUES (1, '/a.png', X'01', '{}', '${T1}', 1)`)
@@ -66,10 +71,10 @@ describe('thumbnail URLs', () => {
     const after = listImages(1, 0).items[0]
     expect(after.id).toBe(1)
     expect(after.thumbnailUrl).not.toBe(before)
-    expect(fetchThumb(after.thumbnailUrl)).toBe('02')
+    expect(await fetchThumb(after.thumbnailUrl)).toBe('02')
   })
 
-  it('changes the URL when a deleted id is reused within the same second', () => {
+  it('changes the URL when a deleted id is reused within the same second', async () => {
     // created_at has second precision — the thumbnail size keeps the URLs apart
     const db = getDb()
     db.exec(`INSERT INTO images (id, file_path, thumbnail, payload_json, created_at, seq)
@@ -81,22 +86,22 @@ describe('thumbnail URLs', () => {
     const after = listImages(1, 0).items[0]
     expect(after.id).toBe(1)
     expect(after.thumbnailUrl).not.toBe(before)
-    expect(fetchThumb(after.thumbnailUrl)).toBe('0203')
+    expect(await fetchThumb(after.thumbnailUrl)).toBe('0203')
   })
 
-  it('rejects unknown sources, bad ids and missing rows', () => {
+  it('rejects unknown sources, bad ids and missing rows', async () => {
     getDb().exec(`INSERT INTO images (id, file_path, thumbnail, payload_json)
                   VALUES (1, '/a.png', X'01', '{}')`)
-    expect(fetchThumb('nais-image://local/?thumb=image&id=1')).toBe('01')
-    expect(fetchThumb('nais-image://local/?thumb=images&id=1')).toBeNull()
-    expect(fetchThumb('nais-image://local/?thumb=character_prompts&id=1')).toBeNull()
-    expect(fetchThumb('nais-image://local/?thumb=image&id=1.5')).toBeNull()
-    expect(fetchThumb('nais-image://local/?thumb=image&id=1%20OR%201')).toBeNull()
-    expect(fetchThumb('nais-image://local/?thumb=image&id=2')).toBeNull()
-    expect(fetchThumb('nais-image://local/?thumb=library&id=1')).toBeNull()
+    expect(await fetchThumb('nais-image://local/?thumb=image&id=1')).toBe('01')
+    expect(await fetchThumb('nais-image://local/?thumb=images&id=1')).toBeNull()
+    expect(await fetchThumb('nais-image://local/?thumb=character_prompts&id=1')).toBeNull()
+    expect(await fetchThumb('nais-image://local/?thumb=image&id=1.5')).toBeNull()
+    expect(await fetchThumb('nais-image://local/?thumb=image&id=1%20OR%201')).toBeNull()
+    expect(await fetchThumb('nais-image://local/?thumb=image&id=2')).toBeNull()
+    expect(await fetchThumb('nais-image://local/?thumb=library&id=1')).toBeNull()
   })
 
-  it('points scene cards at the cover thumbnail and drops thumbnails from scene pages', () => {
+  it('points scene cards at the cover and drops thumbnails from scene pages', async () => {
     getDb().exec(`
       INSERT INTO gen_scenes (id, preset_id, name, sort_order) VALUES (1, 1, 'a', 0), (2, 1, 'b', 1);
       INSERT INTO images (id, file_path, thumbnail, payload_json, scene_id, favorite, created_at) VALUES
@@ -105,13 +110,13 @@ describe('thumbnail URLs', () => {
         (3, '/s2/3.png', NULL, '{}', 2, 0, '${T2}');
     `)
     const [a, b] = listScenes(1)
-    expect(a).toMatchObject({
-      thumbnailUrl: thumbnailUrl('image', 1, T1, 1),
-      thumbnailPath: '/s1/1.png'
-    })
-    expect(fetchThumb(a.thumbnailUrl)).toBe('01')
-    // No stored thumbnail: the card falls back to the original via thumbnailPath.
-    expect(b).toMatchObject({ thumbnailUrl: '', thumbnailPath: '/s2/3.png' })
+    expect(a).toMatchObject({ thumbnailUrl: coverUrl(1, 1, T1), thumbnailPath: '/s1/1.png' })
+    expect(a.thumbnailUrl).toBe('nais-image://local/?cover=1&v=1~2026-01-02%2003%3A04%3A05')
+    // The file is gone, so the cover is the stored thumbnail
+    expect(await fetchCover(a.thumbnailUrl)).toBe('01')
+    // Neither a file nor a stored thumbnail: the card falls back to the original via thumbnailPath.
+    expect(b).toMatchObject({ thumbnailUrl: coverUrl(2, 3, T2), thumbnailPath: '/s2/3.png' })
+    expect(await fetchCover(b.thumbnailUrl)).toBeNull()
     expect(sceneImages(1, 10, 0).items[0]).toEqual({
       id: 2,
       filePath: '/s1/2.png',
@@ -120,7 +125,7 @@ describe('thumbnail URLs', () => {
     })
   })
 
-  it('serves library items and stack covers by URL', () => {
+  it('serves library items and stack covers by URL', async () => {
     getDb().exec(`
       INSERT INTO library_stacks (id, name) VALUES (1, 'full'), (2, 'empty'), (3, 'no thumb');
       INSERT INTO library_images (id, file_path, thumbnail, stack_id, created_at) VALUES
@@ -135,12 +140,12 @@ describe('thumbnail URLs', () => {
       [2, ''],
       [1, thumbnailUrl('library', 1, T1, 1)]
     ])
-    expect(fetchThumb(root.items[1].thumbnailUrl)).toBe('01')
+    expect(await fetchThumb(root.items[1].thumbnailUrl)).toBe('01')
     expect(root.stacks).toEqual([
       { id: 3, name: 'no thumb', count: 1, coverUrl: '' },
       { id: 2, name: 'empty', count: 0, coverUrl: '' },
       { id: 1, name: 'full', count: 2, coverUrl: thumbnailUrl('library', 4, T2, 1) }
     ])
-    expect(fetchThumb(root.stacks[2].coverUrl)).toBe('04')
+    expect(await fetchThumb(root.stacks[2].coverUrl)).toBe('04')
   })
 })

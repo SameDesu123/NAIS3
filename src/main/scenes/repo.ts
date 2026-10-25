@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { extname } from 'path'
 import JSZip from 'jszip'
 import { planSceneReservations } from '../../shared/scene-request'
+import { coverUrl } from '../../shared/thumbnail-url'
 import type { GenerationQueue } from '../queue/generation-queue'
 import type {
   IpcInvokeMap,
@@ -14,7 +15,7 @@ import type {
 import { getDb } from '../db'
 import { clearHistory, hideImages, sceneVisible, type HiddenScope } from '../db/history'
 import { getSetting } from '../db/settings'
-import { dropMemoryImage, isMemoryPath, storedThumbnailUrl } from '../images/storage'
+import { dropMemoryImage, isMemoryPath } from '../images/storage'
 import { t } from '../i18n'
 
 interface Row {
@@ -64,7 +65,6 @@ function toScene(
     image_count: number
     thumb_id?: number | null
     thumb_created_at?: string | null
-    thumb_size?: number | null
     thumb_path?: string | null
     has_favorite?: number
   }
@@ -79,7 +79,10 @@ function toScene(
     height: r.height,
     reserveCount: r.reserve_count,
     reserves: parseReserves(r.reserve_json ?? null),
-    thumbnailUrl: storedThumbnailUrl('image', r.thumb_id, r.thumb_created_at, r.thumb_size),
+    thumbnailUrl:
+      r.thumb_id != null && r.thumb_created_at
+        ? coverUrl(r.id, r.thumb_id, r.thumb_created_at)
+        : '',
     thumbnailPath: r.thumb_path ?? '',
     imageCount: r.image_count,
     hasFavorite: r.has_favorite === 1
@@ -156,7 +159,6 @@ export function listScenes(presetId: number): Scene[] {
               (SELECT COUNT(*) FROM images WHERE scene_id = s.id AND ${sceneVisible()}) AS image_count,
               cover.id AS thumb_id,
               cover.created_at AS thumb_created_at,
-              length(cover.thumbnail) AS thumb_size,
               cover.file_path AS thumb_path,
               COALESCE(cover.favorite, 0) AS has_favorite
        FROM gen_scenes s
@@ -170,7 +172,6 @@ export function listScenes(presetId: number): Scene[] {
     image_count: number
     thumb_id: number | null
     thumb_created_at: string | null
-    thumb_size: number | null
     thumb_path: string | null
     has_favorite: number
   })[]
@@ -450,10 +451,12 @@ export function deleteNonFavorites(sceneId: number): Promise<RemoveImagesResult>
   return removeImages(rows, 'scene')
 }
 
-export function setImageFavorite(id: number, favorite: boolean): void {
-  getDb()
-    .prepare('UPDATE images SET favorite = ? WHERE id = ?')
-    .run(favorite ? 1 : 0, id)
+/** 즐겨찾기 표시 — 이미지가 속한 씬 id를 돌려준다 (표지를 다시 만들 수 있게) */
+export function setImageFavorite(id: number, favorite: boolean): number | null {
+  const row = getDb()
+    .prepare('UPDATE images SET favorite = ? WHERE id = ? RETURNING scene_id')
+    .get(favorite ? 1 : 0, id) as { scene_id: number | null } | undefined
+  return row?.scene_id ?? null
 }
 
 /** 히스토리 전체 비우기 — 히스토리 경계만 올린다. 행·파일·씬 갤러리·즐겨찾기는 그대로 */

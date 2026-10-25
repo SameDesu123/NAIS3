@@ -2,13 +2,18 @@ import { randomUUID } from 'crypto'
 import { app } from 'electron'
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs'
 import { isAbsolute, join, relative } from 'path'
-import sharp from '../sharp'
 import { isThumbnailSource, thumbnailUrl, type ThumbnailSource } from '../../shared/thumbnail-url'
 import type { DirectorMethod, HistoryItem, ImageMetadata } from '../../shared/types'
 import { getDb } from '../db'
 import { allocateSeq, HISTORY_VISIBLE } from '../db/history'
 import { getSetting } from '../db/settings'
 import { buildNaisMetadata, embedNaisMetadata } from './nais-metadata'
+import {
+  primeThumbnail,
+  renderThumbnail,
+  thumbnailForFile,
+  type SourceVersion
+} from './thumbnail-cache'
 
 /**
  * 생성 이미지 저장 규칙 (P3의 핵심):
@@ -105,15 +110,52 @@ const THUMBNAIL_TABLES: Record<ThumbnailSource, string> = {
   library: 'library_images'
 }
 
-/** Resolves a `thumbnailUrl()` request to its stored bytes (null for bad params or no thumbnail) */
-export function thumbnailForUrl(url: URL): Buffer | null {
+/**
+ * Resolves a `thumbnailUrl()` request to its bytes (null for bad params or no thumbnail).
+ * Output images come from the thumbnail cache, built from the file itself; the stored
+ * thumbnail is the fallback for memory images and files that are gone or unreadable.
+ */
+export async function thumbnailForUrl(url: URL): Promise<Buffer | null> {
   const source = url.searchParams.get('thumb')
   const id = Number(url.searchParams.get('id'))
   if (!isThumbnailSource(source) || !Number.isInteger(id)) return null
+  if (source === 'image') return imageThumbnail(id)
   const row = getDb()
     .prepare(`SELECT thumbnail FROM ${THUMBNAIL_TABLES[source]} WHERE id = ?`)
     .get(id) as { thumbnail: Buffer | null } | undefined
   return row?.thumbnail ?? null
+}
+
+export interface ThumbnailRow {
+  file_path: string
+  created_at: string
+  thumbnail: Buffer | null
+}
+
+/** 출력 이미지 한 행의 썸네일 — 파일에서 (캐시), 없으면 DB 썸네일 */
+export async function rowThumbnail(row: ThumbnailRow): Promise<Buffer | null> {
+  if (isMemoryPath(row.file_path)) return row.thumbnail
+  const fromFile = await thumbnailForFile(row.file_path, (version) =>
+    storedThumbnailFits(row, version) ? row.thumbnail : null
+  )
+  return fromFile ?? row.thumbnail
+}
+
+async function imageThumbnail(id: number): Promise<Buffer | null> {
+  const row = getDb()
+    .prepare('SELECT file_path, created_at, thumbnail FROM images WHERE id = ?')
+    .get(id) as ThumbnailRow | undefined
+  return row ? rowThumbnail(row) : null
+}
+
+/**
+ * 저장 이후 파일이 바뀌지 않았으면 DB 썸네일이 곧 그 파일의 썸네일이다 — 업그레이드 뒤 첫 화면이
+ * 원본 수천 장을 디코드하지 않게 캐시를 이걸로 채운다. 파일은 행보다 먼저 쓰이고
+ * created_at은 초 단위로 잘리니, 그 뒤로 몇 초 안에 수정된 파일까지만 같다고 본다.
+ */
+function storedThumbnailFits(row: ThumbnailRow, version: SourceVersion): boolean {
+  const created = Date.parse(`${row.created_at.replace(' ', 'T')}Z`)
+  return !!row.thumbnail?.length && Number.isFinite(created) && version.mtimeMs < created + 2000
 }
 
 /** Protocol URL for a row's stored thumbnail, or '' when it has none (callers fall back to the original) */
@@ -140,10 +182,8 @@ export async function saveEphemeralImage(input: {
   // 메타데이터 주입본을 캐시에 — "다른 이름으로 저장" 구제 시 파일 저장본과 동일해지게
   memoryImages.set(filePath, withNaisMetadata(input, new Date()))
 
-  const thumbnail = await sharp(input.png)
-    .resize(640, 640, { fit: 'inside' })
-    .webp({ quality: 90 })
-    .toBuffer()
+  // 원본이 메모리에만 있다 — 만료된 뒤엔 이 DB 썸네일이 유일한 표시본
+  const thumbnail = await renderThumbnail(input.png)
   const db = getDb()
   const result = db.transaction(() =>
     db
@@ -248,11 +288,9 @@ export async function saveGeneratedImage(input: {
   }
   writeFileSync(filePath, withNaisMetadata(input, now))
 
-  // 썸네일: 카드가 커질 수 있어 640px로 (화질 열화 방지). webp q90
-  const thumbnail = await sharp(input.png)
-    .resize(640, 640, { fit: 'inside' })
-    .webp({ quality: 90 })
-    .toBuffer()
+  // 표시는 썸네일 캐시가 맡는다. DB 썸네일은 1.0.29로 되돌렸을 때 히스토리가 비지 않게 계속 쓴다
+  // (1.0.29 히스토리는 thumbnail이 NULL이면 타일을 그리지 않는다) — 컬럼 정리는 H에서
+  const thumbnail = await renderThumbnail(input.png)
 
   // 순번은 행과 같은 트랜잭션에서 — 비우기 경계를 사이에 두고 갈라지지 않는다
   const db = getDb()
@@ -271,6 +309,7 @@ export async function saveGeneratedImage(input: {
         allocateSeq(db)
       )
   )()
+  await primeThumbnail(filePath, thumbnail)
 
   return { id: Number(result.lastInsertRowid), filePath }
 }

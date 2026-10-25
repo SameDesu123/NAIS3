@@ -20,6 +20,7 @@ import {
   thumbnailByPath,
   thumbnailForUrl
 } from './images/storage'
+import { refreshSceneCover, sceneCoverForUrl } from './images/covers'
 import { broadcast, registerIpcHandlers } from './ipc'
 import { resolveInitialLanguage, t } from './i18n'
 import { translate, type Lang, type MessageId } from '../shared/i18n'
@@ -117,13 +118,22 @@ const startup = app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return
   electronApp.setAppUserModelId('com.sunanakgo.nais3')
 
-  protocol.handle('nais-image', (request) => {
+  protocol.handle('nais-image', async (request) => {
     const url = new URL(request.url)
-    // Stored webp thumbnails by row id — list IPC responses carry these URLs instead of base64
+    // Scene card covers — checked against the current cover image on every request
+    if (url.searchParams.has('cover')) {
+      const cover = await sceneCoverForUrl(url)
+      if (!cover) return new Response('not found', { status: 404 })
+      return new Response(new Uint8Array(cover), {
+        headers: { 'content-type': 'image/webp', 'cache-control': 'no-cache' }
+      })
+    }
+    // Webp thumbnails by row id — list IPC responses carry these URLs instead of base64
     if (url.searchParams.has('thumb')) {
-      const thumb = thumbnailForUrl(url)
+      const thumb = await thumbnailForUrl(url)
       if (!thumb) return new Response('not found', { status: 404 })
-      // URL carries a content version (created_at + size), so the bytes behind it never change
+      // URL carries the row's version (created_at + size). A file edited outside the app gets a
+      // new cached thumbnail, which the renderer picks up once its in-memory cache is gone
       return new Response(new Uint8Array(thumb), {
         headers: {
           'content-type': 'image/webp',
@@ -321,8 +331,10 @@ const startup = app.whenReady().then(async () => {
         })
 
     // 씬 생성이면 해당 씬 갱신 알림 (목록 썸네일/개수, 상세 이미지 갱신용)
-    if (request.sceneId)
+    if (request.sceneId) {
       broadcast('scenes:changed', { sceneId: request.sceneId, filePath: saved.filePath })
+      void refreshSceneCover(request.sceneId)
+    }
 
     // 생성 후 잔액 갱신 (실사용량 추적의 진실 공급원) — 실패해도 생성 흐름엔 영향 없음
     void fetchAnlasBalance(token).then(({ anlas, tier, usage }) => {

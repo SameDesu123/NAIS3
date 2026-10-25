@@ -26,6 +26,7 @@ import {
 } from './characters/repo'
 import { backupNow, getDbPath, getDb } from './db'
 import { analyzeArtists } from './images/artists'
+import { refreshSceneCover } from './images/covers'
 import { metadataFromImage, metadataFromPayloadJson } from './images/metadata'
 import {
   createFragment,
@@ -447,6 +448,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   })
   handle('scenes:bulkClearFavorites', ({ ids }) => {
     bulkClearFavorites(ids)
+    for (const id of ids) void refreshSceneCover(id)
   })
   handle('scenes:bulkClearImages', ({ ids }) => bulkClearImages(ids))
   handle('scenes:bulkExportZip', async ({ ids }) => ({ count: await bulkExportZip(ids) }))
@@ -455,7 +457,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   )
   handle('scenes:deleteNonFavorites', ({ sceneId }) => deleteNonFavorites(sceneId))
   handle('images:setFavorite', ({ id, favorite }) => {
-    setImageFavorite(id, favorite)
+    void refreshSceneCover(setImageFavorite(id, favorite))
   })
   // 숨김이 기본, delete_to_trash를 켜면 휴지통 — scenes/repo.ts removeImages
   handle('images:delete', ({ id, scope }) => deleteImage(id, scope))
