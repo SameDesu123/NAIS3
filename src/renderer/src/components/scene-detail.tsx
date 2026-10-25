@@ -342,8 +342,13 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
                 onDelete={() => void deleteImage(img.id)}
               >
                 <div
-                  className="group relative overflow-hidden rounded-md bg-surface-2"
+                  className={cn(
+                    'group relative overflow-hidden rounded-md bg-surface-2',
+                    // 원본이 없다 (오프라인 저장 폴더 등) — 갤러리에는 남기고 흐리게만
+                    img.missing && 'opacity-50'
+                  )}
                   style={{ aspectRatio: `${scene.width} / ${scene.height}` }}
+                  title={img.missing ? t('ui.originalFileMissing') : undefined}
                 >
                   <img
                     src={imageUrl(img.filePath)}

@@ -91,7 +91,7 @@ function insertImage(
 const thumb = (id: number): Promise<Buffer | null> =>
   thumbnailForUrl(new URL(`nais-image://local/?thumb=image&id=${id}`))
 
-const coverSource = (sceneId: number): { imageId: number; mtimeMs: number } =>
+const coverSource = (sceneId: number): { seq: number; mtimeMs: number } =>
   JSON.parse(readFileSync(join(cacheRoot(), 'covers', `${sceneId}.json`), 'utf8'))
 
 beforeEach(() => {
@@ -199,11 +199,11 @@ describe('scene covers', () => {
     expect(url).toMatch(/^nais-image:\/\/local\/\?cover=1&v=/)
     expect(await colorOf(await sceneCoverForUrl(new URL(url)))).toEqual(GREEN)
     expect(existsSync(join(cacheRoot(), 'covers', '1.webp'))).toBe(true)
-    expect(coverSource(1).imageId).toBe(2)
+    expect(coverSource(1).seq).toBe(2)
 
     // Favorite change: refreshed right away, and the card URL changes
     await refreshSceneCover(setImageFavorite(1, true))
-    expect(coverSource(1).imageId).toBe(1)
+    expect(coverSource(1).seq).toBe(1)
     expect(listScenes(1)[0].thumbnailUrl).not.toBe(url)
     expect(await coverColor()).toEqual(RED)
     await refreshSceneCover(setImageFavorite(1, false))
@@ -218,7 +218,9 @@ describe('scene covers', () => {
       sceneId: 1
     })
     await refreshSceneCover(1)
-    expect(coverSource(1).imageId).toBe(saved.id)
+    expect(coverSource(1).seq).toBe(
+      getDb().prepare('SELECT seq FROM images WHERE id = ?').pluck().get(saved.id)
+    )
     expect(await coverColor()).toEqual(BLUE)
   })
 

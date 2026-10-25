@@ -117,7 +117,8 @@ describe('thumbnail URLs', () => {
       id: 2,
       filePath: '/s1/2.png',
       seed: null,
-      favorite: false
+      favorite: false,
+      missing: true
     })
   })
 

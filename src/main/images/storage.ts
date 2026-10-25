@@ -549,7 +549,7 @@ export function registrationsBySeq(seqs: number[]): Map<number, HistoryRegistrat
 }
 
 /** images 행이 없는 등록의 배지 — 생성 출력이면 생성 종류, 나머지(가져오기·재색인)는 가져온 이미지 */
-function registrationKind(reg: HistoryRegistrationRow): string {
+export function registrationKind(reg: HistoryRegistrationRow): string {
   if (reg.source === 'generated' || reg.source === 'reclaim')
     return reg.scene_id != null ? 'scene' : 't2i'
   return 'external'

@@ -14,10 +14,25 @@ import type {
   ScenePreset
 } from '../../shared/types'
 import { getDb } from '../db'
-import { clearHistory, ensureSeqs, hideSeqs, sceneVisible, type HiddenScope } from '../db/history'
+import { clearHistory, ensureSeqs, hideSeqs, type HiddenScope } from '../db/history'
 import { getSetting } from '../db/settings'
-import { dropMemoryImage, isMemoryPath, registrationsBySeq } from '../images/storage'
+import {
+  dropMemoryImage,
+  isMemoryPath,
+  registrationKind,
+  registrationsBySeq
+} from '../images/storage'
 import { t } from '../i18n'
+import {
+  isMissing,
+  sceneCountSql,
+  sceneCoverSeqSql,
+  sceneEntries,
+  sceneFavoriteSeqs,
+  scenePage,
+  sceneSeqs,
+  type SceneEntry
+} from './items'
 
 interface Row {
   id: number
@@ -149,34 +164,37 @@ export function deletePreset(id: number): void {
 }
 
 // ── 씬 ──────────────────────────────────────────────────
-/** 프리셋별 목록 (썸네일은 씬당 1장만 조인 — 수만 장이어도 가벼움) */
+/** 프리셋별 목록 (표지는 씬당 1장만 — 수만 장이어도 가벼움) */
 export function listScenes(presetId: number): Scene[] {
-  // 카드 썸네일: 즐겨찾기가 있으면 최상단(최신) 즐겨찾기, 없으면 최신 이미지 (NAIS2 방식)
-  // The cover row is looked up once and joined. Because favorites sort first, the cover
-  // is a favorite exactly when the scene has one, so it also answers has_favorite.
-  const rows = getDb()
+  const db = getDb()
+  ensureSeqs(db)
+  // 항목·표지는 scenes/items.ts — images 행 ∪ 원장에만 있는 항목. 표지: 즐겨찾기가 있으면 최신
+  // 즐겨찾기, 없으면 최신 항목 (NAIS2 방식). 즐겨찾기가 먼저라 표지가 즐겨찾기면 곧 has_favorite
+  const rows = db
     .prepare(
       `SELECT s.id, s.preset_id, s.name, s.prompt, s.negative_prompt, s.width, s.height, s.reserve_count, s.reserve_json,
-              (SELECT COUNT(*) FROM images WHERE scene_id = s.id AND ${sceneVisible()}) AS image_count,
-              cover.id AS thumb_id,
-              cover.created_at AS thumb_created_at,
-              cover.file_path AS thumb_path,
-              COALESCE(cover.favorite, 0) AS has_favorite
+              ${sceneCountSql('s.id')} AS image_count,
+              ${sceneCoverSeqSql('s.id')} AS cover_seq
        FROM gen_scenes s
-       LEFT JOIN images cover ON cover.id = (
-         SELECT id FROM images WHERE scene_id = s.id AND ${sceneVisible()}
-         ORDER BY favorite DESC, id DESC LIMIT 1
-       )
        WHERE s.preset_id = ? ORDER BY s.sort_order, s.id`
     )
-    .all(presetId) as (Row & {
-    image_count: number
-    thumb_id: number | null
-    thumb_created_at: string | null
-    thumb_path: string | null
-    has_favorite: number
-  })[]
-  return rows.map(toScene)
+    .all(presetId) as (Row & { image_count: number; cover_seq: number | null })[]
+  const covers = new Map(
+    sceneEntries(rows.flatMap((r) => (r.cover_seq != null ? [r.cover_seq] : []))).map((e) => [
+      e.seq,
+      e
+    ])
+  )
+  return rows.map((r) => {
+    const cover = r.cover_seq != null ? covers.get(r.cover_seq) : undefined
+    return toScene({
+      ...r,
+      thumb_id: cover?.seq ?? null,
+      thumb_created_at: cover?.createdAt ?? null,
+      thumb_path: cover?.filePath ?? null,
+      has_favorite: cover?.favorite ? 1 : 0
+    })
+  })
 }
 
 /** 씬 프리셋 순서 변경 */
@@ -196,13 +214,14 @@ export function getPresetName(id: number): string | null {
 }
 
 export function getScene(id: number): Scene | null {
+  ensureSeqs(getDb())
   const r = getDb()
     .prepare(
       `SELECT id, preset_id, name, prompt, negative_prompt, width, height, reserve_count, reserve_json,
-              (SELECT COUNT(*) FROM images WHERE scene_id = ? AND ${sceneVisible()}) AS image_count
-       FROM gen_scenes WHERE id = ?`
+              ${sceneCountSql('@id')} AS image_count
+       FROM gen_scenes WHERE id = @id`
     )
-    .get(id, id) as (Row & { image_count: number }) | undefined
+    .get({ id }) as (Row & { image_count: number }) | undefined
   return r ? toScene(r) : null
 }
 
@@ -398,14 +417,10 @@ export function bulkClearFavorites(ids: number[]): void {
 
 /** 선택 씬들의 생성 이미지를 씬 갤러리에서 지운다 (히스토리에는 그대로) */
 export function bulkClearImages(ids: number[]): Promise<RemoveImagesResult> {
-  ensureSeqs(getDb())
-  const rows = getDb()
-    .prepare(
-      `SELECT seq, id AS image_id, file_path FROM images
-       WHERE scene_id IN (${placeholders(ids.length)}) AND ${sceneVisible()}`
-    )
-    .all(...ids) as RemovableImage[]
-  return removeImages(rows, 'scene')
+  return removeImages(
+    ids.flatMap((id) => sceneEntries(sceneSeqs(id)).map(removable)),
+    'scene'
+  )
 }
 
 // ── 씬 상세 이미지 (페이지네이션) ────────────────────────
@@ -415,57 +430,49 @@ export function sceneImages(
   offset: number,
   favoritesOnly?: boolean
 ): { items: SceneImage[]; total: number } {
-  const db = getDb()
-  ensureSeqs(db)
-  // 씬 갤러리에서 지운(숨긴) 이미지는 빠진다. id는 순번 — 히스토리와 같은 정체성
-  const fav = `${favoritesOnly ? ' AND favorite = 1' : ''} AND ${sceneVisible()}`
-  const total = (
-    db.prepare(`SELECT COUNT(*) AS c FROM images WHERE scene_id = ?${fav}`).get(sceneId) as {
-      c: number
-    }
-  ).c
-  const rows = db
-    .prepare(
-      `SELECT seq, file_path, seed, favorite FROM images
-       WHERE scene_id = ?${fav} ORDER BY id DESC LIMIT ? OFFSET ?`
-    )
-    .all(sceneId, limit, offset) as {
-    seq: number
-    file_path: string
-    seed: number | null
-    favorite: number
-  }[]
+  // 씬 갤러리에서 지운(숨긴) 이미지는 빠진다. id는 순번 — 히스토리와 같은 정체성.
+  // 파일이 있는지는 이 페이지만 확인한다 (오프라인 루트의 항목은 빼지 않고 missing으로 표시)
+  const { seqs, total } = scenePage(sceneId, { limit, offset, favoritesOnly })
   return {
     total,
-    items: rows.map((r) => ({
-      id: r.seq,
-      filePath: r.file_path,
-      seed: r.seed,
-      favorite: r.favorite === 1
+    items: sceneEntries(seqs).map((e) => ({
+      id: e.seq,
+      filePath: e.filePath,
+      seed: e.seed,
+      favorite: e.favorite,
+      ...(isMissing(e.filePath) ? { missing: true } : {})
     }))
   }
 }
 
 /** 씬의 즐겨찾기 제외 이미지를 씬 갤러리에서 지운다 (N5) */
 export function deleteNonFavorites(sceneId: number): Promise<RemoveImagesResult> {
-  ensureSeqs(getDb())
-  const rows = getDb()
-    .prepare(
-      `SELECT seq, id AS image_id, file_path FROM images WHERE scene_id = ? AND favorite = 0 AND ${sceneVisible()}`
-    )
-    .all(sceneId) as RemovableImage[]
-  return removeImages(rows, 'scene')
+  return removeImages(
+    sceneEntries(sceneSeqs(sceneId, { nonFavorites: true })).map(removable),
+    'scene'
+  )
 }
 
 /**
  * 즐겨찾기 표시 (seq = 항목의 순번) — 이미지가 속한 씬 id를 돌려준다 (표지를 다시 만들 수 있게).
- * images.favorite가 기준이라 images 행이 없는 원장 항목은 아직 바꾸지 않는다
+ * images.favorite가 기준이다(H까지). images 행이 없는 원장 항목(재색인·복원)을 즐겨찾기하면 같은
+ * 순번의 images 행을 만든다 — 생성 출력의 행·등록과 같은 모양이라 다른 읽기는 그대로다
  */
 export function setImageFavorite(seq: number, favorite: boolean): number | null {
-  const row = getDb()
-    .prepare('UPDATE images SET favorite = ? WHERE seq = ? RETURNING scene_id')
-    .get(favorite ? 1 : 0, seq) as { scene_id: number | null } | undefined
-  return row?.scene_id ?? null
+  const db = getDb()
+  return db.transaction(() => {
+    const row = db
+      .prepare('UPDATE images SET favorite = ? WHERE seq = ? RETURNING scene_id')
+      .get(favorite ? 1 : 0, seq) as { scene_id: number | null } | undefined
+    if (row) return row.scene_id
+    const reg = favorite ? registrationsBySeq([seq]).get(seq) : undefined
+    if (!reg) return null
+    db.prepare(
+      `INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id, seq, created_at, favorite)
+       VALUES (?, NULL, ?, NULL, '{}', ?, ?, ?, 1)`
+    ).run(reg.file_path, registrationKind(reg), reg.scene_id, seq, reg.created_at)
+    return reg.scene_id
+  })()
 }
 
 /** 히스토리 전체 비우기 — 히스토리 경계만 올린다. 행·파일·씬 갤러리·즐겨찾기는 그대로 */
@@ -491,6 +498,10 @@ interface RemovableImage {
   /** images 행이 없는 원장 항목이면 null */
   image_id: number | null
   file_path: string
+}
+
+function removable(entry: SceneEntry): RemovableImage {
+  return { seq: entry.seq, image_id: entry.imageId, file_path: entry.filePath }
 }
 
 /**
@@ -622,14 +633,16 @@ async function zipFiles(entries: ZipEntry[], defaultName: string): Promise<numbe
   const zip = new JSZip()
   const used = new Set<string>()
   for (const e of entries) {
+    let data: Buffer
     try {
-      let name = e.name
-      while (used.has(name)) name = `_${name}` // 동명 씬 충돌 폴백
-      used.add(name)
-      zip.file(name, readFileSync(e.file_path))
+      data = readFileSync(e.file_path)
     } catch {
-      // 파일 없으면 건너뜀
+      continue // 파일 없으면 건너뜀 (오프라인 저장 폴더 포함) — 넣은 수에 세지 않는다
     }
+    let name = e.name
+    while (used.has(name)) name = `_${name}` // 동명 씬 충돌 폴백
+    used.add(name)
+    zip.file(name, data)
   }
   writeFileSync(result.filePath, await zip.generateAsync({ type: 'nodebuffer' }))
   return used.size
@@ -638,6 +651,7 @@ async function zipFiles(entries: ZipEntry[], defaultName: string): Promise<numbe
 /**
  * 씬별 내보낼 이미지 선정 + 이름 (NAIS2 ExportDialog와 동일):
  * 즐겨찾기가 있으면 즐겨찾기 전부, 없으면 최상단(썸네일=최신) 1장.
+ * 지금 없는 파일(오프라인 저장 폴더)은 건너뛴다 — 즐겨찾기가 없을 때는 있는 것 중 최신 1장.
  * 이름은 씬 이름 그대로 — 한 씬에서 여러 장(즐겨찾기 다수)일 때만 _1, _2 접미사.
  */
 function zipEntriesForScenes(sceneIds: number[]): ZipEntry[] {
@@ -647,31 +661,30 @@ function zipEntriesForScenes(sceneIds: number[]): ZipEntry[] {
     const scene = db.prepare('SELECT name FROM gen_scenes WHERE id = ?').get(sceneId) as
       { name: string } | undefined
     if (!scene) continue
-    const favorites = db
-      .prepare(
-        `SELECT file_path FROM images
-         WHERE scene_id = ? AND favorite = 1 AND ${sceneVisible()} ORDER BY id DESC`
-      )
-      .all(sceneId) as { file_path: string }[]
+    const favorites = sceneEntries(sceneFavoriteSeqs(sceneId))
     const picks =
       favorites.length > 0
-        ? favorites
-        : (db
-            .prepare(
-              `SELECT file_path FROM images
-               WHERE scene_id = ? AND ${sceneVisible()} ORDER BY id DESC LIMIT 1`
-            )
-            .all(sceneId) as { file_path: string }[])
+        ? favorites.filter((e) => !isMissing(e.filePath))
+        : newestExisting(sceneSeqs(sceneId))
     const safe = scene.name.replace(/[/\\:*?"<>|]/g, '_').trim() || `씬-${sceneId}`
     picks.forEach((p, i) => {
       const suffix = picks.length > 1 ? `_${i + 1}` : ''
       entries.push({
-        file_path: p.file_path,
-        name: `${safe}${suffix}${extname(p.file_path) || '.png'}`
+        file_path: p.filePath,
+        name: `${safe}${suffix}${extname(p.filePath) || '.png'}`
       })
     })
   }
   return entries
+}
+
+/** 최신부터 훑어 파일이 있는 첫 항목 (없으면 빈 배열) */
+function newestExisting(seqs: number[]): SceneEntry[] {
+  for (let i = 0; i < seqs.length; i += 50) {
+    const found = sceneEntries(seqs.slice(i, i + 50)).find((e) => !isMissing(e.filePath))
+    if (found) return [found]
+  }
+  return []
 }
 
 /** 활성 프리셋의 씬들을 ZIP으로 (NAIS2 방식 — 즐겨찾기 우선, 없으면 최상단 1장) */

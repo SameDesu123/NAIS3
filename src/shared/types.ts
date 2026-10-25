@@ -371,6 +371,8 @@ export interface SceneImage {
   filePath: string
   seed: number | null
   favorite: boolean
+  /** 원본 파일이 지금 없다 (저장 폴더가 오프라인이거나 파일을 옮김) — 갤러리에서 빼지 않고 표시만 */
+  missing?: boolean
 }
 
 /** 라이브러리 — 사용자가 직접 모아두는 큐레이션 이미지 (원본은 앱 내부 복사본) */
