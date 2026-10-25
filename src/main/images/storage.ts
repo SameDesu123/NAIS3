@@ -178,6 +178,17 @@ export async function saveEphemeralImage(input: {
   return { id: Number(result.lastInsertRowid), filePath }
 }
 
+/**
+ * 새 출력이 쓰면 안 되는 경로인지. 휴지통으로 보낸 이미지는 파일이 없어도 images 행이 남는다 —
+ * 같은 이름을 다시 쓰면 두 행이 한 file_path를 나눠 가져 메타데이터 조회가 옛 행을 읽는다
+ */
+function isOutputPathTaken(filePath: string): boolean {
+  if (existsSync(filePath)) return true
+  return (
+    getDb().prepare('SELECT 1 FROM images WHERE file_path = ? LIMIT 1').get(filePath) !== undefined
+  )
+}
+
 export async function saveGeneratedImage(input: {
   png: Buffer
   sentPayload: string
@@ -226,13 +237,16 @@ export async function saveGeneratedImage(input: {
       if (m) max = Math.max(max, Number(m[1]))
     }
     filePath = join(monthDir, max === 0 ? `${safeName}.${ext}` : `${safeName}_${max + 1}.${ext}`)
-    while (existsSync(filePath)) {
+    while (isOutputPathTaken(filePath)) {
       max++
       filePath = join(monthDir, `${safeName}_${max + 1}.${ext}`)
     }
   } else {
     const stamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    filePath = join(monthDir, `NAIS3_${stamp}_${input.seed}.${ext}`)
+    const base = `NAIS3_${stamp}_${input.seed}`
+    filePath = join(monthDir, `${base}.${ext}`)
+    for (let n = 2; isOutputPathTaken(filePath); n++)
+      filePath = join(monthDir, `${base}_${n}.${ext}`)
   }
   const fileBuffer =
     ext === 'png' && input.localMetadata

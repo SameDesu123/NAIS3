@@ -7,7 +7,8 @@ import { closeDb, getDb, initDb } from '../src/main/db'
 import { allocateSeq } from '../src/main/db/history'
 import { migrations } from '../src/main/db/migrations'
 import { getSetting, setSetting } from '../src/main/db/settings'
-import { listImages } from '../src/main/images/storage'
+import { listImages, saveGeneratedImage } from '../src/main/images/storage'
+import sharp from '../src/main/sharp'
 import {
   bulkClearImages,
   clearAllImages,
@@ -20,7 +21,7 @@ import {
 
 const environment = vi.hoisted(() => ({ directory: '', trashItem: vi.fn() }))
 vi.mock('electron', () => ({
-  app: { getPath: () => environment.directory, getLocale: () => 'ko' },
+  app: { getPath: () => environment.directory, getLocale: () => 'ko', getVersion: () => '1.0.30' },
   BrowserWindow: {},
   dialog: {},
   shell: { trashItem: environment.trashItem },
@@ -273,6 +274,40 @@ describe('deleting with the trash option on', () => {
     expect(await bulkClearImages([2])).toEqual({ mode: 'trash', results: [{ id: 5, ok: true }] })
     expect(environment.trashItem).not.toHaveBeenCalled()
     expect(galleryIds(2)).toEqual([])
+  })
+
+  it('never reuses the name of a trashed scene image for the next output', async () => {
+    setSetting('scene_save_dir', join(root, 'scenes'))
+    const png = await sharp({
+      create: { width: 8, height: 8, channels: 3, background: '#000000' }
+    })
+      .png()
+      .toBuffer()
+    const save = (): ReturnType<typeof saveGeneratedImage> =>
+      saveGeneratedImage({
+        png,
+        sentPayload: '{}',
+        seed: 1,
+        kind: 'scene',
+        sceneId: 1,
+        sceneName: 'a'
+      })
+    await save()
+    const newest = await save()
+    expect(newest.filePath).toMatch(/[\\/]a_2\.png$/)
+    // 휴지통이 실제로 파일을 옮긴 것처럼 — 행은 메타데이터로 남는다
+    environment.trashItem.mockImplementation(async (name: string) => rmSync(name))
+    await deleteImage(newest.id, 'scene')
+    expect(existsSync(newest.filePath)).toBe(false)
+
+    const next = await save()
+    expect(next.filePath).toMatch(/[\\/]a_3\.png$/)
+    expect(
+      getDb()
+        .prepare('SELECT COUNT(*) FROM images WHERE file_path = ?')
+        .pluck()
+        .get(newest.filePath)
+    ).toBe(1)
   })
 
   it('still clears history without moving anything to the trash', () => {
