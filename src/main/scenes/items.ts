@@ -107,10 +107,12 @@ export interface SceneEntry {
   createdAt: string
   seed: number | null
   favorite: boolean
-  thumbnail: Buffer | null
 }
 
-/** 순번들의 항목 내용 (순서는 seqs 그대로, 찾지 못한 순번은 빠진다) */
+/**
+ * 순번들의 항목 내용 (순서는 seqs 그대로, 찾지 못한 순번은 빠진다). 저장된 썸네일(BLOB)은 읽지 않는다 —
+ * 일괄 지우기·ZIP이 씬 전체를 읽는다. 표지만 sceneEntryThumbnail로 따로 읽는다
+ */
 export function sceneEntries(seqs: number[]): SceneEntry[] {
   // 바인딩 변수 한도를 넘지 않게 나눠 읽는다 (큰 씬의 일괄 지우기)
   const entries: SceneEntry[] = []
@@ -123,7 +125,7 @@ function entryChunk(seqs: number[]): SceneEntry[] {
     (
       getDb()
         .prepare(
-          `SELECT id, seq, file_path, created_at, seed, favorite, thumbnail FROM images
+          `SELECT id, seq, file_path, created_at, seed, favorite FROM images
            WHERE seq IN (${seqs.map(() => '?').join(',')})`
         )
         .all(...seqs) as {
@@ -133,7 +135,6 @@ function entryChunk(seqs: number[]): SceneEntry[] {
         created_at: string
         seed: number | null
         favorite: number
-        thumbnail: Buffer | null
       }[]
     ).map((r) => [r.seq, r])
   )
@@ -151,11 +152,20 @@ function entryChunk(seqs: number[]): SceneEntry[] {
       filePath,
       createdAt,
       seed: row?.seed ?? null,
-      favorite: row?.favorite === 1,
-      thumbnail: row?.thumbnail ?? null
+      favorite: row?.favorite === 1
     })
   }
   return entries
+}
+
+/** 항목의 저장된 썸네일 (images 행이 없거나 썸네일이 없으면 null) */
+export function sceneEntryThumbnail(seq: number): Buffer | null {
+  return (
+    (getDb().prepare('SELECT thumbnail FROM images WHERE seq = ?').pluck().get(seq) as
+      | Buffer
+      | null
+      | undefined) ?? null
+  )
 }
 
 /** 파일이 지금 없는지 (오프라인 루트, 옮긴 파일). memory:// 는 파일이 아니다 */

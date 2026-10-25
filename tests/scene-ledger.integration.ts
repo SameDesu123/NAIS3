@@ -238,6 +238,35 @@ describe('scene reads from the ledger', () => {
     expect(Object.keys(zip.files).sort()).toEqual(['alpha.png', 'beta.png'])
   })
 
+  it('never loads stored thumbnails for galleries, bulk removal or ZIP, only for a cover', async () => {
+    const db = getDb()
+    for (const name of ['a', 'b', 'c']) insertOutput(`u-1/${name}.png`, 1)
+    db.prepare('UPDATE images SET thumbnail = ?').run(Buffer.from('stored'))
+    await writePng(join(scenesRoot(), 'u-1', 'a.png'))
+    const statements: string[] = []
+    const prepare = db.prepare.bind(db)
+    const spy = vi.spyOn(db, 'prepare').mockImplementation(((sql: string) => {
+      statements.push(sql)
+      return prepare(sql)
+    }) as typeof db.prepare)
+    const readsThumbnail = (): boolean =>
+      statements.some((sql) => /\bthumbnail\b/.test(sql) && /^\s*SELECT/i.test(sql))
+    try {
+      sceneImages(1, 100, 0)
+      listScenes(1)
+      expect(await bulkExportZip([1])).toBe(1)
+      await deleteNonFavorites(1)
+      expect(readsThumbnail()).toBe(false)
+
+      // 원본이 없는 표지는 저장된 썸네일을 읽는다
+      db.prepare('DELETE FROM media_hidden').run()
+      expect(await sceneCover(1)).toEqual(Buffer.from('stored'))
+      expect(readsThumbnail()).toBe(true)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('reads scene cards through the scene indexes, never a full scan', () => {
     const plan = (
       getDb()

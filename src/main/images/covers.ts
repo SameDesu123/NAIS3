@@ -1,7 +1,7 @@
 import { stat } from 'fs/promises'
 import { join } from 'path'
 import { getDb } from '../db'
-import { sceneCoverSeqSql, sceneEntries } from '../scenes/items'
+import { sceneCoverSeqSql, sceneEntries, sceneEntryThumbnail } from '../scenes/items'
 import { isMemoryPath, rowThumbnail, type ThumbnailRow } from './storage'
 import {
   cacheRoot,
@@ -52,18 +52,14 @@ export async function sceneCover(sceneId: number): Promise<Buffer | null> {
     .get({ scene: sceneId }) as number | null
   const entry = seq != null ? sceneEntries([seq])[0] : undefined
   if (!entry) return null
-  const row: ThumbnailRow = {
-    file_path: entry.filePath,
-    created_at: entry.createdAt,
-    thumbnail: entry.thumbnail
-  }
-  if (isMemoryPath(row.file_path)) return row.thumbnail
+  // 저장된 썸네일(BLOB)은 쓸 때만 읽는다 — 표지 캐시가 맞으면 필요 없다
+  if (isMemoryPath(entry.filePath)) return sceneEntryThumbnail(entry.seq)
   let current: CoverSource
   try {
-    current = { seq: entry.seq, ...sourceVersion(row.file_path, await stat(row.file_path)) }
+    current = { seq: entry.seq, ...sourceVersion(entry.filePath, await stat(entry.filePath)) }
   } catch {
     // 원본이 사라졌다 — 옛 표지 대신 저장된 썸네일 (없으면 카드가 원본 경로로 폴백)
-    return row.thumbnail
+    return sceneEntryThumbnail(entry.seq)
   }
 
   const memoryKey = `cover\0${sceneId}\0${JSON.stringify(current)}`
@@ -75,6 +71,11 @@ export async function sceneCover(sceneId: number): Promise<Buffer | null> {
       ? await readCacheFile(coverFile(sceneId))
       : null
   if (!cover) {
+    const row: ThumbnailRow = {
+      file_path: entry.filePath,
+      created_at: entry.createdAt,
+      thumbnail: sceneEntryThumbnail(entry.seq)
+    }
     cover = await rowThumbnail(row)
     if (!cover) return null
     // 표지 먼저, 출처는 나중에 — 그 사이에 멈추면 출처가 안 맞아 다음 요청 때 다시 만든다
