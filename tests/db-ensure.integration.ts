@@ -1,5 +1,13 @@
 import Database from 'better-sqlite3'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  utimesSync,
+  writeFileSync
+} from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -188,6 +196,27 @@ describe('one-time jobs', () => {
 
     initDb()
     expect(run).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the pre-job snapshot when ten older migration snapshots exist', () => {
+    seedV20()
+    initDb()
+    closeDb()
+    // 이름순 정리면 pre-job-*이 pre-migration-v*보다 앞이라 쓰자마자 지워졌다
+    mkdirSync(backups(), { recursive: true })
+    for (let v = 1; v <= 10; v++) {
+      const file = join(backups(), `pre-migration-v${v}.db`)
+      writeFileSync(file, 'old snapshot')
+      const time = new Date(Date.UTC(2020, 0, v))
+      utimesSync(file, time, time)
+    }
+    oneTimeJobs.push({ name: 'prune-job', run: () => {} })
+
+    initDb()
+    const remaining = readdirSync(backups())
+    expect(remaining).toContain('pre-job-prune-job.db')
+    expect(remaining).toHaveLength(10)
+    expect(remaining).not.toContain('pre-migration-v1.db')
   })
 
   it('rolls back a failed job without recording it, so the next start retries', () => {

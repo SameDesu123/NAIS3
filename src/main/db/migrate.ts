@@ -102,8 +102,9 @@ function ensureSchema(db: Database.Database, backupDir: string): void {
   if (jobs.length === 0) return
   // 작업은 데이터를 바꾼다 — 첫 작업 이름으로 실행 전 스냅샷
   mkdirSync(backupDir, { recursive: true })
-  writeSnapshot(db, join(backupDir, `pre-job-${jobs[0].name}.db`))
-  pruneBackups(backupDir, 10)
+  const snapshot = join(backupDir, `pre-job-${jobs[0].name}.db`)
+  writeSnapshot(db, snapshot)
+  pruneBackups(backupDir, 10, snapshot)
   for (const job of jobs) {
     db.transaction(() => {
       if (isJobApplied(db, job.name)) return
