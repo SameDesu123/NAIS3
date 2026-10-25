@@ -3,12 +3,13 @@ import { readFile } from 'fs/promises'
 import { getDb } from '../db'
 import {
   forgetIntent,
-  isRegistered,
   locatorPath,
   mediaCollisions,
   pendingIntents,
   reclaimUnregistered,
-  registerMedia
+  registerMedia,
+  registeredSeq,
+  type PendingIntent
 } from '../db/media'
 import { readNaisMetadata } from './metadata'
 import { syncMediaRoots } from './storage'
@@ -47,8 +48,26 @@ export interface RecoveryResult {
   recovered: number
   /** 이미 등록됐거나, 루트는 있는데 파일이 없다 (쓰기 전에 멈췄다) */
   dropped: number
-  /** 루트가 보이지 않는다 (오프라인·언마운트) — 다음 시작 때 다시 본다 */
+  /**
+   * 다음 시작 때 다시 본다 — 루트가 보이지 않거나(오프라인·언마운트), 같은 위치가 다른 순번으로
+   * 이미 등록돼 있다(옛 출력의 등록을 새 출력의 것으로 채택하지 않는다 — 파일은 그대로 있다)
+   */
   kept: number
+}
+
+type IntentState = 'committed' | 'conflict' | 'open'
+
+/** 의도의 위치가 이 의도의 순번으로 등록됐는지(커밋됨), 다른 순번으로 등록됐는지(충돌) */
+function intentState(db: ReturnType<typeof getDb>, intent: PendingIntent): IntentState {
+  const seq = registeredSeq(db, intent)
+  if (seq === undefined) return 'open'
+  return seq === intent.seq ? 'committed' : 'conflict'
+}
+
+function warnConflict(intent: PendingIntent): void {
+  console.warn(
+    `media: output ${intent.relPath} (seq ${intent.seq}) is at a location already registered to another seq; left for review`
+  )
 }
 
 /**
@@ -61,9 +80,15 @@ export async function recoverPendingOutputs(): Promise<RecoveryResult> {
   const db = getDb()
   const result: RecoveryResult = { recovered: 0, dropped: 0, kept: 0 }
   for (const intent of pendingIntents(db)) {
-    if (isRegistered(db, intent)) {
+    const state = intentState(db, intent)
+    if (state === 'committed') {
       forgetIntent(db, intent.id)
       result.dropped++
+      continue
+    }
+    if (state === 'conflict') {
+      warnConflict(intent)
+      result.kept++
       continue
     }
     const filePath = locatorPath(intent.rootPath, intent.relPath)
@@ -89,10 +114,9 @@ export async function recoverPendingOutputs(): Promise<RecoveryResult> {
       : '{}'
     const recovered = db.transaction(() => {
       // 썸네일을 만드는 사이에 다른 곳에서 등록됐을 수 있다
-      if (isRegistered(db, intent)) {
-        forgetIntent(db, intent.id)
-        return false
-      }
+      const now = intentState(db, intent)
+      if (now === 'committed') forgetIntent(db, intent.id)
+      if (now !== 'open') return now
       const seq = intent.seq
       db.prepare(
         `INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id, seq)
@@ -100,10 +124,14 @@ export async function recoverPendingOutputs(): Promise<RecoveryResult> {
       ).run(filePath, thumbnail, intent.kind, intent.seed, payload, intent.sceneId, seq)
       registerMedia(db, { ...intent, seq, source: 'generated' })
       forgetIntent(db, intent.id)
-      return true
+      return 'recovered' as const
     })()
-    if (recovered) result.recovered++
-    else result.dropped++
+    if (recovered === 'recovered') result.recovered++
+    else if (recovered === 'committed') result.dropped++
+    else {
+      warnConflict(intent)
+      result.kept++
+    }
   }
   return result
 }

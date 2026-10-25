@@ -267,9 +267,26 @@ export function pendingIntents(db: Database.Database): PendingIntent[] {
 }
 
 export function isRegistered(db: Database.Database, locator: MediaLocator): boolean {
+  return registeredSeq(db, locator) !== undefined
+}
+
+/** 그 위치에 등록된 순번. 의도의 순번과 다르면 같은 위치를 먼저 쓴 다른(예전) 출력이다 */
+export function registeredSeq(db: Database.Database, locator: MediaLocator): number | undefined {
+  return db
+    .prepare('SELECT seq FROM media_registrations WHERE root_id = ? AND rel_path = ?')
+    .pluck()
+    .get(locator.rootId, locator.relPath) as number | undefined
+}
+
+/**
+ * 새 출력이 이 위치를 쓰면 안 되는지 — 등록됐거나(휴지통으로 보내 파일이 없어도 등록은 남는다)
+ * 아직 커밋되지 않은 저장 의도가 잡아 둔 위치
+ */
+export function isLocatorTaken(db: Database.Database, locator: MediaLocator): boolean {
   return (
+    isRegistered(db, locator) ||
     db
-      .prepare('SELECT 1 FROM media_registrations WHERE root_id = ? AND rel_path = ?')
+      .prepare('SELECT 1 FROM media_intents WHERE root_id = ? AND rel_path = ?')
       .get(locator.rootId, locator.relPath) !== undefined
   )
 }

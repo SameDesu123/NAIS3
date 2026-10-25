@@ -8,6 +8,7 @@ import { getDb } from '../db'
 import { allocateSeq, HISTORY_VISIBLE } from '../db/history'
 import {
   forgetIntent,
+  isLocatorTaken,
   locate,
   pathKey,
   readableRoots,
@@ -262,9 +263,12 @@ export async function saveEphemeralImage(input: {
  */
 function isOutputPathTaken(filePath: string): boolean {
   if (existsSync(filePath)) return true
-  return (
-    getDb().prepare('SELECT 1 FROM images WHERE file_path = ? LIMIT 1').get(filePath) !== undefined
-  )
+  const db = getDb()
+  if (db.prepare('SELECT 1 FROM images WHERE file_path = ? LIMIT 1').get(filePath) !== undefined)
+    return true
+  // 원장의 위치도 본다 — 등록된 위치를 다시 쓰면 등록이 새 출력에 옛 순번을 돌려준다
+  const locator = locate(db, filePath)
+  return locator !== null && isLocatorTaken(db, locator)
 }
 
 export async function saveGeneratedImage(input: {
@@ -363,7 +367,18 @@ export async function saveGeneratedImage(input: {
         input.sceneId ?? null,
         seq
       )
-    if (locator) registerMedia(db, { ...locator, seq, source: 'generated', sceneId: input.sceneId })
+    if (locator) {
+      const registered = registerMedia(db, {
+        ...locator,
+        seq,
+        source: 'generated',
+        sceneId: input.sceneId
+      })
+      // 이름을 고를 때 등록된 위치를 피하므로 생기지 않는다. 생기면 옛 순번을 채택하지 않고 롤백한다 —
+      // 파일과 의도는 남아 다음 시작 때 복구가 보고한다
+      if (!registered.created && registered.seq !== seq)
+        throw new Error(`${filePath} is already registered as seq ${registered.seq}`)
+    }
     if (intent) forgetIntent(db, intent.id)
     return inserted
   })()

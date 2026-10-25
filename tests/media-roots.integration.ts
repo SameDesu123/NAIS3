@@ -263,6 +263,66 @@ describe('saving outputs', () => {
   })
 })
 
+describe('naming after a trashed output', () => {
+  const sceneOutput = async (image?: Buffer): Promise<{ id: number; filePath: string }> =>
+    saveGeneratedImage({
+      png: image ?? (await png()),
+      sentPayload: '{}',
+      seed: 8,
+      kind: 'scene',
+      sceneId: 1,
+      sceneName: 'a',
+      scenePresetName: 'p'
+    })
+
+  /** 휴지통으로 보낸 것처럼 — 행과 등록은 남고 파일만 없다 */
+  async function trashedNewest(): Promise<{ id: number; filePath: string }> {
+    await sceneOutput()
+    const newest = await sceneOutput()
+    expect(newest.filePath).toMatch(/[\\/]a_2\.png$/)
+    hideImages(getDb(), [newest.id], 'scene')
+    rmSync(newest.filePath)
+    return newest
+  }
+
+  it('gives the next output a new name, location and seq', async () => {
+    const trashed = await trashedNewest()
+    const next = await sceneOutput()
+    expect(next.filePath).toMatch(/[\\/]a_3\.png$/)
+    const seqOf = (id: number): number =>
+      getDb().prepare('SELECT seq FROM images WHERE id = ?').pluck().get(id) as number
+    expect(registrations().map((r) => [r.rel_path, r.seq])).toEqual([
+      ['p/a/a.png', expect.any(Number)],
+      ['p/a/a_2.png', seqOf(trashed.id)],
+      ['p/a/a_3.png', seqOf(next.id)]
+    ])
+    expect(listImages(10, 0).items[0].id).toBe(next.id)
+  })
+
+  it('still recovers an output that crashed between the file write and the row commit', async () => {
+    await trashedNewest()
+    // 디코드할 수 없는 출력 — 파일은 쓰이고 썸네일에서 실패해 행·등록이 커밋되지 않는다
+    const broken = Buffer.from('not an image')
+    await expect(sceneOutput(broken)).rejects.toThrow()
+    const db = getDb()
+    const [intent] = db.prepare('SELECT seq, rel_path FROM media_intents').all() as {
+      seq: number
+      rel_path: string
+    }[]
+    expect(intent.rel_path).toBe('p/a/a_3.png')
+    expect(existsSync(join(scenesRoot(), 'p', 'a', 'a_3.png'))).toBe(true)
+
+    expect(await recoverPendingOutputs()).toEqual({ recovered: 1, dropped: 0, kept: 0 })
+    expect(registrations().at(-1)).toMatchObject({ seq: intent.seq, rel_path: 'p/a/a_3.png' })
+    expect(
+      db
+        .prepare('SELECT seq FROM images WHERE file_path = ?')
+        .pluck()
+        .all(join(scenesRoot(), 'p', 'a', 'a_3.png'))
+    ).toEqual([intent.seq])
+  })
+})
+
 describe('reclaiming unregistered outputs', () => {
   it('registers old rows by location, keeping their seq and hidden state, and can run again', () => {
     syncMediaRoots()
@@ -450,12 +510,32 @@ describe('recovering outputs saved without a registration', () => {
     expect(readdirSync(imagesRoot())).toEqual([])
   })
 
-  it('drops an intent whose output is already registered', async () => {
-    const { path } = await savedWithoutRegistration('done.png')
+  it('drops an intent whose output is already registered with its seq', async () => {
+    const { path, seq } = await savedWithoutRegistration('done.png')
     const db = getDb()
-    const id = insertImage(path)
+    const id = insertImage(path, { seq })
     expect(reclaimUnregistered(db).registered).toBe(1)
     expect(await recoverPendingOutputs()).toEqual({ recovered: 0, dropped: 1, kept: 0 })
     expect(db.prepare('SELECT id FROM images').pluck().all()).toEqual([id])
+  })
+
+  it('never adopts an older registration at the same location as the new output', async () => {
+    const db = getDb()
+    const ids = syncMediaRoots()
+    // 예전 출력이 같은 위치로 등록돼 있다 (휴지통으로 보내 파일은 없다)
+    const older = registerMedia(db, {
+      rootId: ids.output,
+      relPath: 'reused.png',
+      seq: allocateSeq(db),
+      source: 'generated'
+    }).seq
+    const { seq } = await savedWithoutRegistration('reused.png')
+    expect(seq).not.toBe(older)
+
+    expect(await recoverPendingOutputs()).toEqual({ recovered: 0, dropped: 0, kept: 1 })
+    // 옛 순번을 새 출력의 것으로 쓰지 않고, 의도를 지우지도 않는다
+    expect(registrations().map((r) => r.seq)).toEqual([older])
+    expect(db.prepare('SELECT seq FROM media_intents').pluck().all()).toEqual([seq])
+    expect(count('images')).toBe(0)
   })
 })
