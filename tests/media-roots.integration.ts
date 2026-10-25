@@ -21,6 +21,8 @@ import {
   isUnderImagesRoot,
   listImages,
   saveGeneratedImage,
+  sceneFolderInfo,
+  sceneWriteDir,
   scenesRoot,
   syncMediaRoots
 } from '../src/main/images/storage'
@@ -316,6 +318,16 @@ describe('naming after a trashed output', () => {
     hideImages(getDb(), [newest.id], 'scene')
     rmSync(newest.filePath)
     expect((await sceneOutput()).filePath).toBe(join(scenesRoot(), uuid, 'a_3.png'))
+  })
+
+  it('never writes outside the scenes root for a folder_uuid that is not one segment', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    for (const folderUuid of ['../escape', '..', 'a/b', 'C:', join(root, 'abs')]) {
+      getDb().prepare('UPDATE gen_scenes SET folder_uuid = ? WHERE id = 1').run(folderUuid)
+      expect(sceneWriteDir(sceneFolderInfo(1)!)).toBe(join(scenesRoot(), 'p', 'a'))
+    }
+    expect((await sceneOutput()).filePath).toBe(join(scenesRoot(), 'p', 'a', 'a.png'))
+    warn.mockRestore()
   })
 
   it('still recovers an output that crashed between the file write and the row commit', async () => {

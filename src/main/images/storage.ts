@@ -97,9 +97,23 @@ export function sceneFolderInfo(sceneId: number | null | undefined): SceneFolder
  * 이전에 쓴 폴더(이전 씬 루트, 이름을 바꾸기 전 폴더)는 읽기 위치로 남는다 — scenes/folders.ts
  */
 export function sceneWriteDir(scene: SceneFolderInfo): string {
-  return scene.folderUuid
-    ? join(scenesRoot(), scene.folderUuid)
-    : sceneDir(scene.presetName, scene.name, scene.id)
+  const uuidDir = sceneUuidDir(scene)
+  if (uuidDir) return uuidDir
+  if (scene.folderUuid)
+    console.warn(`scene ${scene.id} has an unusable folder_uuid; writing to its name folder`)
+  return sceneDir(scene.presetName, scene.name, scene.id)
+}
+
+/**
+ * UUID 폴더 — folder_uuid가 씬 루트 바로 아래 한 칸일 때만 (구분자, 드라이브, '.', '..'가 없다).
+ * 아니면(복원·외부 편집) null: 이름 폴더 씬처럼 쓴다
+ */
+function sceneUuidDir(scene: SceneFolderInfo): string | null {
+  const uuid = scene.folderUuid
+  if (!uuid || uuid === '.' || uuid === '..' || /[/\\:\0]/.test(uuid)) return null
+  const root = scenesRoot()
+  const dir = join(root, uuid)
+  return isInside(root, dir) ? dir : null
 }
 
 type RootIds = ReturnType<typeof syncRoots>
@@ -328,7 +342,7 @@ export async function saveGeneratedImage(input: {
 
   // UUID 씬은 씬 이름_1부터. 기존 이름 폴더와 메인 출력은 첫 장은 번호 없이, 겹치면 _2, _3 ...
   // (메인 출력은 같은 초에 시드 0인 툴 출력이 겹칠 때만 번호가 붙는다 — 폴더를 읽지 않는다)
-  const firstPlain = !scene?.folderUuid
+  const firstPlain = !scene || !sceneUuidDir(scene)
   const write = writeOutputExclusive({
     dir,
     name: (n) => numberedName(stem, n, input.format ?? 'png', firstPlain),

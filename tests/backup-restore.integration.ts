@@ -235,12 +235,12 @@ describe('media ledger and scene folders across a restore', () => {
   function seedWorkspace(): Database.Database {
     const database = migratedDatabase()
     database.exec(`
-      INSERT INTO gen_scenes (id, name, folder_uuid) VALUES (1, 'local scene', 'uuid-local');
+      INSERT INTO gen_scenes (id, name, folder_uuid) VALUES (1, 'local scene', '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8');
       INSERT INTO media_roots (id, kind, path, path_key) VALUES (1, 'scene', '/scenes', '/scenes');
       INSERT INTO scene_sources (scene_id, root_id, rel_dir, dir_key, role)
-        VALUES (1, 1, 'uuid-local', 'uuid-local', 'write');
+        VALUES (1, 1, '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8', '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8', 'write');
       INSERT INTO media_registrations (seq, root_id, rel_path, path_key, source, scene_id)
-        VALUES (1, 1, 'uuid-local/local scene_1.png', 'uuid-local/local scene_1.png', 'generated', 1);
+        VALUES (1, 1, '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8/local scene_1.png', '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8/local scene_1.png', 'generated', 1);
       INSERT INTO media_hidden (seq, scope) VALUES (1, 'history');
       UPDATE history_state SET next_seq = 2, cleared_seq = 1;
     `)
@@ -263,11 +263,11 @@ describe('media ledger and scene folders across a restore', () => {
     mocks.getDb.mockReturnValue(target)
     try {
       restoreBackupDatabase(
-        scenesArchive([{ id: 1, name: 'restored scene', folder_uuid: 'uuid-restored' }])
+        scenesArchive([{ id: 1, name: 'restored scene', folder_uuid: '7a2e3d4c-5b6f-4071-8283-a4b5c6d7e8f9' }])
       )
 
       expect(target.prepare('SELECT id, name, folder_uuid FROM gen_scenes').all()).toEqual([
-        { id: 1, name: 'restored scene', folder_uuid: 'uuid-restored' }
+        { id: 1, name: 'restored scene', folder_uuid: '7a2e3d4c-5b6f-4071-8283-a4b5c6d7e8f9' }
       ])
       // Same id, different scene: nothing may still point at it
       expect(target.prepare('SELECT COUNT(*) FROM scene_sources').pluck().get()).toBe(0)
@@ -298,10 +298,37 @@ describe('media ledger and scene folders across a restore', () => {
     try {
       restoreBackupDatabase(await readNaisArchive(archive))
       expect(target.prepare('SELECT folder_uuid FROM gen_scenes').pluck().all()).toEqual([
-        'uuid-local'
+        '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8'
       ])
       restoreBackupDatabase({ ...scenesArchive([{ id: 1, name: 'v1 scene' }]), version: 1 })
       expect(target.prepare('SELECT folder_uuid FROM gen_scenes').pluck().all()).toEqual([null])
+    } finally {
+      target.close()
+    }
+  })
+
+  it('gives a restored scene a fresh folder_uuid when the archived one is not a UUID', () => {
+    const target = migratedDatabase()
+    mocks.getDb.mockReturnValue(target)
+    try {
+      restoreBackupDatabase(
+        scenesArchive([
+          { id: 1, name: 'escape', folder_uuid: '../../outside' },
+          { id: 2, name: 'absolute', folder_uuid: '/tmp/elsewhere' },
+          { id: 3, name: 'kept', folder_uuid: '7a2e3d4c-5b6f-4071-8283-a4b5c6d7e8f9' },
+          { id: 4, name: 'name folder', folder_uuid: null }
+        ])
+      )
+      const rows = target
+        .prepare('SELECT id, folder_uuid FROM gen_scenes ORDER BY id')
+        .all() as { id: number; folder_uuid: string | null }[]
+      for (const row of rows.slice(0, 2))
+        expect(row.folder_uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+      expect(rows[0].folder_uuid).not.toBe(rows[1].folder_uuid)
+      expect(rows.slice(2)).toEqual([
+        { id: 3, folder_uuid: '7a2e3d4c-5b6f-4071-8283-a4b5c6d7e8f9' },
+        { id: 4, folder_uuid: null }
+      ])
     } finally {
       target.close()
     }
@@ -321,7 +348,7 @@ describe('media ledger and scene folders across a restore', () => {
         source.prepare('SELECT seq, root_id, scene_id FROM media_registrations').all()
       ).toEqual([{ seq: 1, root_id: 1, scene_id: 1 }])
       expect(source.prepare('SELECT scene_id, rel_dir, role FROM scene_sources').all()).toEqual([
-        { scene_id: 1, rel_dir: 'uuid-local', role: 'write' }
+        { scene_id: 1, rel_dir: '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8', role: 'write' }
       ])
       expect(source.prepare('SELECT seq, scope FROM media_hidden').all()).toEqual([
         { seq: 1, scope: 'history' }
@@ -339,7 +366,7 @@ describe('media ledger and scene folders across a restore', () => {
     const source = seedWorkspace()
     source.exec(`
       INSERT INTO media_registrations (seq, root_id, rel_path, path_key, source, scene_id)
-        VALUES (2, 1, 'uuid-local/local scene_2.png', 'uuid-local/local scene_2.png', 'generated', 1);
+        VALUES (2, 1, '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8/local scene_2.png', '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8/local scene_2.png', 'generated', 1);
       INSERT INTO media_hidden (seq, scope) VALUES (2, 'scene');
       UPDATE history_state SET next_seq = 3;
     `)
@@ -368,8 +395,8 @@ describe('media ledger and scene folders across a restore', () => {
           .all()
       ).toEqual([
         { seq: 40, root_id: 1, rel_path: 'mine.png', scene_id: null },
-        { seq: 41, root_id: 2, rel_path: 'uuid-local/local scene_1.png', scene_id: 1 },
-        { seq: 42, root_id: 2, rel_path: 'uuid-local/local scene_2.png', scene_id: 1 }
+        { seq: 41, root_id: 2, rel_path: '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8/local scene_1.png', scene_id: 1 },
+        { seq: 42, root_id: 2, rel_path: '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8/local scene_2.png', scene_id: 1 }
       ])
       // 41은 아카이브에서 비운 히스토리 아래였다 — 새 순번이라 숨겨야 다시 나타나지 않는다
       expect(
@@ -380,7 +407,7 @@ describe('media ledger and scene folders across a restore', () => {
       ])
       expect(
         target.prepare('SELECT scene_id, root_id, rel_dir, role FROM scene_sources').all()
-      ).toEqual([{ scene_id: 1, root_id: 2, rel_dir: 'uuid-local', role: 'write' }])
+      ).toEqual([{ scene_id: 1, root_id: 2, rel_dir: '6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8', role: 'write' }])
       // 비우기 경계는 이 기기 그대로, next_seq는 앞으로만
       expect(target.prepare('SELECT next_seq, cleared_seq FROM history_state').get()).toEqual({
         next_seq: 43,

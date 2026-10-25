@@ -255,7 +255,18 @@ function validateRows(database: BackupDatabase): Partial<Record<BackupTableName,
       return row
     })
   }
+  // folder_uuid는 씬 폴더 이름이 된다 — UUID가 아니면 새 UUID를 준다 (아카이브의 값이 경로가 되지 않게)
+  for (const row of result.gen_scenes ?? []) {
+    if (row.folder_uuid != null && !isFolderUuid(row.folder_uuid)) row.folder_uuid = randomUUID()
+  }
   return result
+}
+
+function isFolderUuid(value: unknown): boolean {
+  return (
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  )
 }
 
 /**
