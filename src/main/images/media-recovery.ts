@@ -4,6 +4,7 @@ import { getDb } from '../db'
 import {
   forgetIntent,
   locatorPath,
+  markSceneWrite,
   mediaCollisions,
   pendingIntents,
   reclaimUnregistered,
@@ -11,7 +12,7 @@ import {
   registeredSeq,
   type PendingIntent
 } from '../db/media'
-import { readNaisMetadata } from './metadata'
+import { naisRowFields } from './metadata'
 import { syncMediaRoots } from './storage'
 import { renderThumbnail } from './thumbnail-cache'
 
@@ -104,14 +105,7 @@ export async function recoverPendingOutputs(): Promise<RecoveryResult> {
     }
     // 덜 쓰인 파일이면 디코드가 실패한다 — 그래도 사용자 폴더에 있는 파일이라 등록은 한다
     const thumbnail = await renderThumbnail(file).catch(() => null)
-    const meta = readNaisMetadata(file)
-    const payload = meta?.request
-      ? JSON.stringify(
-          meta.promptParts
-            ? { ...meta.request, nais3: { promptParts: meta.promptParts } }
-            : meta.request
-        )
-      : '{}'
+    const { payload } = naisRowFields(file)
     const recovered = db.transaction(() => {
       // 썸네일을 만드는 사이에 다른 곳에서 등록됐을 수 있다
       const now = intentState(db, intent)
@@ -122,7 +116,12 @@ export async function recoverPendingOutputs(): Promise<RecoveryResult> {
         `INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id, seq)
          VALUES (?, ?, ?, ?, ?, (SELECT id FROM gen_scenes WHERE id = ?), ?)`
       ).run(filePath, thumbnail, intent.kind, intent.seed, payload, intent.sceneId, seq)
-      registerMedia(db, { ...intent, seq, source: 'generated' })
+      registerMedia(db, {
+        ...intent,
+        seq,
+        source: intent.kind === 'external' ? 'external' : 'generated'
+      })
+      if (intent.sceneId != null) markSceneWrite(db, intent.sceneId, intent)
       forgetIntent(db, intent.id)
       return 'recovered' as const
     })()

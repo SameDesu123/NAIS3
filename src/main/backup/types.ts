@@ -1,3 +1,5 @@
+import type { BackupLedger, LedgerFile } from './ledger'
+
 /**
  * Version written by new exports. v2 keeps file-backed rows whose source file is missing and lists
  * them in missingFiles. Readers accept every supported version; older apps refuse v2 archives.
@@ -10,14 +12,16 @@ export type BackupFormatVersion = (typeof SUPPORTED_BACKUP_FORMAT_VERSIONS)[numb
  * Portable studio tables. A restore replaces exactly the tables an archive declares.
  *
  * Contract for the media ledger in db/ensure.ts (media_roots, history_state, media_hidden,
- * media_registrations, scene_sources) and later scene_favorites and external copies:
+ * media_registrations, scene_sources) and later scene_favorites:
  * - It lives in nais3.db itself, so the automatic DB snapshots (VACUUM INTO) include it.
- * - .nais keeps user choices and copied files. Device-local absolute roots are exported, but a
- *   restore never makes them active roots on another machine (media_roots.status 'unmapped').
- *   These tables join the archive when the code that writes them lands, with that restore policy.
+ * - It is not a replaced table. .nais carries it separately (data/ledger.json, backup/ledger.ts)
+ *   with user choices and external copies, and a restore merges it: device-local absolute roots
+ *   never become active roots on another machine (media_roots.status 'unmapped'), registrations
+ *   are deduped by location, hides are only added, and history_state is never replaced.
  * - Tables an archive does not declare are left untouched by a restore. Rows keyed by a scene id
  *   follow the replaced gen_scenes through their foreign keys: scene_sources rows are deleted and
- *   media_registrations.scene_id is cleared, so nothing points at a different scene.
+ *   media_registrations.scene_id is cleared, so nothing points at a different scene. The ledger
+ *   merge then puts back what the archive recorded for the restored scenes.
  * - gen_scenes.folder_uuid travels with gen_scenes; the legacy JSON export leaves it out.
  */
 export const BACKUP_TABLES = [
@@ -72,6 +76,10 @@ export interface BackupDatabase {
    * and paid vibe encodings, so it is restored with an empty file_path instead of being dropped.
    */
   missingFiles: BackupFileRef[]
+  /** Media ledger (v2 archives written since E2). Absent: a restore leaves the ledger alone. */
+  ledger?: BackupLedger
+  /** External copies, matched to ledger registrations by their archived seq */
+  ledgerFiles?: LedgerFile[]
 }
 
 export interface NaisArchiveManifest {
@@ -85,6 +93,8 @@ export interface NaisArchiveManifest {
   tableCounts: Partial<Record<BackupTableName, number>>
   /** v2 only */
   missingFiles?: BackupFileRef[]
+  /** v2 only: data/ledger.json is present */
+  ledger?: { registrations: number; files: number }
 }
 
 export function isBackupTableName(value: unknown): value is BackupTableName {

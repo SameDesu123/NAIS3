@@ -10,6 +10,7 @@ import {
   KeyRound,
   Image as ImageIcon,
   Palette,
+  RefreshCw,
   RotateCcw,
   Trash2,
   Upload
@@ -17,7 +18,7 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { displayOpusUsagePercent, opusUsagePercentSegments } from '@shared/anlas'
 import { isLang, LANGUAGES, SUPPORTED_LANGUAGES, type MessageId } from '@shared/i18n'
-import type { NaiAccountInfo } from '@shared/types'
+import type { MediaReindexResult, NaiAccountInfo } from '@shared/types'
 import discordSvg from '../assets/discord.svg'
 import nais3Logo from '../assets/nais3-logo.svg'
 import { playChime } from '../lib/completion-alert'
@@ -570,6 +571,7 @@ function StorageSection(): React.JSX.Element {
         label={t('ui.sceneSaveFolder')}
         hint={t('ui.organizedUnderThisFolderByPresetSceneName')}
       />
+      {window.nais.runtime !== 'browser' && <ReindexMediaRow />}
 
       <div className="mt-1 border-t border-line pt-3">
         <p className="text-[13px] text-ink">{t('ui.dataBackup')}</p>
@@ -580,6 +582,54 @@ function StorageSection(): React.JSX.Element {
         </p>
         <BackupButtons />
       </div>
+    </div>
+  )
+}
+
+/** 미디어 재인덱싱 — 저장 폴더에서 원장에 없는 이미지를 찾아 올린다. 진행·결과 수를 보여 준다 */
+function ReindexMediaRow(): React.JSX.Element {
+  const t = useT()
+  const [progress, setProgress] = useState<MediaReindexResult | null>(null)
+  const [running, setRunning] = useState(false)
+  useEffect(() => window.nais.on('media:reindexProgress', setProgress), [])
+  async function run(): Promise<void> {
+    setRunning(true)
+    setProgress({ scanned: 0, registered: 0 })
+    try {
+      const result = await window.nais.invoke('media:reindex', undefined)
+      setProgress(result)
+      toast(
+        t(
+          'ui.reindexDoneValueValue',
+          result.registered.toLocaleString(),
+          result.scanned.toLocaleString()
+        ),
+        'success'
+      )
+    } catch (error) {
+      toast(error instanceof Error ? error.message : String(error), 'error')
+    } finally {
+      setRunning(false)
+    }
+  }
+  return (
+    <div className="flex items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] text-ink">{t('ui.reindexMedia')}</p>
+        <p className="text-[11.5px] text-faint">{t('ui.reindexMediaHint')}</p>
+        {progress && (
+          <p className="mt-0.5 font-mono text-[11.5px] text-muted">
+            {t(
+              'ui.reindexProgressValueValue',
+              progress.scanned.toLocaleString(),
+              progress.registered.toLocaleString()
+            )}
+          </p>
+        )}
+      </div>
+      <Button variant="default" className="gap-1" disabled={running} onClick={() => void run()}>
+        <RefreshCw size={14} className={cn(running && 'animate-spin')} /> {t('ui.reindex')}
+      </Button>
     </div>
   )
 }

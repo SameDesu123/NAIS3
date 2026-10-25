@@ -147,6 +147,34 @@ export function syncRoots(
 }
 
 /**
+ * 외부 이미지 복사본 폴더를 current external 루트로 맞춘다 (반환: 루트 id). 폴더가 바뀌면 예전
+ * external 루트는 past로 남는다 — 복사본은 그대로 읽힌다. 같은 경로의 루트가 이미 있으면 그 행
+ */
+export function syncExternalRoot(db: Database.Database, path: string): number {
+  return rollbackSafe(() =>
+    db.transaction(() => {
+      const resolved = resolve(path)
+      const existing = db
+        .prepare('SELECT id, status FROM media_roots WHERE path = ?')
+        .get(resolved) as { id: number; status: MediaRootStatus } | undefined
+      const id = existing?.id ?? insertRoot(db, 'external', resolved, 'current').id
+      if (existing && existing.status !== 'current') {
+        db.prepare("UPDATE media_roots SET status = 'current' WHERE id = ?").run(id)
+        invalidateRoots()
+      }
+      const demoted = db
+        .prepare(
+          `UPDATE media_roots SET status = 'past'
+           WHERE status = 'current' AND kind = 'external' AND id != ?`
+        )
+        .run(id)
+      if (demoted.changes > 0) invalidateRoots()
+      return id
+    })()
+  )
+}
+
+/**
  * 절대 경로 → (root_id, 원문 상대 경로). 가장 깊은 루트가 이긴다. 루트 경로와 원문이 같은 조상을
  * 먼저 찾고, 없으면 NFC로 찾는다 (NFD로 저장된 경로) — 상대 경로는 어느 쪽이든 파일 경로의 원문.
  * 루트 밖이거나 절대 경로가 아니면 null
@@ -202,12 +230,85 @@ function addSceneSource(
   rootId: number,
   relPath: string
 ): void {
-  const relDir = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : ''
+  const relDir = relDirOf(relPath)
   // 지워진 씬을 가리키는 옛 행이면 건너뛴다 (INSERT OR IGNORE는 외래 키 위반을 거르지 않는다)
   db.prepare(
     `INSERT OR IGNORE INTO scene_sources (scene_id, root_id, rel_dir, dir_key, role)
      SELECT id, ?, ?, ?, 'read' FROM gen_scenes WHERE id = ?`
   ).run(rootId, relDir, pathKey(relDir), sceneId)
+}
+
+function relDirOf(relPath: string): string {
+  return relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : ''
+}
+
+// ── 씬 폴더 (쓰기 위치 하나, 읽기 위치 여럿) ──────────────────────
+
+/**
+ * 씬 출력을 쓴 폴더를 그 씬의 쓰기 위치로 표시하고, 나머지는 읽기 위치로 내린다.
+ * registerMedia가 행을 더한 뒤에 부른다. 바뀔 게 없으면 아무것도 쓰지 않는다
+ */
+export function markSceneWrite(
+  db: Database.Database,
+  sceneId: number,
+  locator: MediaLocator
+): void {
+  db.prepare(
+    `UPDATE scene_sources
+     SET role = CASE WHEN root_id = @rootId AND rel_dir = @relDir THEN 'write' ELSE 'read' END
+     WHERE scene_id = @sceneId
+       AND role != CASE WHEN root_id = @rootId AND rel_dir = @relDir THEN 'write' ELSE 'read' END`
+  ).run({ rootId: locator.rootId, relDir: relDirOf(locator.relPath), sceneId })
+}
+
+export interface SceneSourceDir {
+  rootId: number
+  /** 절대 경로 */
+  path: string
+  role: 'write' | 'read'
+}
+
+/**
+ * 씬 출력이 있는 폴더 — 마지막으로 쓴 폴더 먼저, 그다음 최근에 더해진 순. 다른 기기 경로(unmapped)는
+ * 빼고. 행은 파일마다 귀속되므로 여러 씬이 함께 쓰던 옛 이름 폴더는 그 폴더에 파일이 있는 씬마다 나온다
+ */
+export function sceneSourceDirs(db: Database.Database, sceneId: number): SceneSourceDir[] {
+  const rows = db
+    .prepare(
+      `SELECT s.root_id AS rootId, r.path AS rootPath, s.rel_dir AS relDir, s.role
+       FROM scene_sources s JOIN media_roots r ON r.id = s.root_id
+       WHERE s.scene_id = ? AND r.status != 'unmapped'
+       ORDER BY s.role = 'write' DESC, s.id DESC`
+    )
+    .all(sceneId) as { rootId: number; rootPath: string; relDir: string; role: 'write' | 'read' }[]
+  return rows.map((r) => ({
+    rootId: r.rootId,
+    path: r.relDir ? locatorPath(r.rootPath, r.relDir) : r.rootPath,
+    role: r.role
+  }))
+}
+
+/**
+ * 폴더 하나가 한 씬의 것으로 정해지면 그 씬 id. UUID 폴더(<루트>/<uuid>)이거나, 그 폴더를 읽기 위치로
+ * 가진 씬이 하나뿐일 때. 여러 씬이 함께 쓰던 옛 이름 폴더면 null — 파일마다 귀속할 근거가 없다
+ */
+export function sceneForFolder(
+  db: Database.Database,
+  rootId: number,
+  relDir: string
+): number | null {
+  if (relDir && !relDir.includes('/')) {
+    const byUuid = db
+      .prepare('SELECT id FROM gen_scenes WHERE folder_uuid = ?')
+      .pluck()
+      .get(relDir) as number | undefined
+    if (byUuid !== undefined) return byUuid
+  }
+  const scenes = db
+    .prepare('SELECT DISTINCT scene_id FROM scene_sources WHERE root_id = ? AND rel_dir = ?')
+    .pluck()
+    .all(rootId, relDir) as number[]
+  return scenes.length === 1 ? scenes[0] : null
 }
 
 // ── 저장 의도 ─────────────────────────────────────────────────
@@ -358,6 +459,34 @@ export function reclaimUnregistered(db: Database.Database): ReclaimResult {
         return result
       })
       .immediate()
+  )
+}
+
+// ── 재인덱싱 ───────────────────────────────────────────────────
+
+/**
+ * 폴더를 훑어 찾은 파일을 원장에 올린다 (반환: 새로 올린 수). 부르는 쪽이 짧은 배치로 나눠 부른다 —
+ * 디렉터리 순회는 트랜잭션 밖에서. 이미 등록된 위치는 그대로 둔다(순번·숨김 유지). 숨김을 풀지 않는다.
+ * 저장 중인 파일(의도가 남은 위치)은 건너뛴다 — 저장이 의도의 순번으로 등록한다.
+ * 씬은 폴더가 한 씬의 것으로 정해질 때만 붙인다 (sceneForFolder)
+ */
+export function registerFoundFiles(db: Database.Database, filePaths: string[]): number {
+  return rollbackSafe(() =>
+    db.transaction(() => {
+      let registered = 0
+      for (const filePath of filePaths) {
+        const locator = locate(db, filePath)
+        if (!locator || isRegistered(db, locator)) continue
+        const pending = db
+          .prepare('SELECT 1 FROM media_intents WHERE root_id = ? AND rel_path = ?')
+          .get(locator.rootId, locator.relPath)
+        if (pending) continue
+        const sceneId = sceneForFolder(db, locator.rootId, relDirOf(locator.relPath))
+        registerMedia(db, { ...locator, seq: allocateSeq(db), source: 'reindex', sceneId })
+        registered++
+      }
+      return registered
+    })()
   )
 }
 

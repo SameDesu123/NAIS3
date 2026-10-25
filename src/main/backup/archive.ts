@@ -14,6 +14,7 @@ import {
   isSupportedBackupFormatVersion,
   type NaisArchiveManifest
 } from './types'
+import { parseLedger, type BackupLedger, type LedgerFile } from './ledger'
 
 const MAX_ARCHIVE_ENTRIES = 100_000
 const MAX_ENTRY_BYTES = 256 * 1024 * 1024
@@ -139,6 +140,15 @@ export async function createNaisArchive(
   }
 
   addEntry(zip, checksums, 'data/settings.json', jsonBuffer({ mainParams: database.mainParams }))
+  const ledgerFiles = database.ledgerFiles ?? []
+  if (database.ledger) {
+    const assets = ledgerFiles.map((file) => {
+      const path = `assets/media/${safeSegment(file.seq)}${safeExtension(file.extension)}`
+      addEntry(zip, checksums, path, file.data, true)
+      return { seq: file.seq, asset: path }
+    })
+    addEntry(zip, checksums, 'data/ledger.json', jsonBuffer({ ...database.ledger, files: assets }))
+  }
   const manifest: NaisArchiveManifest = {
     format: 'NAIS',
     formatVersion: BACKUP_FORMAT_VERSION,
@@ -152,7 +162,15 @@ export async function createNaisArchive(
       table,
       rowId,
       column
-    }))
+    })),
+    ...(database.ledger
+      ? {
+          ledger: {
+            registrations: database.ledger.registrations.length,
+            files: ledgerFiles.length
+          }
+        }
+      : {})
   }
   zip.file('manifest.json', jsonBuffer(manifest))
   zip.file('checksums.json', jsonBuffer(checksums))
@@ -327,14 +345,60 @@ export async function readNaisArchive(input: Buffer): Promise<BackupDatabase> {
     }
   }
 
+  const ledger = manifest.ledger ? await readLedger(manifest, readChecked) : undefined
+
   return {
     version: manifest.formatVersion,
     includedTables: [...manifest.tables],
     tables,
     mainParams: settings.mainParams ?? null,
     files,
-    missingFiles
+    missingFiles,
+    ...(ledger ? { ledger: ledger.ledger, ledgerFiles: ledger.files } : {})
   }
+}
+
+/** data/ledger.json과 외부 복사본 — 등록 수·파일 수가 manifest와 맞아야 한다 */
+async function readLedger(
+  manifest: NaisArchiveManifest,
+  readChecked: (path: string) => Promise<Buffer>
+): Promise<{ ledger: BackupLedger; files: LedgerFile[] }> {
+  if (manifest.formatVersion === 1)
+    throw new Error('manifest.json lists a ledger in a version 1 archive')
+  const raw = parseJsonObject<Record<string, unknown>>(
+    await readChecked('data/ledger.json'),
+    'data/ledger.json'
+  )
+  const { files: fileList, ...rest } = raw
+  const ledger = parseLedger(rest)
+  if (manifest.ledger?.registrations !== ledger.registrations.length) {
+    throw new Error('data/ledger.json registration count does not match manifest.json')
+  }
+  if (!Array.isArray(fileList) || manifest.ledger.files !== fileList.length) {
+    throw new Error('data/ledger.json file list does not match manifest.json')
+  }
+  const seqs = new Set(ledger.registrations.map((r) => r.seq))
+  const seen = new Set<number>()
+  const files: LedgerFile[] = []
+  for (const entry of fileList as { seq?: unknown; asset?: unknown }[]) {
+    if (
+      !entry ||
+      typeof entry.seq !== 'number' ||
+      !seqs.has(entry.seq) ||
+      seen.has(entry.seq) ||
+      typeof entry.asset !== 'string' ||
+      !entry.asset.startsWith('assets/media/')
+    ) {
+      throw new Error('data/ledger.json contains an invalid file entry')
+    }
+    seen.add(entry.seq)
+    files.push({
+      seq: entry.seq,
+      extension: safeExtension(entry.asset),
+      data: await readChecked(entry.asset)
+    })
+  }
+  return { ledger, files }
 }
 
 export function hasZipSignature(input: Buffer): boolean {

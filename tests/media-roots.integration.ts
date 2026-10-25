@@ -206,6 +206,11 @@ describe('locator', () => {
 
 describe('saving outputs', () => {
   it('registers each output with its own seq in the same transaction, and leaves no intent', async () => {
+    // 기존 씬(folder_uuid 없음)은 씬루트/<프리셋>/<씬 이름>/ — 이름은 씬 id로 DB에서 읽는다
+    getDb().exec(
+      `INSERT INTO scene_presets (id, name, sort_order) VALUES (1, 'p', 0)
+       ON CONFLICT (id) DO UPDATE SET name = excluded.name`
+    )
     const main = await saveGeneratedImage({
       png: await png(),
       sentPayload: '{}',
@@ -217,9 +222,7 @@ describe('saving outputs', () => {
       sentPayload: '{}',
       seed: 8,
       kind: 'scene',
-      sceneId: 1,
-      sceneName: 'a',
-      scenePresetName: 'p'
+      sceneId: 1
     })
     const seqOf = (id: number): number =>
       getDb().prepare('SELECT seq FROM images WHERE id = ?').pluck().get(id) as number
@@ -242,7 +245,7 @@ describe('saving outputs', () => {
     ])
     expect(
       getDb().prepare('SELECT scene_id, root_id, rel_dir, role FROM scene_sources').all()
-    ).toEqual([{ scene_id: 1, root_id: sceneRoot.id, rel_dir: 'p/a', role: 'read' }])
+    ).toEqual([{ scene_id: 1, root_id: sceneRoot.id, rel_dir: 'p/a', role: 'write' }])
     expect(count('media_intents')).toBe(0)
   })
 

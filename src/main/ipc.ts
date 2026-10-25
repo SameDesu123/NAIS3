@@ -82,7 +82,6 @@ import {
   listScenes,
   createScene,
   getScene,
-  getPresetName,
   updateScene,
   duplicateScene,
   deleteScene,
@@ -148,16 +147,18 @@ import {
   updateRefImage
 } from './refs/repo'
 import { searchTags } from './tags'
+import { sceneFolderToOpen } from './scenes/folders'
+import { importExternalImages } from './images/external'
+import { reindexMedia } from './images/reindex'
 import {
   getMemoryImage,
   imagesRoot,
   isMemoryPath,
   isUnderImagesRoot,
-  sceneDir,
   scenesRoot,
   syncMediaRoots
 } from './images/storage'
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'fs'
+import { copyFileSync, readFileSync, writeFileSync } from 'fs'
 import { basename } from 'path'
 import sharp from './sharp'
 import { verifyToken } from './nai/client'
@@ -300,11 +301,10 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('scenePresets:setDefaultResolution', ({ id, width, height }) => {
     setPresetDefaultResolution(id, width, height)
   })
+  // 쓰기 폴더, 없으면 출력이 있는 읽기 폴더 (scenes/folders.ts)
   handle('scenes:openFolder', ({ sceneId }) => {
-    const scene = getScene(sceneId)
-    if (!scene) return { ok: false }
-    const dir = sceneDir(getPresetName(scene.presetId), scene.name, scene.id)
-    if (!existsSync(dir)) return { ok: false }
+    const dir = sceneFolderToOpen(sceneId)
+    if (!dir) return { ok: false }
     void shell.openPath(dir)
     return { ok: true }
   })
@@ -463,6 +463,11 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   // 숨김이 기본, delete_to_trash를 켜면 휴지통 — scenes/repo.ts removeImages
   handle('images:delete', ({ id, scope }) => deleteImage(id, scope))
   handle('images:clearAll', () => ({ count: clearAllImages() }))
+  // 히스토리 드롭 — NAIS 폴더에 복사본을 만들어 올린다 (images/external.ts)
+  handle('images:importExternal', ({ images }) => importExternalImages(images))
+  handle('media:reindex', () =>
+    reindexMedia((progress) => broadcast('media:reindexProgress', progress))
+  )
 
   // 라이브러리 — 큐레이션 컬렉션
   handle('library:list', ({ stackId, limit, offset }) => listLibrary(stackId, limit, offset))

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { getDb } from '../db'
 import { getSetting, setSetting } from '../db/settings'
 import { t } from '../i18n'
@@ -216,8 +217,8 @@ export function importNais2(data: Obj): Nais2ImportResult {
         )
         scenes.forEach((s, i) => {
           db.prepare(
-            'INSERT INTO gen_scenes (preset_id, name, prompt, width, height, sort_order) VALUES (?, ?, ?, ?, ?, ?)'
-          ).run(presetId, s.name, s.prompt, s.width, s.height, i)
+            'INSERT INTO gen_scenes (preset_id, name, prompt, width, height, sort_order, folder_uuid) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          ).run(presetId, s.name, s.prompt, s.width, s.height, i, randomUUID())
           res.scenes++
         })
       }

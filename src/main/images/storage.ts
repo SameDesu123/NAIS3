@@ -10,13 +10,17 @@ import {
   forgetIntent,
   isLocatorTaken,
   locate,
+  markSceneWrite,
   pathKey,
   readableRoots,
   recordIntent,
   registerMedia,
-  syncRoots
+  syncRoots,
+  type MediaLocator,
+  type RegistrationSource
 } from '../db/media'
 import { getSetting } from '../db/settings'
+import { nextNumber, numberedName, safeFileStem } from './file-names'
 import { buildNaisMetadata, embedNaisMetadata } from './nais-metadata'
 import {
   primeThumbnail,
@@ -63,10 +67,39 @@ export function libraryRoot(): string {
   return join(app.getPath('userData'), 'library')
 }
 
-/** 씬 이미지 폴더 경로 — 씬루트/<프리셋>/<씬 이름>/ (저장·폴더 열기 공용) */
-export function sceneDir(presetName: string | null, sceneName: string, sceneId?: number): string {
+/** 기존 씬(folder_uuid 없음)의 이름 폴더 — 씬루트/<프리셋>/<씬 이름>/ */
+function sceneDir(presetName: string | null, sceneName: string, sceneId?: number): string {
   const safe = (s: string): string => s.replace(/[/\\:*?"<>|]/g, '_').trim()
   return join(scenesRoot(), safe(presetName ?? '') || '기본', safe(sceneName) || `씬-${sceneId}`)
+}
+
+export interface SceneFolderInfo {
+  id: number
+  name: string
+  /** NULL = 기존 이름 폴더 씬 */
+  folderUuid: string | null
+  presetName: string | null
+}
+
+export function sceneFolderInfo(sceneId: number | null | undefined): SceneFolderInfo | null {
+  if (sceneId == null) return null
+  const row = getDb()
+    .prepare(
+      `SELECT s.id, s.name, s.folder_uuid AS folderUuid, p.name AS presetName
+       FROM gen_scenes s LEFT JOIN scene_presets p ON p.id = s.preset_id WHERE s.id = ?`
+    )
+    .get(sceneId) as SceneFolderInfo | undefined
+  return row ?? null
+}
+
+/**
+ * 씬의 쓰기 폴더 — 새 씬은 지금 씬루트/<uuid>/, 기존 씬은 씬루트/<프리셋>/<씬 이름>/ (옮기지 않는다).
+ * 이전에 쓴 폴더(이전 씬 루트, 이름을 바꾸기 전 폴더)는 읽기 위치로 남는다 — scenes/folders.ts
+ */
+export function sceneWriteDir(scene: SceneFolderInfo): string {
+  return scene.folderUuid
+    ? join(scenesRoot(), scene.folderUuid)
+    : sceneDir(scene.presetName, scene.name, scene.id)
 }
 
 type RootIds = ReturnType<typeof syncRoots>
@@ -257,33 +290,16 @@ export async function saveEphemeralImage(input: {
   return { id: Number(result.lastInsertRowid), filePath }
 }
 
-/**
- * 새 출력이 쓰면 안 되는 경로인지. 휴지통으로 보낸 이미지는 파일이 없어도 images 행이 남는다 —
- * 같은 이름을 다시 쓰면 두 행이 한 file_path를 나눠 가져 메타데이터 조회가 옛 행을 읽는다
- */
-function isOutputPathTaken(filePath: string): boolean {
-  if (existsSync(filePath)) return true
-  const db = getDb()
-  if (db.prepare('SELECT 1 FROM images WHERE file_path = ? LIMIT 1').get(filePath) !== undefined)
-    return true
-  // 원장의 위치도 본다 — 등록된 위치를 다시 쓰면 등록이 새 출력에 옛 순번을 돌려준다
-  const locator = locate(db, filePath)
-  return locator !== null && isLocatorTaken(db, locator)
-}
-
 export async function saveGeneratedImage(input: {
   png: Buffer
   sentPayload: string
   seed: number
   // 디렉터 결과는 개별 req_type(bg-removal 등)을 kind로 저장 → 히스토리 뱃지가 툴별로 표시
   kind: 't2i' | 'i2i' | 'inpaint' | 'scene' | 'upscale' | 'director' | 'mosaic' | DirectorMethod
+  /** 씬 생성이면 씬 id — 씬 출력인지는 이것만 본다. 그새 지워진 씬이면 메인 폴더에 저장 */
   sceneId?: number
   /** 저장 파일 확장자 (NAI가 반환한 실제 포맷). 기본 png */
   format?: 'png' | 'webp'
-  /** 씬 생성이면 씬 이름 — 씬루트/<프리셋>/<씬 이름>/ 아래에 저장 (NAIS2 구조와 동일 계층) */
-  sceneName?: string
-  /** 씬이 속한 프리셋 이름 (프리셋 간 동명 씬 충돌 방지) */
-  scenePresetName?: string
   /** 전송 payload에는 없는 NAIS3 전용 왕복 메타데이터 */
   localMetadata?: Pick<ImageMetadata, 'promptParts'>
 }): Promise<SavedImage> {
@@ -291,100 +307,146 @@ export async function saveGeneratedImage(input: {
   syncMediaRoots()
   // 여기 오면 항상 실제 폴더에 저장한다. 자동저장 OFF의 "저장 안 함" 판정은
   // 생성 큐 콜백(index.ts)에서 메인 생성만 걸러서 처리 — 씬·디렉터 툴은 항상 저장.
-  // 구조: 메인 = 메인폴더/[YYYY-MM/] (날짜 폴더는 설정으로 on/off),
-  //       씬 = 씬루트/<프리셋>/<씬 이름>/
-  let monthDir: string
-  if (input.sceneName) {
-    monthDir = sceneDir(input.scenePresetName ?? null, input.sceneName, input.sceneId)
+  // 구조: 메인 = 메인폴더/[YYYY-MM/] (날짜 폴더는 설정으로 on/off)
+  //       씬 = 씬루트/<uuid>/씬 이름_N (새 씬), 씬루트/<프리셋>/<씬 이름>/ (기존 씬 — 옮기지 않는다)
+  const scene = sceneFolderInfo(input.sceneId)
+  let dir: string
+  let stem: string
+  if (scene) {
+    dir = sceneWriteDir(scene)
+    stem = safeFileStem(scene.name, `씬-${scene.id}`)
   } else {
     const out = imagesRoot()
-    monthDir =
+    dir =
       getSetting('date_folders') !== '0'
         ? join(out, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
         : out
-  }
-  mkdirSync(monthDir, { recursive: true })
-
-  const ext = input.format ?? 'png'
-  let filePath: string
-  if (input.sceneName) {
-    // 씬 이미지는 첫 장은 씬 이름 그대로, 중복부터 씬 이름_2, _3 ...
-    const safeName = input.sceneName.replace(/[/\\:*?"<>|]/g, '_').trim() || `씬-${input.sceneId}`
-    let max = 0
-    const escaped = safeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const firstRe = new RegExp(`^${escaped}\\.`)
-    const numberedRe = new RegExp(`^${escaped}_(\\d+)\\.`)
-    for (const f of readdirSync(monthDir)) {
-      if (firstRe.test(f)) max = Math.max(max, 1)
-      const m = numberedRe.exec(f)
-      if (m) max = Math.max(max, Number(m[1]))
-    }
-    filePath = join(monthDir, max === 0 ? `${safeName}.${ext}` : `${safeName}_${max + 1}.${ext}`)
-    while (isOutputPathTaken(filePath)) {
-      max++
-      filePath = join(monthDir, `${safeName}_${max + 1}.${ext}`)
-    }
-  } else {
     const stamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    const base = `NAIS3_${stamp}_${input.seed}`
-    filePath = join(monthDir, `${base}.${ext}`)
-    for (let n = 2; isOutputPathTaken(filePath); n++)
-      filePath = join(monthDir, `${base}_${n}.${ext}`)
+    stem = `NAIS3_${stamp}_${input.seed}`
   }
+  mkdirSync(dir, { recursive: true })
 
-  // 파일을 쓰기 전에 의도와 순번을 남긴다 — 파일만 쓰이고 등록이 커밋되지 않으면 다음 시작 때
-  // 같은 순번으로 되살린다
-  const db = getDb()
-  const locator = locate(db, filePath)
-  const intent = locator
-    ? recordIntent(db, { ...locator, kind: input.kind, seed: input.seed, sceneId: input.sceneId })
-    : null
-  try {
-    writeFileSync(filePath, withNaisMetadata(input, now))
-  } catch (error) {
-    if (intent) forgetIntent(db, intent.id)
-    throw error
-  }
+  // UUID 씬은 씬 이름_1부터. 기존 이름 폴더와 메인 출력은 첫 장은 번호 없이, 겹치면 _2, _3 ...
+  // (메인 출력은 같은 초에 시드 0인 툴 출력이 겹칠 때만 번호가 붙는다 — 폴더를 읽지 않는다)
+  const firstPlain = !scene?.folderUuid
+  const write = writeOutputExclusive({
+    dir,
+    name: (n) => numberedName(stem, n, input.format ?? 'png', firstPlain),
+    firstNumber: scene ? nextNumber(readdirSync(dir), stem, firstPlain) : 1,
+    bytes: withNaisMetadata(input, now),
+    kind: input.kind,
+    seed: input.seed,
+    sceneId: scene?.id ?? null
+  })
 
   // 표시는 썸네일 캐시가 맡는다. DB 썸네일은 1.0.29로 되돌렸을 때 히스토리가 비지 않게 계속 쓴다
   // (1.0.29 히스토리는 thumbnail이 NULL이면 타일을 그리지 않는다) — 컬럼 정리는 H에서
   const thumbnail = await renderThumbnail(input.png)
+  const id = commitOutput(write, {
+    thumbnail,
+    kind: input.kind,
+    seed: input.seed,
+    payload: payloadWithLocalMetadata(input.sentPayload, input.localMetadata),
+    sceneId: scene?.id ?? null,
+    source: 'generated'
+  })
+  await primeThumbnail(write.filePath, thumbnail)
 
-  // 행·등록은 의도의 순번으로 함께 커밋한다. 저장하는 사이에 히스토리를 비웠으면 이 출력도 경계
-  // 아래다 — 의도를 남긴 뒤에 비운 것이니 앱이 죽은 뒤 되살릴 때와 같은 순서다
-  const result = db.transaction(() => {
-    const seq = intent?.seq ?? allocateSeq(db)
+  return { id, filePath: write.filePath }
+}
+
+/**
+ * 휴지통으로 보낸 이미지는 파일이 없어도 images 행이 남는다 — 같은 이름을 다시 쓰면 두 행이 한
+ * file_path를 나눠 가져 메타데이터 조회가 옛 행을 읽는다
+ */
+function hasImageRow(db: ReturnType<typeof getDb>, filePath: string): boolean {
+  return db.prepare('SELECT 1 FROM images WHERE file_path = ? LIMIT 1').get(filePath) !== undefined
+}
+
+/** 이름을 배타적으로 만들 때 한 파일이 몇 번까지 다음 번호로 넘어가는지 */
+const MAX_NAME_ATTEMPTS = 10_000
+
+export interface ExclusiveWrite {
+  filePath: string
+  locator: MediaLocator | null
+  intent: { id: number; seq: number } | null
+}
+
+/**
+ * 출력 파일을 새 이름으로 쓴다 — 기존 파일을 덮어쓰지 않는다. 후보마다 쓰기 전에 의도와 순번을 남기고
+ * 'wx'로 쓴다. 이미 있으면(다른 저장이 먼저 썼으면) 의도를 지우고 다음 번호로. 파일만 쓰이고 등록이
+ * 커밋되지 않으면 다음 시작 때 의도의 순번으로 되살린다 (media-recovery.ts)
+ */
+export function writeOutputExclusive(input: {
+  dir: string
+  name: (n: number) => string
+  firstNumber: number
+  bytes: Buffer
+  kind: string
+  seed: number | null
+  sceneId: number | null
+}): ExclusiveWrite {
+  const db = getDb()
+  for (let n = input.firstNumber; n < input.firstNumber + MAX_NAME_ATTEMPTS; n++) {
+    const filePath = join(input.dir, input.name(n))
+    if (existsSync(filePath) || hasImageRow(db, filePath)) continue
+    const locator = locate(db, filePath)
+    // 원장의 위치도 본다 — 등록된 위치를 다시 쓰면 등록이 새 출력에 옛 순번을 돌려준다
+    if (locator && isLocatorTaken(db, locator)) continue
+    const intent = locator
+      ? recordIntent(db, { ...locator, kind: input.kind, seed: input.seed, sceneId: input.sceneId })
+      : null
+    try {
+      writeFileSync(filePath, input.bytes, { flag: 'wx' })
+      return { filePath, locator, intent }
+    } catch (error) {
+      if (intent) forgetIntent(db, intent.id)
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+    }
+  }
+  throw new Error(`No free file name in ${input.dir}`)
+}
+
+/**
+ * 쓴 파일의 행·등록을 의도의 순번으로 함께 커밋한다. 저장하는 사이에 히스토리를 비웠으면 이 출력도
+ * 경계 아래다 — 의도를 남긴 뒤에 비운 것이니 앱이 죽은 뒤 되살릴 때와 같은 순서다.
+ * 씬 출력이면 그 폴더가 씬의 쓰기 위치가 된다. 반환: images.id
+ */
+export function commitOutput(
+  write: ExclusiveWrite,
+  row: {
+    thumbnail: Buffer | null
+    kind: string
+    seed: number | null
+    payload: string
+    sceneId: number | null
+    source: RegistrationSource
+  }
+): number {
+  const db = getDb()
+  return db.transaction(() => {
+    const seq = write.intent?.seq ?? allocateSeq(db)
     const inserted = db
       .prepare(
         'INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id, seq) VALUES (?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(
-        filePath,
-        thumbnail,
-        input.kind,
-        input.seed,
-        payloadWithLocalMetadata(input.sentPayload, input.localMetadata),
-        input.sceneId ?? null,
-        seq
-      )
-    if (locator) {
+      .run(write.filePath, row.thumbnail, row.kind, row.seed, row.payload, row.sceneId, seq)
+    if (write.locator) {
       const registered = registerMedia(db, {
-        ...locator,
+        ...write.locator,
         seq,
-        source: 'generated',
-        sceneId: input.sceneId
+        source: row.source,
+        sceneId: row.sceneId
       })
       // 이름을 고를 때 등록된 위치를 피하므로 생기지 않는다. 생기면 옛 순번을 채택하지 않고 롤백한다 —
       // 파일과 의도는 남아 다음 시작 때 복구가 보고한다
       if (!registered.created && registered.seq !== seq)
-        throw new Error(`${filePath} is already registered as seq ${registered.seq}`)
+        throw new Error(`${write.filePath} is already registered as seq ${registered.seq}`)
+      if (row.sceneId != null) markSceneWrite(db, row.sceneId, write.locator)
     }
-    if (intent) forgetIntent(db, intent.id)
-    return inserted
+    if (write.intent) forgetIntent(db, write.intent.id)
+    return Number(inserted.lastInsertRowid)
   })()
-  await primeThumbnail(filePath, thumbnail)
-
-  return { id: Number(result.lastInsertRowid), filePath }
 }
 
 function payloadWithLocalMetadata(

@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
-import { extname, join } from 'path'
+import { basename, dirname, extname, join } from 'path'
 import { createNaisArchive, readNaisArchive } from './archive'
 import { legacyNais3ToBackupDatabase, LEGACY_BACKUP_TABLES, LEGACY_OMITTED_COLUMNS } from './legacy'
 import {
@@ -15,8 +15,11 @@ import {
   FILE_BACKED_TABLES,
   isSupportedBackupFormatVersion
 } from './types'
+import { captureLedger, mergeLedger, type BackupLedger, type LedgerFile } from './ledger'
 import { getDb } from '../db'
+import { locatorPath, syncExternalRoot } from '../db/media'
 import { getSetting, setSetting } from '../db/settings'
+import { externalImportRoot } from '../images/external'
 import { libraryRoot } from '../images/storage'
 
 type DbRow = Record<string, string | number | null | Buffer>
@@ -97,14 +100,95 @@ export function captureBackupDatabase(): BackupDatabase {
     tables[table] = rows
   }
 
+  const ledger = captureLedger(db)
   return {
     version: BACKUP_FORMAT_VERSION,
     includedTables: [...BACKUP_TABLES],
     tables,
     mainParams: getSetting('main_params') || null,
     files,
-    missingFiles
+    missingFiles,
+    ledger,
+    ledgerFiles: captureExternalCopies(ledger)
   }
+}
+
+/**
+ * 외부 복사본 파일 — 이 기기의 external 루트에 있는 등록만. 다른 기기 경로(unmapped)와 읽을 수 없는
+ * 파일은 담지 않는다 (등록은 원장에 남는다)
+ */
+function captureExternalCopies(ledger: BackupLedger): LedgerFile[] {
+  const roots = new Map(
+    ledger.roots
+      .filter((root) => root.kind === 'external' && root.status !== 'unmapped')
+      .map((root) => [root.id, root.path])
+  )
+  const files: LedgerFile[] = []
+  for (const registration of ledger.registrations) {
+    const rootPath = roots.get(registration.rootId)
+    if (!rootPath) continue
+    try {
+      files.push({
+        seq: registration.seq,
+        extension: normalizedExtension(registration.relPath),
+        data: readFileSync(locatorPath(rootPath, registration.relPath))
+      })
+    } catch {
+      // 지워졌거나 오프라인 — 등록만 담는다
+    }
+  }
+  return files
+}
+
+/**
+ * 아카이브의 외부 복사본을 이 기기의 복사본 폴더에 쓴다 (복원 트랜잭션 전에). 아카이브의 루트 경로가
+ * 이 기기에도 루트로 있으면 같은 기기라 쓰지 않는다 — 원장 합치기가 위치로 중복을 거른다.
+ * 같은 이름(또는 _N)에 같은 내용이 있으면 그 파일을 쓰고, 없으면 _N 새 이름. 기존 파일을 덮어쓰지
+ * 않는다. 복원이 실패해도 쓴 복사본은 지우지 않는다 (재인덱싱으로 다시 올릴 수 있다)
+ */
+function writeExternalCopies(
+  ledger: BackupLedger,
+  files: LedgerFile[]
+): { rootId: number; relPaths: Map<number, string> } {
+  const relPaths = new Map<number, string>()
+  // 복사본이 없으면 복사본 폴더를 루트로 올리지 않는다 — rootId는 쓰이지 않는다
+  if (files.length === 0) return { rootId: 0, relPaths }
+  const db = getDb()
+  const rootPath = externalImportRoot()
+  const rootId = syncExternalRoot(db, rootPath)
+  // unmapped 루트는 다른 기기에서 복원해 온 경로다 — 같은 기기의 근거가 아니다
+  const localRoots = new Set(
+    db.prepare(`SELECT path FROM media_roots WHERE status != 'unmapped'`).pluck().all() as string[]
+  )
+  const archivedRoots = new Map(ledger.roots.map((root) => [root.id, root.path]))
+  const registrations = new Map(ledger.registrations.map((r) => [r.seq, r]))
+  for (const file of files) {
+    const registration = registrations.get(file.seq)
+    if (!registration) continue
+    if (localRoots.has(archivedRoots.get(registration.rootId) ?? '')) continue
+    const relPath = registration.relPath
+    const target = locatorPath(rootPath, relPath)
+    const dir = dirname(target)
+    mkdirSync(dir, { recursive: true })
+    const ext = extname(relPath)
+    const stem = basename(relPath, ext)
+    const slash = relPath.lastIndexOf('/')
+    for (let n = 1; ; n++) {
+      const name = n === 1 ? basename(relPath) : `${stem}_${n}${ext}`
+      const candidate = join(dir, name)
+      // 같은 내용이 이미 있으면(다시 복원) 그 파일을 쓴다. 다른 파일이면 다음 번호
+      if (existsSync(candidate) && !readFileSync(candidate).equals(file.data)) continue
+      try {
+        if (!existsSync(candidate)) writeFileSync(candidate, file.data, { flag: 'wx' })
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST') continue
+        throw error
+      }
+      relPaths.set(file.seq, slash < 0 ? name : `${relPath.slice(0, slash)}/${name}`)
+      break
+    }
+  }
+  return { rootId, relPaths }
 }
 
 export async function exportNais(appVersion: string): Promise<{
@@ -195,6 +279,10 @@ export function restoreBackupDatabase(database: BackupDatabase): {
       }
     }
 
+    const copies = database.ledger
+      ? writeExternalCopies(database.ledger, database.ledgerFiles ?? [])
+      : null
+
     let imported = 0
     const db = getDb()
     const included = new Set(database.includedTables)
@@ -217,6 +305,8 @@ export function restoreBackupDatabase(database: BackupDatabase): {
       if (typeof database.mainParams === 'string') {
         setSetting('main_params', database.mainParams)
       }
+      // 원장은 바꿔치기가 아니라 합치기 — gen_scenes를 넣은 뒤라 씬 귀속을 되살릴 수 있다
+      if (database.ledger && copies) mergeLedger(db, database.ledger, copies)
     })
     transaction()
     return { imported, missingFiles }

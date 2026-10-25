@@ -215,8 +215,7 @@ describe('scene covers', () => {
       sentPayload: '{}',
       seed: 1,
       kind: 'scene',
-      sceneId: 1,
-      sceneName: 'a'
+      sceneId: 1
     })
     await refreshSceneCover(1)
     expect(coverSource(1).imageId).toBe(saved.id)

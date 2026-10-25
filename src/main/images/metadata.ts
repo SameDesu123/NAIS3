@@ -136,6 +136,22 @@ export function readNaisMetadata(buf: Buffer): LocalParams | undefined {
   return parseLocalParams(parsePngTextChunks(buf)) ?? readWebpNaisParams(buf)
 }
 
+/**
+ * 파일만 있는 출력의 images 행 값 — 파일에 넣은 NAIS 재현 설정에서 전송 payload와 시드를 되살린다.
+ * NAIS 메타데이터가 없으면 빈 payload (되살린 출력·외부 이미지)
+ */
+export function naisRowFields(buf: Buffer): { payload: string; seed: number | null } {
+  const meta = readNaisMetadata(buf)
+  const payload = meta?.request
+    ? JSON.stringify(
+        meta.promptParts
+          ? { ...meta.request, nais3: { promptParts: meta.promptParts } }
+          : meta.request
+      )
+    : '{}'
+  return { payload, seed: typeof meta?.seed === 'number' ? meta.seed : null }
+}
+
 /** 병합된 네거티브에서 UC 프리셋 인덱스 역추적 (프리셋 텍스트가 접두인 것 중 가장 긴 것) */
 function inferUcPreset(uc: string): number | undefined {
   let best: number | undefined

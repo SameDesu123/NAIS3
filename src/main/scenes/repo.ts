@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { BrowserWindow, dialog, shell } from 'electron'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { extname } from 'path'
@@ -217,9 +218,10 @@ export function createScene(presetId: number, name: string): number {
   return Number(
     db
       .prepare(
-        'INSERT INTO gen_scenes (preset_id, name, width, height, sort_order) VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO gen_scenes (preset_id, name, width, height, sort_order, folder_uuid) VALUES (?, ?, ?, ?, ?, ?)'
       )
-      .run(presetId, name, preset?.w ?? 832, preset?.h ?? 1216, max.m + 1).lastInsertRowid
+      .run(presetId, name, preset?.w ?? 832, preset?.h ?? 1216, max.m + 1, randomUUID())
+      .lastInsertRowid
   )
 }
 
@@ -233,8 +235,8 @@ export function duplicateScene(id: number): number {
   return Number(
     db
       .prepare(
-        `INSERT INTO gen_scenes (preset_id, name, prompt, negative_prompt, width, height, sort_order, reserve_count)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0)`
+        `INSERT INTO gen_scenes (preset_id, name, prompt, negative_prompt, width, height, sort_order, reserve_count, folder_uuid)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`
       )
       .run(
         s.preset_id,
@@ -243,7 +245,8 @@ export function duplicateScene(id: number): number {
         s.negative_prompt,
         s.width,
         s.height,
-        max.m + 1
+        max.m + 1,
+        randomUUID()
       ).lastInsertRowid
   )
 }
@@ -572,7 +575,7 @@ export async function importScenesJson(presetId: number): Promise<number> {
     .get(presetId) as { m: number }
   let order = max.m
   const stmt = db.prepare(
-    'INSERT INTO gen_scenes (preset_id, name, prompt, negative_prompt, width, height, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO gen_scenes (preset_id, name, prompt, negative_prompt, width, height, sort_order, folder_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   )
   db.transaction(() => {
     for (const s of scenes) {
@@ -583,7 +586,8 @@ export async function importScenesJson(presetId: number): Promise<number> {
         s.negativePrompt ?? '',
         s.width ?? 832,
         s.height ?? 1216,
-        ++order
+        ++order,
+        randomUUID()
       )
     }
   })()

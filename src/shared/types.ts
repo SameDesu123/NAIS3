@@ -648,7 +648,14 @@ export interface IpcInvokeMap {
   'images:delete': { req: { id: number; scope: 'history' | 'scene' }; res: RemoveImagesResult }
   /** 히스토리 전체 비우기 — 히스토리에서만 사라지고 씬 갤러리·파일은 그대로 */
   'images:clearAll': { req: void; res: { count: number } }
-  /** 씬 이미지 폴더 열기 (NAIS3_scene/<프리셋>/<씬>) */
+  /** 히스토리에 떨어뜨린 외부 이미지 — NAIS 폴더에 복사해 히스토리에 올린다 (원본은 그대로) */
+  'images:importExternal': {
+    req: { images: { name: string; base64: string }[] }
+    res: { imported: number; skipped: number }
+  }
+  /** 미디어 재인덱싱 — 등록된 폴더에서 원장에 없는 이미지를 찾아 올린다 (진행: media:reindexProgress) */
+  'media:reindex': { req: void; res: MediaReindexResult }
+  /** 씬 폴더 열기 — 쓰기 폴더, 아직 없으면 출력이 있는 폴더 */
   'scenes:openFolder': { req: { sceneId: number }; res: { ok: boolean } }
   /** 씬 JSON 내보내기/불러오기 (파일 다이얼로그, 활성 프리셋 기준) */
   'scenes:exportJson': { req: { presetId: number }; res: { saved: boolean } }
@@ -729,6 +736,13 @@ export interface IpcInvokeMap {
 }
 
 /** 메인 → 렌더러 이벤트 채널 */
+export interface MediaReindexResult {
+  /** 살핀 이미지 파일 */
+  scanned: number
+  /** 새로 원장에 올린 파일 */
+  registered: number
+}
+
 export interface IpcEventMap {
   'queue:changed': QueueStatus
   /** 생성 완료 등으로 잔액이 갱신될 때 */
@@ -752,6 +766,8 @@ export interface IpcEventMap {
   }
   /** 씬에 새 이미지가 생성됨 (목록/상세 갱신). filePath로 카드 즉시 낙관적 갱신 */
   'scenes:changed': { sceneId: number; filePath: string }
+  /** 미디어 재인덱싱 진행 — 지금까지 살핀 이미지 파일과 새로 올린 수 */
+  'media:reindexProgress': MediaReindexResult
   /** 바이브 인코딩 완료 — 카드의 인코딩 표시 갱신용 */
   'vibes:encoded': Record<string, never>
   /** 원본 이미지가 없는 레퍼런스(파일 없이 복원된 행)를 빼고 생성함 */

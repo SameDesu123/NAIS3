@@ -1,5 +1,13 @@
 import Database from 'better-sqlite3'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getDb: vi.fn(),
   libraryRoot: vi.fn(),
+  defaultImagesRoot: vi.fn(),
   getSetting: vi.fn()
 }))
 
@@ -20,7 +29,10 @@ vi.mock('../src/main/db/settings', () => ({
       .run(key, value)
   }
 }))
-vi.mock('../src/main/images/storage', () => ({ libraryRoot: mocks.libraryRoot }))
+vi.mock('../src/main/images/storage', () => ({
+  libraryRoot: mocks.libraryRoot,
+  defaultImagesRoot: mocks.defaultImagesRoot
+}))
 
 import { createNaisArchive, readNaisArchive } from '../src/main/backup/archive'
 import { legacyNais3ToBackupDatabase } from '../src/main/backup/legacy'
@@ -106,6 +118,7 @@ beforeEach(() => {
   imageRoot = mkdtempSync(join(tmpdir(), 'nais-backup-restore-'))
   mocks.getDb.mockReturnValue(db)
   mocks.libraryRoot.mockReturnValue(imageRoot)
+  mocks.defaultImagesRoot.mockReturnValue(join(imageRoot, 'images'))
   mocks.getSetting.mockReturnValue(null)
 })
 
@@ -289,6 +302,144 @@ describe('media ledger and scene folders across a restore', () => {
       ])
       restoreBackupDatabase({ ...scenesArchive([{ id: 1, name: 'v1 scene' }]), version: 1 })
       expect(target.prepare('SELECT folder_uuid FROM gen_scenes').pluck().all()).toEqual([null])
+    } finally {
+      target.close()
+    }
+  })
+
+  it('restores scene links on the same device and changes nothing else', async () => {
+    const source = seedWorkspace()
+    mocks.getDb.mockReturnValue(source)
+    try {
+      const archive = await createNaisArchive(captureBackupDatabase(), '1.0.30')
+      restoreBackupDatabase(await readNaisArchive(archive))
+
+      expect(source.prepare('SELECT id, path, status FROM media_roots').all()).toEqual([
+        { id: 1, path: '/scenes', status: 'current' }
+      ])
+      expect(
+        source.prepare('SELECT seq, root_id, scene_id FROM media_registrations').all()
+      ).toEqual([{ seq: 1, root_id: 1, scene_id: 1 }])
+      expect(source.prepare('SELECT scene_id, rel_dir, role FROM scene_sources').all()).toEqual([
+        { scene_id: 1, rel_dir: 'uuid-local', role: 'write' }
+      ])
+      expect(source.prepare('SELECT seq, scope FROM media_hidden').all()).toEqual([
+        { seq: 1, scope: 'history' }
+      ])
+      expect(source.prepare('SELECT next_seq, cleared_seq FROM history_state').get()).toEqual({
+        next_seq: 2,
+        cleared_seq: 1
+      })
+    } finally {
+      source.close()
+    }
+  })
+
+  it('merges the ledger on another device: unmapped roots, fresh seqs, hides carried over', async () => {
+    const source = seedWorkspace()
+    source.exec(`
+      INSERT INTO media_registrations (seq, root_id, rel_path, path_key, source, scene_id)
+        VALUES (2, 1, 'uuid-local/local scene_2.png', 'uuid-local/local scene_2.png', 'generated', 1);
+      INSERT INTO media_hidden (seq, scope) VALUES (2, 'scene');
+      UPDATE history_state SET next_seq = 3;
+    `)
+    mocks.getDb.mockReturnValue(source)
+    const archive = await createNaisArchive(captureBackupDatabase(), '1.0.30')
+    source.close()
+
+    const target = migratedDatabase()
+    target.exec(`
+      INSERT INTO media_roots (id, kind, path, path_key) VALUES (1, 'output', '/here', '/here');
+      INSERT INTO media_registrations (seq, root_id, rel_path, path_key, source)
+        VALUES (40, 1, 'mine.png', 'mine.png', 'generated');
+      UPDATE history_state SET next_seq = 41, cleared_seq = 5;
+    `)
+    mocks.getDb.mockReturnValue(target)
+    try {
+      restoreBackupDatabase(await readNaisArchive(archive))
+
+      expect(target.prepare('SELECT id, kind, path, status FROM media_roots').all()).toEqual([
+        { id: 1, kind: 'output', path: '/here', status: 'current' },
+        { id: 2, kind: 'scene', path: '/scenes', status: 'unmapped' }
+      ])
+      expect(
+        target
+          .prepare('SELECT seq, root_id, rel_path, scene_id FROM media_registrations ORDER BY seq')
+          .all()
+      ).toEqual([
+        { seq: 40, root_id: 1, rel_path: 'mine.png', scene_id: null },
+        { seq: 41, root_id: 2, rel_path: 'uuid-local/local scene_1.png', scene_id: 1 },
+        { seq: 42, root_id: 2, rel_path: 'uuid-local/local scene_2.png', scene_id: 1 }
+      ])
+      // 41은 아카이브에서 비운 히스토리 아래였다 — 새 순번이라 숨겨야 다시 나타나지 않는다
+      expect(
+        target.prepare('SELECT seq, scope FROM media_hidden ORDER BY seq, scope').all()
+      ).toEqual([
+        { seq: 41, scope: 'history' },
+        { seq: 42, scope: 'scene' }
+      ])
+      expect(
+        target.prepare('SELECT scene_id, root_id, rel_dir, role FROM scene_sources').all()
+      ).toEqual([{ scene_id: 1, root_id: 2, rel_dir: 'uuid-local', role: 'write' }])
+      // 비우기 경계는 이 기기 그대로, next_seq는 앞으로만
+      expect(target.prepare('SELECT next_seq, cleared_seq FROM history_state').get()).toEqual({
+        next_seq: 43,
+        cleared_seq: 5
+      })
+    } finally {
+      target.close()
+    }
+  })
+
+  it('carries external copies and writes them to the import folder without overwriting', async () => {
+    const sourceRoot = join(imageRoot, 'source-imports')
+    mkdirSync(join(sourceRoot, '2026-10'), { recursive: true })
+    writeFileSync(join(sourceRoot, '2026-10', 'photo.png'), 'photo bytes')
+    const source = migratedDatabase()
+    source
+      .prepare(`INSERT INTO media_roots (id, kind, path, path_key) VALUES (1, 'external', ?, ?)`)
+      .run(sourceRoot, sourceRoot)
+    source.exec(`
+      INSERT INTO media_registrations (seq, root_id, rel_path, path_key, source)
+        VALUES (1, 1, '2026-10/photo.png', '2026-10/photo.png', 'external'),
+               (2, 1, '2026-10/gone.png', '2026-10/gone.png', 'external');
+      UPDATE history_state SET next_seq = 3;
+    `)
+    mocks.getDb.mockReturnValue(source)
+    const database = captureBackupDatabase()
+    source.close()
+    expect(database.ledgerFiles?.map((file) => file.seq)).toEqual([1])
+    const archive = await createNaisArchive(database, '1.0.30')
+    rmSync(sourceRoot, { recursive: true })
+
+    const importRoot = join(imageRoot, 'images', 'NAIS3_imported')
+    mkdirSync(join(importRoot, '2026-10'), { recursive: true })
+    writeFileSync(join(importRoot, '2026-10', 'photo.png'), 'someone else')
+    const target = migratedDatabase()
+    mocks.getDb.mockReturnValue(target)
+    try {
+      restoreBackupDatabase(await readNaisArchive(archive))
+
+      expect(readFileSync(join(importRoot, '2026-10', 'photo.png'), 'utf8')).toBe('someone else')
+      expect(readFileSync(join(importRoot, '2026-10', 'photo_2.png'), 'utf8')).toBe('photo bytes')
+      expect(target.prepare('SELECT id, kind, path, status FROM media_roots').all()).toEqual([
+        { id: 1, kind: 'external', path: importRoot, status: 'current' },
+        { id: 2, kind: 'external', path: sourceRoot, status: 'unmapped' }
+      ])
+      expect(
+        target
+          .prepare('SELECT root_id, rel_path, source FROM media_registrations ORDER BY seq')
+          .all()
+      ).toEqual([
+        { root_id: 1, rel_path: '2026-10/photo_2.png', source: 'external' },
+        // 파일이 없던 등록은 아카이브의 루트(unmapped)에 남는다
+        { root_id: 2, rel_path: '2026-10/gone.png', source: 'external' }
+      ])
+
+      // 같은 아카이브를 다시 복원해도 복사본을 또 쓰지 않는다
+      restoreBackupDatabase(await readNaisArchive(archive))
+      expect(readdirSync(join(importRoot, '2026-10')).sort()).toEqual(['photo.png', 'photo_2.png'])
+      expect(target.prepare('SELECT COUNT(*) FROM media_registrations').pluck().get()).toBe(2)
     } finally {
       target.close()
     }

@@ -33,7 +33,7 @@ import { requestUsesV5Usage, resolveNaiAccountForGeneration } from './nai/accoun
 import { localPromptMetadata } from './nai/payload'
 import { prepareCharRefs, prepareVibes } from './refs/prepare'
 import { GenerationQueue } from './queue/generation-queue'
-import { getPresetName, getScene } from './scenes/repo'
+import { getScene } from './scenes/repo'
 
 // 앱 이름 (dev 메뉴바·dock에서 'Electron' 대신 표시). 패키징 앱은 productName 사용
 app.setName('NAIS3')
@@ -315,7 +315,7 @@ const startup = app.whenReady().then(async () => {
           format: imageFormat,
           localMetadata
         })
-      : // 씬 생성은 씬루트/<프리셋>/<씬 이름>/에 모아 저장 (NAIS2와 동일 계층)
+      : // 씬 생성은 씬 폴더에 모아 저장 (씬 폴더는 storage.ts sceneWriteDir)
         await saveGeneratedImage({
           png,
           sentPayload,
@@ -329,8 +329,6 @@ const startup = app.whenReady().then(async () => {
               : 't2i',
           sceneId: request.sceneId,
           format: imageFormat,
-          sceneName: scene?.name,
-          scenePresetName: scene ? (getPresetName(scene.presetId) ?? undefined) : undefined,
           localMetadata
         })
 

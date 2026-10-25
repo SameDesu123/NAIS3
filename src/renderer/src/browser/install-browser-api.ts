@@ -858,6 +858,12 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
     return undefined
   }
   if (channel === 'images:showInFolder') return undefined
+  if (channel === 'images:importExternal') {
+    const images = request.images as { name: string; base64: string }[]
+    for (const image of images) await saveBrowserImage(image.base64, 'external')
+    return { imported: images.length, skipped: 0 }
+  }
+  if (channel === 'media:reindex') return { scanned: 0, registered: 0 }
   if (channel === 'images:saveLocal') {
     const base64 = String(request.base64)
     const filePath = await saveBrowserImage(base64, 'mosaic')

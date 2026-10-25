@@ -1,5 +1,7 @@
-import { History, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { History, ImagePlus, Trash2 } from 'lucide-react'
 import { thumbnailFallback } from '../lib/constants'
+import { isLeavingDropZone, useDragEndCleanup } from '../lib/drop-zone'
 import { confirmImageRemoval, failedRemovals } from '../lib/image-removal'
 import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
@@ -8,6 +10,7 @@ import { useGenerationStore } from '../stores/generation-store'
 import { useLayoutStore } from '../stores/layout-store'
 import { askConfirm } from '../stores/dialog-store'
 import { toast } from '../stores/toast-store'
+import { DropOverlay } from './drop-overlay'
 import { ImageContextMenu } from './image-context-menu'
 
 export function HistoryPanel(): React.JSX.Element {
@@ -18,6 +21,8 @@ export function HistoryPanel(): React.JSX.Element {
   const view = useGenerationStore((s) => s.view)
   const refreshHistory = useGenerationStore((s) => s.refreshHistory)
   const setCenterMode = useLayoutStore((s) => s.setCenterMode)
+  const [dragOver, setDragOver] = useState(false)
+  useDragEndCleanup(() => setDragOver(false))
 
   // 히스토리에서만 숨긴다 (휴지통 설정이면 파일을 휴지통으로). 못 보낸 항목은 목록에 남는다
   const deleteOne = async (id: number, filePath: string): Promise<void> => {
@@ -43,8 +48,47 @@ export function HistoryPanel(): React.JSX.Element {
     toast(t('ui.clearedValueRecordsFilesPreserved', count.toLocaleString()), 'success')
   }
 
+  // 외부 파일 드롭 — 메인이 NAIS 폴더에 복사해 히스토리에 올린다 (원본은 그대로).
+  // 히스토리 썸네일 드래그(nais/file-path)는 이미 히스토리에 있어 받지 않는다
+  const onDrop = async (e: React.DragEvent): Promise<void> => {
+    e.preventDefault()
+    setDragOver(false)
+    const files = [...(e.dataTransfer.files ?? [])].filter((f) => f.type.startsWith('image/'))
+    if (files.length === 0) return
+    const read = (f: File): Promise<{ name: string; base64: string }> =>
+      new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (ev) =>
+          resolve({ name: f.name, base64: (ev.target?.result as string) ?? '' })
+        reader.readAsDataURL(f)
+      })
+    const images = await Promise.all(files.map(read))
+    const { imported, skipped } = await window.nais.invoke('images:importExternal', { images })
+    void refreshHistory()
+    if (imported > 0) toast(t('ui.addedValueImagesToHistory', imported.toLocaleString()), 'success')
+    if (skipped > 0) toast(t('ui.skippedValueUnsupportedFiles', skipped.toLocaleString()))
+  }
+
   return (
-    <aside className="flex h-full w-[240px] flex-col rounded-xl border border-line bg-surface">
+    <aside
+      className={cn(
+        'relative flex h-full w-[240px] flex-col rounded-xl border bg-surface transition-colors',
+        dragOver ? 'border-accent' : 'border-line'
+      )}
+      onDragOver={(e) => {
+        if (
+          e.dataTransfer.types.includes('Files') &&
+          !e.dataTransfer.types.includes('nais/file-path')
+        ) {
+          e.preventDefault()
+          setDragOver(true)
+        }
+      }}
+      onDragLeave={(e) => {
+        if (isLeavingDropZone(e)) setDragOver(false)
+      }}
+      onDrop={(e) => void onDrop(e)}
+    >
       {/* 헤더는 창 드래그 영역 */}
       <div className="drag flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
         <History size={14} className="text-muted" />
@@ -117,6 +161,12 @@ export function HistoryPanel(): React.JSX.Element {
           </div>
         )}
       </div>
+      <DropOverlay
+        show={dragOver}
+        icon={ImagePlus}
+        label={t('ui.dropToAddToHistory')}
+        sub={t('ui.dropToAddToHistoryHint')}
+      />
     </aside>
   )
 }
