@@ -205,17 +205,21 @@ export interface Fragment {
  */
 export interface RemoveImagesResult {
   mode: 'hide' | 'trash'
+  /** id = 항목의 순번(seq) — HistoryItem.id·SceneImage.id와 같다 */
   results: { id: number; ok: boolean; error?: string }[]
 }
 
 export interface HistoryItem {
+  /** 순번(seq) — 원장 등록과 images 행이 같은 값을 쓴다. 지워도 다시 쓰이지 않는다 */
   id: number
   filePath: string
-  /** Stored webp thumbnail URL (nais-image protocol, or a data URL in the browser runtime); '' if none */
+  /** Thumbnail URL (nais-image protocol, or a data URL in the browser runtime); '' if none */
   thumbnailUrl: string
   kind: string
   seed: number | null
   createdAt: string
+  /** 원본 파일이 지금 없다 (저장 폴더가 오프라인이거나 파일을 옮김) — 목록에서 빼지 않고 표시만 한다 */
+  missing?: boolean
 }
 
 /** 디렉터 툴 (augment-image req_type) */
@@ -362,6 +366,7 @@ export interface Scene {
 
 /** 씬 상세의 생성 이미지 (페이지네이션 단위) */
 export interface SceneImage {
+  /** 순번(seq) — HistoryItem.id와 같다 */
   id: number
   filePath: string
   seed: number | null
@@ -453,7 +458,8 @@ export interface IpcInvokeMap {
   'queue:cancel': { req: { ids: string[] }; res: void }
   'queue:status': { req: void; res: QueueStatus }
   'images:list': {
-    req: { limit: number; offset: number }
+    /** before: 이 순번보다 오래된 항목부터 (키셋 페이징 — 있으면 offset은 그 뒤로부터) */
+    req: { limit: number; offset: number; before?: number }
     res: { items: HistoryItem[]; total: number }
   }
   'images:payload': { req: { id: number }; res: { payloadJson: string | null } }

@@ -648,6 +648,7 @@ export const KO = {
   'ui.addedValueImagesToHistory': '이미지 {0}장을 히스토리에 추가',
   'ui.skippedValueUnsupportedFiles': '지원하지 않는 파일 {0}개는 건너뜀',
   'ui.importedImage': '가져온 이미지',
+  'ui.originalFileMissing': '원본 파일을 찾을 수 없습니다 (저장 폴더가 연결되어 있는지 확인하세요)',
   'ui.reindexMedia': '미디어 재인덱싱',
   'ui.reindexMediaHint':
     '저장 폴더에서 아직 등록되지 않은 이미지를 찾아 등록합니다. 숨긴 항목은 숨긴 채로 둡니다.',

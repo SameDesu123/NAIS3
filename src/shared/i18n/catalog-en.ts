@@ -663,6 +663,7 @@ export const EN = {
   'ui.addedValueImagesToHistory': 'Added {0} {0|image|images} to history',
   'ui.skippedValueUnsupportedFiles': 'Skipped {0} unsupported {0|file|files}',
   'ui.importedImage': 'Imported image',
+  'ui.originalFileMissing': 'Original file not found (check that the save folder is connected)',
   'ui.reindexMedia': 'Reindex media',
   'ui.reindexMediaHint':
     'Finds images in your save folders that are not registered yet and registers them. Hidden items stay hidden.',

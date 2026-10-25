@@ -5,11 +5,12 @@ import { isAbsolute, join, relative } from 'path'
 import { isThumbnailSource, thumbnailUrl, type ThumbnailSource } from '../../shared/thumbnail-url'
 import type { DirectorMethod, HistoryItem, ImageMetadata } from '../../shared/types'
 import { getDb } from '../db'
-import { allocateSeq, HISTORY_VISIBLE } from '../db/history'
+import { allocateSeq, historyCount, historySeqs } from '../db/history'
 import {
   forgetIntent,
   isLocatorTaken,
   locate,
+  locatorPath,
   markSceneWrite,
   pathKey,
   readableRoots,
@@ -207,7 +208,7 @@ export async function thumbnailForUrl(url: URL): Promise<Buffer | null> {
   const source = url.searchParams.get('thumb')
   const id = Number(url.searchParams.get('id'))
   if (!isThumbnailSource(source) || !Number.isInteger(id)) return null
-  if (source === 'image') return imageThumbnail(id)
+  if (source === 'image') return imageThumbnail(id) // id = 순번(seq)
   const row = getDb()
     .prepare(`SELECT thumbnail FROM ${THUMBNAIL_TABLES[source]} WHERE id = ?`)
     .get(id) as { thumbnail: Buffer | null } | undefined
@@ -229,11 +230,14 @@ export async function rowThumbnail(row: ThumbnailRow): Promise<Buffer | null> {
   return fromFile ?? row.thumbnail
 }
 
-async function imageThumbnail(id: number): Promise<Buffer | null> {
+/** 항목(순번)의 썸네일 — images 행이 있으면 그 행대로, 원장에만 있는 항목은 파일에서 (캐시) */
+async function imageThumbnail(seq: number): Promise<Buffer | null> {
   const row = getDb()
-    .prepare('SELECT file_path, created_at, thumbnail FROM images WHERE id = ?')
-    .get(id) as ThumbnailRow | undefined
-  return row ? rowThumbnail(row) : null
+    .prepare('SELECT file_path, created_at, thumbnail FROM images WHERE seq = ?')
+    .get(seq) as ThumbnailRow | undefined
+  if (row) return rowThumbnail(row)
+  const reg = registrationsBySeq([seq]).get(seq)
+  return reg ? thumbnailForFile(reg.file_path) : null
 }
 
 /**
@@ -500,41 +504,116 @@ function withNaisMetadata(
   )
 }
 
-export function listImages(limit: number, offset: number): { items: HistoryItem[]; total: number } {
-  const db = getDb()
-  // 지운(숨긴) 항목과 비우기 경계 아래는 빠진다 — 행은 씬 갤러리를 위해 남아 있다
-  const total = (
-    db.prepare(`SELECT COUNT(*) AS c FROM images WHERE ${HISTORY_VISIBLE}`).get() as { c: number }
-  ).c
-  const rows = db
-    .prepare(
-      `SELECT id, file_path, length(thumbnail) AS thumb_size, kind, seed, created_at
-       FROM images WHERE ${HISTORY_VISIBLE} ORDER BY seq DESC LIMIT ? OFFSET ?`
-    )
-    .all(limit, offset) as {
-    id: number
-    file_path: string
-    thumb_size: number | null
-    kind: string
-    seed: number | null
-    created_at: string
-  }[]
-
-  return {
-    total,
-    items: rows.map((r) => ({
-      id: r.id,
-      filePath: r.file_path,
-      thumbnailUrl: storedThumbnailUrl('image', r.id, r.created_at, r.thumb_size),
-      kind: r.kind,
-      seed: r.seed,
-      createdAt: r.created_at
-    }))
-  }
+interface HistoryImageRow {
+  seq: number
+  file_path: string
+  thumb_size: number | null
+  kind: string
+  seed: number | null
+  created_at: string
 }
 
-export function getImagePayload(id: number): string | null {
-  const row = getDb().prepare('SELECT payload_json FROM images WHERE id = ?').get(id) as
+export interface HistoryRegistrationRow {
+  seq: number
+  file_path: string
+  source: RegistrationSource
+  scene_id: number | null
+  created_at: string
+}
+
+/** 순번들의 원장 등록 — 이 기기에서 읽을 수 있는(unmapped가 아닌) 루트만, 경로는 루트 + 상대 경로 */
+export function registrationsBySeq(seqs: number[]): Map<number, HistoryRegistrationRow> {
+  if (seqs.length === 0) return new Map()
+  const rows = getDb()
+    .prepare(
+      `SELECT r.seq, ro.path AS root_path, r.rel_path, r.source, r.scene_id, r.created_at
+       FROM media_registrations r JOIN media_roots ro ON ro.id = r.root_id
+       WHERE r.seq IN (${seqs.map(() => '?').join(',')}) AND ro.status != 'unmapped'`
+    )
+    .all(...seqs) as (Omit<HistoryRegistrationRow, 'file_path'> & {
+    root_path: string
+    rel_path: string
+  })[]
+  return new Map(
+    rows.map((r) => [
+      r.seq,
+      {
+        seq: r.seq,
+        file_path: locatorPath(r.root_path, r.rel_path),
+        source: r.source,
+        scene_id: r.scene_id,
+        created_at: r.created_at
+      }
+    ])
+  )
+}
+
+/** images 행이 없는 등록의 배지 — 생성 출력이면 생성 종류, 나머지(가져오기·재색인)는 가져온 이미지 */
+function registrationKind(reg: HistoryRegistrationRow): string {
+  if (reg.source === 'generated' || reg.source === 'reclaim')
+    return reg.scene_id != null ? 'scene' : 't2i'
+  return 'external'
+}
+
+/**
+ * 히스토리 한 페이지 — 원장 등록 ∪ images 행을 순번 내림차순으로 (db/history.ts historySeqs).
+ * 지운(숨긴) 항목과 비우기 경계 아래는 빠진다 — 행·파일은 씬 갤러리를 위해 남아 있다.
+ * 파일이 있는지는 이 페이지만 확인한다 (오프라인 루트의 항목은 빼지 않고 missing으로 표시)
+ */
+export function listImages(
+  limit: number,
+  offset: number,
+  before?: number
+): { items: HistoryItem[]; total: number } {
+  const db = getDb()
+  const { seqs, total } = db.transaction(() => ({
+    seqs: historySeqs(db, { limit, offset, before }),
+    total: historyCount(db)
+  }))()
+  const images = new Map(
+    seqs.length === 0
+      ? []
+      : (
+          db
+            .prepare(
+              `SELECT seq, file_path, length(thumbnail) AS thumb_size, kind, seed, created_at
+               FROM images WHERE seq IN (${seqs.map(() => '?').join(',')})`
+            )
+            .all(...seqs) as HistoryImageRow[]
+        ).map((r) => [r.seq, r])
+  )
+  const registrations = registrationsBySeq(seqs)
+
+  const items: HistoryItem[] = []
+  for (const seq of seqs) {
+    const image = images.get(seq)
+    const reg = registrations.get(seq)
+    // 등록이 있으면 원장의 위치가 파일 경로다. 없으면(memory://, 루트 밖, 다른 기기 경로) 행의 경로
+    const filePath = reg?.file_path ?? image?.file_path
+    const createdAt = image?.created_at ?? reg?.created_at
+    if (filePath === undefined || createdAt === undefined) continue
+    const memory = isMemoryPath(filePath)
+    items.push({
+      id: seq,
+      filePath,
+      // 순번은 다시 쓰이지 않으니 URL이 다른 항목과 겹치지 않는다. 썸네일은 파일에서 (캐시) —
+      // 저장된 썸네일이 없는 memory:// 행만 보여 줄 것이 없다
+      thumbnailUrl:
+        memory && !image?.thumb_size
+          ? ''
+          : thumbnailUrl('image', seq, createdAt, image?.thumb_size ?? 0),
+      kind: image?.kind ?? (reg ? registrationKind(reg) : 't2i'),
+      seed: image?.seed ?? null,
+      createdAt,
+      ...(!memory && !existsSync(filePath) ? { missing: true } : {})
+    })
+  }
+  return { total, items }
+}
+
+/** 항목(순번)의 전송 payload — images 행이 없는 등록은 null */
+export function getImagePayload(seq: number): string | null {
+  const row = getDb().prepare('SELECT payload_json FROM images WHERE seq = ?').get(seq) as
     { payload_json: string } | undefined
   return row?.payload_json ?? null
 }

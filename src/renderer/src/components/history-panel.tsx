@@ -119,9 +119,11 @@ export function HistoryPanel(): React.JSX.Element {
                 <button
                   className={cn(
                     'group relative aspect-square overflow-hidden rounded-md border border-line bg-paper transition-all',
-                    viewingFilePath === item.filePath && 'ring-2 ring-accent'
+                    viewingFilePath === item.filePath && 'ring-2 ring-accent',
+                    // 원본이 없다 (오프라인 저장 폴더 등) — 목록에는 남기고 흐리게만
+                    item.missing && 'opacity-50'
                   )}
-                  title={`seed ${item.seed ?? '?'}`}
+                  title={item.missing ? t('ui.originalFileMissing') : `seed ${item.seed ?? '?'}`}
                   onClick={() => {
                     view(item.filePath)
                     setCenterMode('main') // 씬/디렉터 페이지에서도 클릭 시 메인으로 이동해 원본 표시

@@ -643,6 +643,7 @@ export const ZH_CN = {
   'ui.addedValueImagesToHistory': '已将 {0} 张图片添加到历史',
   'ui.skippedValueUnsupportedFiles': '已跳过 {0} 个不支持的文件',
   'ui.importedImage': '导入的图片',
+  'ui.originalFileMissing': '找不到原始文件（请确认保存文件夹已连接）',
   'ui.reindexMedia': '重新索引媒体',
   'ui.reindexMediaHint': '在保存文件夹中查找尚未登记的图片并登记。已隐藏的项目保持隐藏。',
   'ui.reindex': '重新索引',

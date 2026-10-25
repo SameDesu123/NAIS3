@@ -281,7 +281,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   })
   handle('queue:status', () => ctx.queue.status())
 
-  handle('images:list', ({ limit, offset }) => listImages(limit, offset))
+  handle('images:list', ({ limit, offset, before }) => listImages(limit, offset, before))
   handle('images:payload', ({ id }) => ({ payloadJson: getImagePayload(id) }))
 
   handle('scenePresets:list', () => ({ items: listPresets() }))

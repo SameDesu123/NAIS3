@@ -40,58 +40,54 @@ describe('thumbnail URLs', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('lists history items with protocol URLs that resolve to the stored thumbnail', async () => {
+  it('lists history items with protocol URLs keyed by seq', async () => {
     getDb().exec(`
       INSERT INTO images (id, file_path, thumbnail, payload_json, created_at, seq) VALUES
-        (1, '/a.png', X'0102', '{}', '${T1}', 1),
-        (2, '/b.png', NULL, '{}', '${T1}', 2),
-        (3, '/c.png', X'', '{}', '${T1}', 3);
+        (1, '/a.png', X'0102', '{}', '${T1}', 11),
+        (2, '/b.png', NULL, '{}', '${T1}', 12),
+        (3, 'memory://c.png', NULL, '{}', '${T1}', 13),
+        (4, 'memory://d.png', X'04', '{}', '${T1}', 14);
     `)
     const { items } = listImages(10, 0)
+    // 파일 항목은 저장된 썸네일이 없어도 URL이 있다 (파일에서 만든다). 보여 줄 것이 없는 건
+    // 썸네일 없는 memory:// 행뿐
     expect(items.map((i) => [i.id, i.thumbnailUrl])).toEqual([
-      [3, ''],
-      [2, ''],
-      [1, thumbnailUrl('image', 1, T1, 2)]
+      [14, thumbnailUrl('image', 14, T1, 1)],
+      [13, ''],
+      [12, thumbnailUrl('image', 12, T1, 0)],
+      [11, thumbnailUrl('image', 11, T1, 2)]
     ])
-    expect(items[2]).not.toHaveProperty('thumbnail')
-    expect(items[2].thumbnailUrl).toBe(
-      'nais-image://local/?thumb=image&id=1&v=2026-01-02%2003%3A04%3A05~2'
+    expect(items[3]).not.toHaveProperty('thumbnail')
+    expect(items[3].thumbnailUrl).toBe(
+      'nais-image://local/?thumb=image&id=11&v=2026-01-02%2003%3A04%3A05~2'
     )
-    expect(await fetchThumb(items[2].thumbnailUrl)).toBe('0102')
+    // The file is gone, so the URL serves the stored thumbnail
+    expect(await fetchThumb(items[3].thumbnailUrl)).toBe('0102')
+    expect(await fetchThumb(items[2].thumbnailUrl)).toBeNull()
+    expect(await fetchThumb(items[0].thumbnailUrl)).toBe('04')
+    // 파일이 없는 항목은 빠지지 않고 missing으로 표시된다. memory:// 는 파일이 아니다
+    expect(items.map((i) => i.missing ?? false)).toEqual([false, false, true, true])
   })
 
-  it('changes the URL when a deleted id is reused', async () => {
+  it('gives a reused row id a new URL, because the seq is never reused', async () => {
     const db = getDb()
     db.exec(`INSERT INTO images (id, file_path, thumbnail, payload_json, created_at, seq)
              VALUES (1, '/a.png', X'01', '{}', '${T1}', 1)`)
-    const before = listImages(1, 0).items[0].thumbnailUrl
+    const before = listImages(1, 0).items[0]
     db.exec('DELETE FROM images')
-    db.exec(`INSERT INTO images (file_path, thumbnail, payload_json, created_at, seq)
-             VALUES ('/b.png', X'02', '{}', '${T2}', 2)`)
+    // 같은 id, 같은 초, 같은 크기여도 순번이 다르다
+    db.exec(`INSERT INTO images (id, file_path, thumbnail, payload_json, created_at, seq)
+             VALUES (1, '/b.png', X'02', '{}', '${T1}', 2)`)
     const after = listImages(1, 0).items[0]
-    expect(after.id).toBe(1)
-    expect(after.thumbnailUrl).not.toBe(before)
+    expect([before.id, after.id]).toEqual([1, 2])
+    expect(after.thumbnailUrl).not.toBe(before.thumbnailUrl)
     expect(await fetchThumb(after.thumbnailUrl)).toBe('02')
-  })
-
-  it('changes the URL when a deleted id is reused within the same second', async () => {
-    // created_at has second precision — the thumbnail size keeps the URLs apart
-    const db = getDb()
-    db.exec(`INSERT INTO images (id, file_path, thumbnail, payload_json, created_at, seq)
-             VALUES (1, '/a.png', X'01', '{}', '${T1}', 1)`)
-    const before = listImages(1, 0).items[0].thumbnailUrl
-    db.exec('DELETE FROM images')
-    db.exec(`INSERT INTO images (file_path, thumbnail, payload_json, created_at, seq)
-             VALUES ('/b.png', X'0203', '{}', '${T1}', 2)`)
-    const after = listImages(1, 0).items[0]
-    expect(after.id).toBe(1)
-    expect(after.thumbnailUrl).not.toBe(before)
-    expect(await fetchThumb(after.thumbnailUrl)).toBe('0203')
+    expect(await fetchThumb(before.thumbnailUrl)).toBeNull()
   })
 
   it('rejects unknown sources, bad ids and missing rows', async () => {
-    getDb().exec(`INSERT INTO images (id, file_path, thumbnail, payload_json)
-                  VALUES (1, '/a.png', X'01', '{}')`)
+    getDb().exec(`INSERT INTO images (id, file_path, thumbnail, payload_json, seq)
+                  VALUES (1, '/a.png', X'01', '{}', 1)`)
     expect(await fetchThumb('nais-image://local/?thumb=image&id=1')).toBe('01')
     expect(await fetchThumb('nais-image://local/?thumb=images&id=1')).toBeNull()
     expect(await fetchThumb('nais-image://local/?thumb=character_prompts&id=1')).toBeNull()
