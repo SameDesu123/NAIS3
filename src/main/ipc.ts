@@ -154,7 +154,8 @@ import {
   isMemoryPath,
   isUnderImagesRoot,
   sceneDir,
-  scenesRoot
+  scenesRoot,
+  syncMediaRoots
 } from './images/storage'
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'fs'
 import { basename } from 'path'
@@ -502,6 +503,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('settings:get', ({ key }) => ({ value: getSetting(key) }))
   handle('settings:set', ({ key, value }) => {
     setSetting(key, value)
+    if (key === 'save_dir' || key === 'scene_save_dir') syncMediaRoots()
   })
 
   handle('chars:list', () => listCharacters())
@@ -646,10 +648,12 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     })
     if (result.canceled || result.filePaths.length === 0) return { dir: null }
     setSetting(saveDirKey(req?.target), result.filePaths[0])
+    syncMediaRoots() // 새 폴더는 current, 예전 폴더는 past — 예전 이미지도 계속 보인다
     return { dir: result.filePaths[0] }
   })
   handle('settings:resetSaveDir', (req) => {
     setSetting(saveDirKey(req?.target), '')
+    syncMediaRoots()
     return { dir: saveDirOf(req?.target) }
   })
   handle('gen:setDelay', ({ ms, randomization }) => {

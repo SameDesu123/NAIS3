@@ -6,6 +6,15 @@ import { isThumbnailSource, thumbnailUrl, type ThumbnailSource } from '../../sha
 import type { DirectorMethod, HistoryItem, ImageMetadata } from '../../shared/types'
 import { getDb } from '../db'
 import { allocateSeq, HISTORY_VISIBLE } from '../db/history'
+import {
+  forgetIntent,
+  locate,
+  pathKey,
+  readableRoots,
+  recordIntent,
+  registerMedia,
+  syncRoots
+} from '../db/media'
 import { getSetting } from '../db/settings'
 import { buildNaisMetadata, embedNaisMetadata } from './nais-metadata'
 import {
@@ -59,23 +68,54 @@ export function sceneDir(presetName: string | null, sceneName: string, sceneId?:
   return join(scenesRoot(), safe(presetName ?? '') || '기본', safe(sceneName) || `씬-${sceneId}`)
 }
 
+type RootIds = ReturnType<typeof syncRoots>
+let syncedRoots: { db: unknown; output: string; scene: string; ids: RootIds } | null = null
+
 /**
- * 프로토콜/파일 접근 허용 판정. 저장 폴더를 바꿔도 예전 이미지가 계속 보이도록
- * 현재/기본 저장 폴더와 내부 라이브러리 폴더를 모두 허용한다.
+ * 지금 저장 폴더를 미디어 루트로 맞춘다 (반환: kind별 current 루트 id). 설정이 그대로면 DB를 건드리지
+ * 않는다 — 저장마다 부른다. 저장 폴더를 바꾸면 새 루트가 current, 예전 루트는 past로 남는다
  */
+export function syncMediaRoots(): RootIds {
+  const db = getDb()
+  const output = imagesRoot()
+  const scene = scenesRoot()
+  if (syncedRoots?.db === db && syncedRoots.output === output && syncedRoots.scene === scene)
+    return syncedRoots.ids
+  const ids = syncRoots(db, { output, scene })
+  syncedRoots = { db, output, scene, ids }
+  return ids
+}
+
 /** parent 디렉터리 안의 경로인지 — path.relative 기반 (Windows 대소문자·구분자·접두 충돌 안전) */
 function isInside(parent: string, child: string): boolean {
   const rel = relative(parent, child)
   return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)
 }
 
+/**
+ * 프로토콜/파일 접근 허용 판정. 저장 폴더를 바꿔도 예전 이미지가 계속 보이도록
+ * 현재/기본 저장 폴더, 내부 라이브러리 폴더, 등록된 미디어 루트(이전 저장 폴더 포함)를 허용한다.
+ * 읽기·복사용 판정이다 — 파일을 지우는 데 쓰지 않는다
+ */
 export function isUnderImagesRoot(filePath: string): boolean {
   return (
     isInside(imagesRoot(), filePath) ||
     isInside(scenesRoot(), filePath) ||
     isInside(defaultImagesRoot(), filePath) ||
-    isInside(libraryRoot(), filePath)
+    isInside(libraryRoot(), filePath) ||
+    isUnderMediaRoot(filePath)
   )
+}
+
+function isUnderMediaRoot(filePath: string): boolean {
+  let db: ReturnType<typeof getDb>
+  try {
+    db = getDb()
+  } catch {
+    return false // DB가 열리기 전
+  }
+  const key = pathKey(filePath)
+  return readableRoots(db).some((root) => isInside(pathKey(root.path), key))
 }
 
 // ── 자동저장 OFF 임시 이미지 (NAIS2 방식) ──────────────────────
@@ -244,6 +284,7 @@ export async function saveGeneratedImage(input: {
   localMetadata?: Pick<ImageMetadata, 'promptParts'>
 }): Promise<SavedImage> {
   const now = new Date()
+  syncMediaRoots()
   // 여기 오면 항상 실제 폴더에 저장한다. 자동저장 OFF의 "저장 안 함" 판정은
   // 생성 큐 콜백(index.ts)에서 메인 생성만 걸러서 처리 — 씬·디렉터 툴은 항상 저장.
   // 구조: 메인 = 메인폴더/[YYYY-MM/] (날짜 폴더는 설정으로 on/off),
@@ -286,16 +327,28 @@ export async function saveGeneratedImage(input: {
     for (let n = 2; isOutputPathTaken(filePath); n++)
       filePath = join(monthDir, `${base}_${n}.${ext}`)
   }
-  writeFileSync(filePath, withNaisMetadata(input, now))
+
+  // 파일을 쓰기 전에 의도를 남긴다 — 파일만 쓰이고 등록이 커밋되지 않으면 다음 시작 때 되살린다
+  const db = getDb()
+  const locator = locate(db, filePath)
+  const intent = locator
+    ? recordIntent(db, { ...locator, kind: input.kind, seed: input.seed, sceneId: input.sceneId })
+    : null
+  try {
+    writeFileSync(filePath, withNaisMetadata(input, now))
+  } catch (error) {
+    if (intent != null) forgetIntent(db, intent)
+    throw error
+  }
 
   // 표시는 썸네일 캐시가 맡는다. DB 썸네일은 1.0.29로 되돌렸을 때 히스토리가 비지 않게 계속 쓴다
   // (1.0.29 히스토리는 thumbnail이 NULL이면 타일을 그리지 않는다) — 컬럼 정리는 H에서
   const thumbnail = await renderThumbnail(input.png)
 
-  // 순번은 행과 같은 트랜잭션에서 — 비우기 경계를 사이에 두고 갈라지지 않는다
-  const db = getDb()
-  const result = db.transaction(() =>
-    db
+  // 순번은 행·등록과 같은 트랜잭션에서 — 비우기 경계를 사이에 두고 갈라지지 않는다
+  const result = db.transaction(() => {
+    const seq = allocateSeq(db)
+    const inserted = db
       .prepare(
         'INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id, seq) VALUES (?, ?, ?, ?, ?, ?, ?)'
       )
@@ -306,9 +359,12 @@ export async function saveGeneratedImage(input: {
         input.seed,
         payloadWithLocalMetadata(input.sentPayload, input.localMetadata),
         input.sceneId ?? null,
-        allocateSeq(db)
+        seq
       )
-  )()
+    if (locator) registerMedia(db, { ...locator, seq, source: 'generated', sceneId: input.sceneId })
+    if (intent != null) forgetIntent(db, intent)
+    return inserted
+  })()
   await primeThumbnail(filePath, thumbnail)
 
   return { id: Number(result.lastInsertRowid), filePath }

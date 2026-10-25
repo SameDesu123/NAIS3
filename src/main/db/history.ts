@@ -36,7 +36,11 @@ export function assignMissingSeqs(db: Database.Database): number {
   const ids = db.prepare('SELECT id FROM images WHERE seq IS NULL ORDER BY id').pluck().all()
   db.prepare(
     `UPDATE history_state
-     SET next_seq = MAX(next_seq, (SELECT COALESCE(MAX(seq), 0) + 1 FROM images))
+     SET next_seq = MAX(
+       next_seq,
+       (SELECT COALESCE(MAX(seq), 0) + 1 FROM images),
+       (SELECT COALESCE(MAX(seq), 0) + 1 FROM media_registrations)
+     )
      WHERE id = 1`
   ).run()
   if (ids.length === 0) return 0

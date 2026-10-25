@@ -165,6 +165,22 @@ export const ensureSteps: EnsureStep[] = [
     'CREATE INDEX idx_scene_sources_scene ON scene_sources(scene_id, role)'
   ),
 
+  // 저장 의도 — 출력 파일을 쓰기 전에 남기고, 행·등록을 커밋하는 트랜잭션에서 지운다.
+  // 파일만 쓰이고 등록이 커밋되지 않았으면(그 사이에 앱이 죽으면) 다음 시작 때 이걸로 되살린다.
+  // 재현 설정은 파일에 들어 있어 여기엔 위치와 kind·seed만 둔다
+  table(
+    'media_intents',
+    `CREATE TABLE media_intents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      root_id INTEGER NOT NULL REFERENCES media_roots(id),
+      rel_path TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      seed INTEGER,
+      scene_id INTEGER REFERENCES gen_scenes(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  ),
+
   // 새 씬의 UUID 폴더 이름 (<씬 루트>/<uuid>/). 표시 이름은 gen_scenes.name 그대로.
   // NULL = 기존 이름 폴더. 저장에 쓰기 시작하는 것은 E — 여기선 컬럼만 둔다
   column('gen_scenes', 'folder_uuid', 'TEXT'),

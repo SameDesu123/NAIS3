@@ -21,6 +21,7 @@ import {
   thumbnailForUrl
 } from './images/storage'
 import { refreshSceneCover, sceneCoverForUrl } from './images/covers'
+import { prepareMedia } from './images/media-recovery'
 import { broadcast, registerIpcHandlers } from './ipc'
 import { resolveInitialLanguage, t } from './i18n'
 import { translate, type Lang, type MessageId } from '../shared/i18n'
@@ -190,6 +191,9 @@ const startup = app.whenReady().then(async () => {
     app.quit()
     return
   }
+
+  // 미디어 원장 — 저장 폴더를 루트로 맞추고, 원장에 없는 출력을 되찾고, 저장하다 멈춘 출력을 되살린다
+  prepareMedia()
 
   // 생성 파이프라인: 큐 → 조각/와일드카드 치환 → 바이브/캐릭레퍼 준비 → 스트리밍 생성 → 저장
   const queue = new GenerationQueue(async (rawRequest, id, signal) => {

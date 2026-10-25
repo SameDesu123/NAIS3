@@ -131,6 +131,11 @@ function parseLocalParams(text: Record<string, string>): LocalParams | undefined
   return undefined
 }
 
+/** 파일(PNG·WebP)에 든 NAIS 메타데이터 그대로. 없으면 undefined */
+export function readNaisMetadata(buf: Buffer): LocalParams | undefined {
+  return parseLocalParams(parsePngTextChunks(buf)) ?? readWebpNaisParams(buf)
+}
+
 /** 병합된 네거티브에서 UC 프리셋 인덱스 역추적 (프리셋 텍스트가 접두인 것 중 가장 긴 것) */
 function inferUcPreset(uc: string): number | undefined {
   let best: number | undefined
