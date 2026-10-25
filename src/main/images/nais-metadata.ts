@@ -40,6 +40,18 @@ const IMAGE_DATA_KEYS = new Set([
   'director_reference_images_cached'
 ])
 const BASE64_RUN = /^[A-Za-z0-9+/=\r\n]{1024,}$/
+/**
+ * 프롬프트·네거티브 텍스트 필드 (payload.ts). 태그를 줄바꿈으로 나열한 긴 프롬프트는 base64 글자만으로
+ * 이뤄질 수 있다 — 아래 휴리스틱은 이름을 모르는 필드에만 쓴다
+ */
+const TEXT_KEYS = new Set([
+  'input',
+  'prompt',
+  'negative_prompt',
+  'uc',
+  'base_caption',
+  'char_caption'
+])
 
 function withoutImageData(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(withoutImageData)
@@ -47,6 +59,10 @@ function withoutImageData(value: unknown): unknown {
     const out: Record<string, unknown> = {}
     for (const [key, v] of Object.entries(value)) {
       if (IMAGE_DATA_KEYS.has(key)) continue
+      if (TEXT_KEYS.has(key) && typeof v === 'string') {
+        out[key] = v
+        continue
+      }
       const kept = withoutImageData(v)
       if (kept !== undefined) out[key] = kept
     }

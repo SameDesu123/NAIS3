@@ -155,6 +155,36 @@ describe('PNG outputs', () => {
     })
   })
 
+  it('keeps a long tag-per-line prompt that looks like base64', async () => {
+    const long = '1girl\nsolo\nsmile\n'.repeat(80)
+    const longRequest = {
+      ...request,
+      prompt: long,
+      negativePrompt: long,
+      characterPrompts: [{ ...request.characterPrompts[0], prompt: long, negativePrompt: long }]
+    } as GenerationRequest
+    const payload = buildGenerateImagePayload(longRequest, { imageFormat: 'png' })
+    expect(payload.input).toMatch(/^[A-Za-z0-9\n]{1024,}$/)
+    const settings = reproductionSettings(JSON.stringify(payload))!
+    expect(settings.input).toBe(payload.input)
+    expect(settings.parameters).toEqual(payload.parameters)
+
+    const png = await (await source()).png().toBuffer()
+    const embedded = embedNaisMetadata(
+      png,
+      buildNaisMetadata({
+        sentPayload: JSON.stringify(payload),
+        kind: 't2i',
+        seed: request.seed,
+        createdAt: new Date('2026-10-25T03:00:00.000Z')
+      })
+    )
+    expect(await metadataFromImage(embedded)).toMatchObject({
+      prompt: payload.input,
+      characterPrompts: [{ prompt: expect.stringContaining('1girl\nsolo') }]
+    })
+  })
+
   it('still reads NovelAI metadata with the promptParts of an older file', async () => {
     const png = withNaiComment(await (await source()).png().toBuffer(), {
       prompt: 'from novelai',
