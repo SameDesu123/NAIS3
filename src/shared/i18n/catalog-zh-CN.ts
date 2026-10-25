@@ -742,6 +742,8 @@ export const ZH_CN = {
   'ui.addVibeImages': '添加氛围传递图片',
   'ui.addReferenceImages': '添加精确参考图片',
   'ui.vibeEncodingFailedValueValue': '氛围编码失败 {0}：{1}',
+  'ui.skippedReferencesWithoutImageValueValue':
+    '已跳过 {0} 个氛围和 {1} 个角色参考（图像文件缺失）后生成',
   'ui.chooseCharacterImage': '选择角色图片',
   'ui.addImagesToLibrary': '向图库添加图片',
   'ui.chooseExportFolder': '选择导出文件夹',

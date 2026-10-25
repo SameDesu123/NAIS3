@@ -749,6 +749,8 @@ export const KO = {
   'ui.addVibeImages': '바이브 이미지 추가',
   'ui.addReferenceImages': '레퍼런스 이미지 추가',
   'ui.vibeEncodingFailedValueValue': '바이브 인코딩 실패 {0}: {1}',
+  'ui.skippedReferencesWithoutImageValueValue':
+    '이미지 파일이 없는 바이브 {0}개와 캐릭터 레퍼런스 {1}개를 빼고 생성했습니다',
   'ui.chooseCharacterImage': '캐릭터 이미지 선택',
   'ui.addImagesToLibrary': '라이브러리에 이미지 추가',
   'ui.chooseExportFolder': '내보낼 폴더 선택',

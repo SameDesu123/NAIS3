@@ -489,6 +489,9 @@ export function bindGenerationEvents(): () => void {
   const offVibes = window.nais.on('vibes:encoded', () => {
     void useVibesStore.getState().load()
   })
+  const offRefsSkipped = window.nais.on('refs:skipped', ({ vibes, charRefs }) => {
+    toast(t('ui.skippedReferencesWithoutImageValueValue', vibes, charRefs), 'info')
+  })
   return () => {
     offQueue()
     offProgress()
@@ -496,5 +499,6 @@ export function bindGenerationEvents(): () => void {
     offAccount()
     clearInterval(usageRefreshTimer)
     offVibes()
+    offRefsSkipped()
   }
 }

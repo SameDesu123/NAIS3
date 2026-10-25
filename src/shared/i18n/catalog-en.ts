@@ -632,7 +632,7 @@ export const EN = {
   'ui.greetingNight3': 'A starry night',
   'ui.greetingNight4': 'What shall we draw tonight?',
   'ui.greetingNight5': 'A quiet night for focus',
-  'ui.greetingNight6': 'Don\'t stay up too late',
+  'ui.greetingNight6': "Don't stay up too late",
   'ui.preparing': 'Preparing',
   'ui.seedLockedClickToUnlock': 'Seed locked — click to unlock',
   'ui.clickToLockThisSeed': 'Click to lock this seed',
@@ -767,6 +767,8 @@ export const EN = {
   'ui.addVibeImages': 'Add Vibe Images',
   'ui.addReferenceImages': 'Add Reference Images',
   'ui.vibeEncodingFailedValueValue': 'Vibe encoding failed {0}: {1}',
+  'ui.skippedReferencesWithoutImageValueValue':
+    'Generated without {0} vibe(s) and {1} character reference(s) whose image file is missing',
   'ui.chooseCharacterImage': 'Choose Character Image',
   'ui.addImagesToLibrary': 'Add Images to Library',
   'ui.chooseExportFolder': 'Choose Export Folder',

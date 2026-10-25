@@ -209,13 +209,21 @@ const startup = app.whenReady().then(async () => {
     // 바이브/캐릭레퍼 준비 — 요청이 id를 지정하면(출연 예약) 그것으로, 아니면 DB enabled 항목
     // (바이브는 필요 시 인코딩 — 2 Anlas, 캐시됨)
     const capabilities = modelCapabilities(request.model)
-    const { vibes, newlyEncoded } = capabilities.vibes
+    const {
+      vibes,
+      newlyEncoded,
+      skipped: skippedVibes
+    } = capabilities.vibes
       ? await prepareVibes(token, request.model, request.vibeIds)
-      : { vibes: [], newlyEncoded: [] }
+      : { vibes: [], newlyEncoded: [], skipped: 0 }
     if (newlyEncoded.length) broadcast('vibes:encoded', {}) // 카드 인코딩 표시 갱신
-    const characterReferences = capabilities.characterReferences
-      ? await prepareCharRefs(request.charRefIds)
-      : []
+    const { references: characterReferences, skipped: skippedCharRefs } =
+      capabilities.characterReferences
+        ? await prepareCharRefs(request.charRefIds)
+        : { references: [], skipped: 0 }
+    // 파일 없이 복원된 레퍼런스는 빼고 생성하되, 조용히 빠지지 않게 알린다
+    if (skippedVibes + skippedCharRefs > 0)
+      broadcast('refs:skipped', { vibes: skippedVibes, charRefs: skippedCharRefs })
 
     let source = request.source
     // i2i/인페인트: 소스 해상도를 유효 NAI 해상도(64 배수·픽셀 상한)로 스냅하고 이미지를 맞춰 리사이즈.

@@ -743,6 +743,8 @@ export interface IpcEventMap {
   'scenes:changed': { sceneId: number; filePath: string }
   /** 바이브 인코딩 완료 — 카드의 인코딩 표시 갱신용 */
   'vibes:encoded': Record<string, never>
+  /** 원본 이미지가 없는 레퍼런스(파일 없이 복원된 행)를 빼고 생성함 */
+  'refs:skipped': { vibes: number; charRefs: number }
   /** 자동 업데이트 상태 (GitHub release) */
   'update:status': {
     state: 'available' | 'none' | 'downloading' | 'downloaded' | 'error'

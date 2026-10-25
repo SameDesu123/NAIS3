@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import sharp from '../sharp'
 import type { CharacterReferenceOptions, VibeOptions } from '../nai/payload'
 import { ENDPOINTS } from '../nai/endpoints'
@@ -12,19 +12,34 @@ import {
 } from './repo'
 import { getVibeEncoding, putVibeEncoding } from './vibe-encoding-cache'
 
+/**
+ * 원본 이미지를 읽을 수 있는지. 백업에서 파일 없이 복원된 행은 file_path가 ''로 남는다 —
+ * readFileSync('')로 매 생성이 실패하지 않게 생성 준비에서 건너뛴다
+ */
+function hasSourceFile(filePath: string): boolean {
+  return filePath !== '' && existsSync(filePath)
+}
+
 /** 생성 직전 바이브 준비 — 미인코딩/ie 변경분만 encode-vibe (2 Anlas) 후 캐시.
- *  newlyEncoded: 이번에 새로 인코딩된 바이브 id (카드 표시 갱신 통지용) */
+ *  newlyEncoded: 이번에 새로 인코딩된 바이브 id (카드 표시 갱신 통지용)
+ *  skipped: 현재 모델용 인코딩도 원본 파일도 없어 빼고 생성한 바이브 수 */
 export async function prepareVibes(
   token: string,
   model: string,
   ids?: number[]
-): Promise<{ vibes: VibeOptions[]; newlyEncoded: number[] }> {
+): Promise<{ vibes: VibeOptions[]; newlyEncoded: number[]; skipped: number }> {
   // ids 지정 시 그 바이브들(enabled 무시 — 출연 예약), 미지정 시 enabled 항목
   const rows = ids ? vibeRowsByIds(ids) : enabledVibeRows()
   const vibes: VibeOptions[] = []
   const newlyEncoded: number[] = []
+  let skipped = 0
   for (const row of rows) {
     let encoded = getVibeEncoding(row.encoded, row.encodedIe, model, row.infoExtracted)
+    // 캐시된 인코딩이 있으면 원본 파일 없이도 쓸 수 있다 — 행과 인코딩은 그대로 둔다
+    if (!encoded && !hasSourceFile(row.filePath)) {
+      skipped++
+      continue
+    }
     if (!encoded) {
       const res = await fetch(ENDPOINTS.encodeVibe, {
         method: 'POST',
@@ -46,7 +61,7 @@ export async function prepareVibes(
     }
     vibes.push({ strength: row.strength, encodedVibeBase64: encoded })
   }
-  return { vibes, newlyEncoded }
+  return { vibes, newlyEncoded, skipped }
 }
 
 /**
@@ -73,11 +88,19 @@ async function processCharRefImage(filePath: string): Promise<string> {
   return png.toString('base64')
 }
 
-export async function prepareCharRefs(ids?: number[]): Promise<CharacterReferenceOptions[]> {
+/** skipped: 원본 파일이 없어 빼고 생성한 캐릭레퍼 수 */
+export async function prepareCharRefs(
+  ids?: number[]
+): Promise<{ references: CharacterReferenceOptions[]; skipped: number }> {
   // ids 지정 시 그 캐릭레퍼들(enabled 무시 — 출연 예약), 미지정 시 enabled 항목
   const rows = ids ? charRefRowsByIds(ids) : enabledCharRefRows()
   const result: CharacterReferenceOptions[] = []
+  let skipped = 0
   for (const row of rows) {
+    if (!hasSourceFile(row.filePath)) {
+      skipped++
+      continue
+    }
     result.push({
       referenceType: row.refType as CharacterReferenceOptions['referenceType'],
       strength: row.strength,
@@ -85,5 +108,5 @@ export async function prepareCharRefs(ids?: number[]): Promise<CharacterReferenc
       imageBase64: await processCharRefImage(row.filePath)
     })
   }
-  return result
+  return { references: result, skipped }
 }
