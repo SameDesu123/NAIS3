@@ -1,7 +1,6 @@
 import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { getDb } from '../db'
-import { allocateSeq } from '../db/history'
 import {
   forgetIntent,
   isRegistered,
@@ -53,9 +52,10 @@ export interface RecoveryResult {
 }
 
 /**
- * 저장 의도가 남은 출력을 되살린다. 파일이 있으면 행과 등록을 새 순번으로 만든다 — 비우기 경계는
- * 건드리지 않는다(경계를 내리지도, 경계 아래 순번을 다시 쓰지도 않는다). 재현 설정은 파일의
- * NAIS 메타데이터에서 읽는다. 루트가 오프라인이면 의도를 지우지 않는다
+ * 저장 의도가 남은 출력을 되살린다. 파일이 있으면 의도를 남길 때 잡아 둔 순번으로 행과 등록을 만든다 —
+ * 그 뒤에 히스토리를 비웠으면 되살린 출력도 경계 아래라 다시 나타나지 않는다. 재현 설정은 파일의
+ * NAIS 메타데이터에서 읽는다. 파일이 없으면 쓰기 전에 멈춘 것이라 의도를 지운다 — 루트가
+ * 보일 때만. 루트가 오프라인이면 그대로 둔다
  */
 export async function recoverPendingOutputs(): Promise<RecoveryResult> {
   const db = getDb()
@@ -93,7 +93,7 @@ export async function recoverPendingOutputs(): Promise<RecoveryResult> {
         forgetIntent(db, intent.id)
         return false
       }
-      const seq = allocateSeq(db)
+      const seq = intent.seq
       db.prepare(
         `INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id, seq)
          VALUES (?, ?, ?, ?, ?, (SELECT id FROM gen_scenes WHERE id = ?), ?)`

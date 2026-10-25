@@ -167,11 +167,13 @@ export const ensureSteps: EnsureStep[] = [
 
   // 저장 의도 — 출력 파일을 쓰기 전에 남기고, 행·등록을 커밋하는 트랜잭션에서 지운다.
   // 파일만 쓰이고 등록이 커밋되지 않았으면(그 사이에 앱이 죽으면) 다음 시작 때 이걸로 되살린다.
-  // 재현 설정은 파일에 들어 있어 여기엔 위치와 kind·seed만 둔다
+  // seq는 의도를 남길 때 next_seq에서 미리 잡는다 — 그 뒤에 히스토리를 비웠으면 되살린 출력도
+  // 경계 아래라 다시 나타나지 않는다. 재현 설정은 파일에 들어 있어 여기엔 위치와 kind·seed만 둔다
   table(
     'media_intents',
     `CREATE TABLE media_intents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      seq INTEGER NOT NULL UNIQUE,
       root_id INTEGER NOT NULL REFERENCES media_roots(id),
       rel_path TEXT NOT NULL,
       kind TEXT NOT NULL,

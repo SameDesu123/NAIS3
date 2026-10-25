@@ -328,7 +328,8 @@ export async function saveGeneratedImage(input: {
       filePath = join(monthDir, `${base}_${n}.${ext}`)
   }
 
-  // 파일을 쓰기 전에 의도를 남긴다 — 파일만 쓰이고 등록이 커밋되지 않으면 다음 시작 때 되살린다
+  // 파일을 쓰기 전에 의도와 순번을 남긴다 — 파일만 쓰이고 등록이 커밋되지 않으면 다음 시작 때
+  // 같은 순번으로 되살린다
   const db = getDb()
   const locator = locate(db, filePath)
   const intent = locator
@@ -337,7 +338,7 @@ export async function saveGeneratedImage(input: {
   try {
     writeFileSync(filePath, withNaisMetadata(input, now))
   } catch (error) {
-    if (intent != null) forgetIntent(db, intent)
+    if (intent) forgetIntent(db, intent.id)
     throw error
   }
 
@@ -345,9 +346,10 @@ export async function saveGeneratedImage(input: {
   // (1.0.29 히스토리는 thumbnail이 NULL이면 타일을 그리지 않는다) — 컬럼 정리는 H에서
   const thumbnail = await renderThumbnail(input.png)
 
-  // 순번은 행·등록과 같은 트랜잭션에서 — 비우기 경계를 사이에 두고 갈라지지 않는다
+  // 행·등록은 의도의 순번으로 함께 커밋한다. 저장하는 사이에 히스토리를 비웠으면 이 출력도 경계
+  // 아래다 — 의도를 남긴 뒤에 비운 것이니 앱이 죽은 뒤 되살릴 때와 같은 순서다
   const result = db.transaction(() => {
-    const seq = allocateSeq(db)
+    const seq = intent?.seq ?? allocateSeq(db)
     const inserted = db
       .prepare(
         'INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id, seq) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -362,7 +364,7 @@ export async function saveGeneratedImage(input: {
         seq
       )
     if (locator) registerMedia(db, { ...locator, seq, source: 'generated', sceneId: input.sceneId })
-    if (intent != null) forgetIntent(db, intent)
+    if (intent) forgetIntent(db, intent.id)
     return inserted
   })()
   await primeThumbnail(filePath, thumbnail)

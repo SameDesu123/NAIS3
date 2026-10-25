@@ -350,10 +350,16 @@ describe('reclaiming unregistered outputs', () => {
 })
 
 describe('recovering outputs saved without a registration', () => {
-  async function savedWithoutRegistration(name: string): Promise<string> {
+  /** 의도를 남기고 파일을 썼는데 행·등록을 커밋하기 전에 앱이 죽은 상태 (반환: 파일, 잡아 둔 순번) */
+  async function savedWithoutRegistration(name: string): Promise<{ path: string; seq: number }> {
     const ids = syncMediaRoots()
     const path = join(imagesRoot(), name)
-    recordIntent(getDb(), { rootId: ids.output, relPath: name, kind: 't2i', seed: 42 })
+    const { seq } = recordIntent(getDb(), {
+      rootId: ids.output,
+      relPath: name,
+      kind: 't2i',
+      seed: 42
+    })
     mkdirSync(imagesRoot(), { recursive: true })
     const meta = buildNaisMetadata({
       sentPayload: JSON.stringify({ input: 'a cat', model: 'nai-diffusion-4-5-full' }),
@@ -364,18 +370,15 @@ describe('recovering outputs saved without a registration', () => {
       localMetadata: { promptParts: { base: 'a cat' } } as never
     })
     writeFileSync(path, embedNaisMetadata(await png(), meta))
-    return path
+    return { path, seq }
   }
 
-  it('registers the file with a fresh seq above the clear boundary, without moving it', async () => {
-    const path = await savedWithoutRegistration('crashed.png')
+  it('registers the file with the seq its intent reserved, without moving it', async () => {
     const db = getDb()
     insertImage(join(imagesRoot(), 'older.png'))
-    clearHistory(db)
-    const cleared = db.prepare('SELECT cleared_seq FROM history_state').pluck().get() as number
+    const { path, seq } = await savedWithoutRegistration('crashed.png')
 
     expect(await recoverPendingOutputs()).toEqual({ recovered: 1, dropped: 0, kept: 0 })
-    expect(db.prepare('SELECT cleared_seq FROM history_state').pluck().get()).toBe(cleared)
     const row = db
       .prepare('SELECT seq, kind, seed, payload_json, thumbnail FROM images WHERE file_path = ?')
       .get(path) as {
@@ -385,19 +388,46 @@ describe('recovering outputs saved without a registration', () => {
       payload_json: string
       thumbnail: Buffer
     }
-    expect(row.seq).toBeGreaterThan(cleared)
-    expect(row).toMatchObject({ kind: 't2i', seed: 42 })
+    expect(row).toMatchObject({ seq, kind: 't2i', seed: 42 })
     expect(JSON.parse(row.payload_json)).toMatchObject({
       input: 'a cat',
       nais3: { promptParts: { base: 'a cat' } }
     })
     expect(row.thumbnail.length).toBeGreaterThan(0)
-    expect(registrations()).toEqual([
-      { seq: row.seq, root_id: 1, rel_path: 'crashed.png', source: 'generated', scene_id: null }
-    ])
-    expect(listImages(10, 0).items.map((i) => i.filePath)).toEqual([path])
+    expect(registrations().at(-1)).toEqual({
+      seq,
+      root_id: 1,
+      rel_path: 'crashed.png',
+      source: 'generated',
+      scene_id: null
+    })
+    expect(listImages(10, 0).items[0].filePath).toBe(path)
     expect(count('media_intents')).toBe(0)
     expect(await recoverPendingOutputs()).toEqual({ recovered: 0, dropped: 0, kept: 0 })
+  })
+
+  it('stays hidden when history was cleared after the intent and before the crash', async () => {
+    const db = getDb()
+    const { path, seq } = await savedWithoutRegistration('crashed.png')
+    clearHistory(db)
+    const cleared = db.prepare('SELECT cleared_seq FROM history_state').pluck().get() as number
+    expect(seq).toBeLessThanOrEqual(cleared)
+
+    expect(await recoverPendingOutputs()).toEqual({ recovered: 1, dropped: 0, kept: 0 })
+    // 경계는 그대로, 되살린 출력은 경계 아래 — 비운 히스토리에 다시 나타나지 않는다
+    expect(db.prepare('SELECT cleared_seq FROM history_state').pluck().get()).toBe(cleared)
+    expect(db.prepare('SELECT seq FROM images WHERE file_path = ?').pluck().get(path)).toBe(seq)
+    expect(registrations().map((r) => r.seq)).toEqual([seq])
+    expect(listImages(10, 0)).toEqual({ total: 0, items: [] })
+
+    // 비운 뒤의 출력은 그대로 보인다
+    const after = await saveGeneratedImage({
+      png: await png(),
+      sentPayload: '{}',
+      seed: 9,
+      kind: 't2i'
+    })
+    expect(listImages(10, 0).items.map((i) => i.id)).toEqual([after.id])
   })
 
   it('drops intents whose file was never written, and keeps those on an offline root', async () => {
@@ -421,7 +451,7 @@ describe('recovering outputs saved without a registration', () => {
   })
 
   it('drops an intent whose output is already registered', async () => {
-    const path = await savedWithoutRegistration('done.png')
+    const { path } = await savedWithoutRegistration('done.png')
     const db = getDb()
     const id = insertImage(path)
     expect(reclaimUnregistered(db).registered).toBe(1)

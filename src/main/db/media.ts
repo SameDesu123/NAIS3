@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'path'
+import { allocateSeq } from './history'
 
 // electron에 의존하지 않는다 — 경로는 부르는 쪽(storage.ts)이 설정에서 읽어 넘긴다
 
@@ -211,18 +212,33 @@ function addSceneSource(
 
 // ── 저장 의도 ─────────────────────────────────────────────────
 
-/** 출력 파일을 쓰기 직전에 남긴다 (반환: 의도 id). 등록을 커밋하는 트랜잭션에서 forgetIntent */
+/**
+ * 출력 파일을 쓰기 직전에 남긴다. 순번도 여기서 잡는다 — 행·등록은 이 순번으로 커밋하고, 커밋하는
+ * 트랜잭션에서 forgetIntent. 그 사이에 히스토리를 비우면 이 출력은 경계 아래가 된다
+ * (저장 중에 비웠든, 앱이 죽은 뒤 되살렸든 같다)
+ */
 export function recordIntent(
   db: Database.Database,
   input: MediaLocator & { kind: string; seed: number | null; sceneId?: number | null }
-): number {
-  return db
-    .prepare(
-      `INSERT INTO media_intents (root_id, rel_path, kind, seed, scene_id)
-       VALUES (?, ?, ?, ?, (SELECT id FROM gen_scenes WHERE id = ?)) RETURNING id`
-    )
-    .pluck()
-    .get(input.rootId, input.relPath, input.kind, input.seed, input.sceneId ?? null) as number
+): { id: number; seq: number } {
+  return db.transaction(() => {
+    const seq = allocateSeq(db)
+    const id = db
+      .prepare(
+        `INSERT INTO media_intents (seq, root_id, rel_path, kind, seed, scene_id)
+         VALUES (?, ?, ?, ?, ?, (SELECT id FROM gen_scenes WHERE id = ?)) RETURNING id`
+      )
+      .pluck()
+      .get(
+        seq,
+        input.rootId,
+        input.relPath,
+        input.kind,
+        input.seed,
+        input.sceneId ?? null
+      ) as number
+    return { id, seq }
+  })()
 }
 
 export function forgetIntent(db: Database.Database, id: number): void {
@@ -231,6 +247,7 @@ export function forgetIntent(db: Database.Database, id: number): void {
 
 export interface PendingIntent {
   id: number
+  seq: number
   rootId: number
   rootPath: string
   relPath: string
@@ -242,7 +259,7 @@ export interface PendingIntent {
 export function pendingIntents(db: Database.Database): PendingIntent[] {
   return db
     .prepare(
-      `SELECT i.id, i.root_id AS rootId, r.path AS rootPath, i.rel_path AS relPath,
+      `SELECT i.id, i.seq, i.root_id AS rootId, r.path AS rootPath, i.rel_path AS relPath,
               i.kind, i.seed, i.scene_id AS sceneId
        FROM media_intents i JOIN media_roots r ON r.id = i.root_id ORDER BY i.id`
     )
