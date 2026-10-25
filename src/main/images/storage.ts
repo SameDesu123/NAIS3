@@ -8,11 +8,13 @@ import type { DirectorMethod, HistoryItem, ImageMetadata } from '../../shared/ty
 import { getDb } from '../db'
 import { allocateSeq, HISTORY_VISIBLE } from '../db/history'
 import { getSetting } from '../db/settings'
+import { buildNaisMetadata, embedNaisMetadata } from './nais-metadata'
 
 /**
  * 생성 이미지 저장 규칙 (P3의 핵심):
  * - 원본 PNG는 디스크 파일로만. base64를 어디에도 상주시키지 않는다.
  * - DB에는 경로·시드·전송 payload 원본·소형 썸네일(webp BLOB)만.
+ * - 출력 파일엔 재현 설정을 넣는다 (nais-metadata.ts) — 파일만으로 설정을 되살릴 수 있게.
  */
 
 export interface SavedImage {
@@ -136,11 +138,7 @@ export async function saveEphemeralImage(input: {
   const ext = input.format ?? 'png'
   const filePath = `${MEMORY_PREFIX}${randomUUID()}.${ext}`
   // 메타데이터 주입본을 캐시에 — "다른 이름으로 저장" 구제 시 파일 저장본과 동일해지게
-  const buffer =
-    ext === 'png' && input.localMetadata
-      ? injectNais3Params(input.png, input.localMetadata)
-      : input.png
-  memoryImages.set(filePath, buffer)
+  memoryImages.set(filePath, withNaisMetadata(input, new Date()))
 
   const thumbnail = await sharp(input.png)
     .resize(640, 640, { fit: 'inside' })
@@ -248,11 +246,7 @@ export async function saveGeneratedImage(input: {
     for (let n = 2; isOutputPathTaken(filePath); n++)
       filePath = join(monthDir, `${base}_${n}.${ext}`)
   }
-  const fileBuffer =
-    ext === 'png' && input.localMetadata
-      ? injectNais3Params(input.png, input.localMetadata)
-      : input.png
-  writeFileSync(filePath, fileBuffer)
+  writeFileSync(filePath, withNaisMetadata(input, now))
 
   // 썸네일: 카드가 커질 수 있어 640px로 (화질 열화 방지). webp q90
   const thumbnail = await sharp(input.png)
@@ -293,45 +287,29 @@ function payloadWithLocalMetadata(
   }
 }
 
-const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-const NAIS3_KEYWORD = 'nais3-params'
-const CRC_TABLE = (() => {
-  const t = new Uint32Array(256)
-  for (let n = 0; n < 256; n++) {
-    let c = n
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
-    t[n] = c >>> 0
-  }
-  return t
-})()
-
-function crc32(bytes: Buffer): number {
-  let c = 0xffffffff
-  for (const b of bytes) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8)
-  return (c ^ 0xffffffff) >>> 0
-}
-
-function textChunk(keyword: string, value: string): Buffer {
-  const data = Buffer.concat([
-    Buffer.from(keyword, 'latin1'),
-    Buffer.from([0]),
-    Buffer.from(value, 'latin1')
-  ])
-  const type = Buffer.from('tEXt', 'ascii')
-  const out = Buffer.alloc(4 + 4 + data.length + 4)
-  out.writeUInt32BE(data.length, 0)
-  type.copy(out, 4)
-  data.copy(out, 8)
-  out.writeUInt32BE(crc32(Buffer.concat([type, data])), 8 + data.length)
-  return out
-}
-
-function injectNais3Params(png: Buffer, meta: Pick<ImageMetadata, 'promptParts'>): Buffer {
-  if (png.length < 33 || !png.subarray(0, 8).equals(PNG_SIG)) return png
-  const value = Buffer.from(JSON.stringify({ version: 1, ...meta }), 'utf8').toString('base64')
-  const chunk = textChunk(NAIS3_KEYWORD, value)
-  const ihdrEnd = 33
-  return Buffer.concat([png.subarray(0, ihdrEnd), chunk, png.subarray(ihdrEnd)])
+/** 출력 파일에 넣을 바이트 — 생성·업스케일·디렉터·로컬 저장 모두 같은 메타데이터를 단다 */
+function withNaisMetadata(
+  input: {
+    png: Buffer
+    sentPayload: string
+    seed: number
+    kind: string
+    localMetadata?: Pick<ImageMetadata, 'promptParts'>
+  },
+  createdAt: Date
+): Buffer {
+  return embedNaisMetadata(
+    input.png,
+    buildNaisMetadata({
+      sentPayload: input.sentPayload,
+      kind: input.kind,
+      seed: input.seed,
+      createdAt,
+      appVersion: app.getVersion(),
+      mediaId: randomUUID(),
+      localMetadata: input.localMetadata
+    })
+  )
 }
 
 export function listImages(limit: number, offset: number): { items: HistoryItem[]; total: number } {

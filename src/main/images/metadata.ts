@@ -2,10 +2,16 @@ import { gunzipSync, inflateSync } from 'zlib'
 import sharp from '../sharp'
 import type { ImageMetadata } from '../../shared/types'
 import { QUALITY_TAGS_SUFFIX, UC_PRESETS_V45_FULL } from '../../shared/nai-presets'
+import {
+  NAIS_METADATA_KEY,
+  parseNaisParams,
+  readWebpNaisParams,
+  type NaisMetadata
+} from './nais-metadata'
 
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const STEALTH_MAGIC = 'stealth_pngcomp'
-const LOCAL_PARAM_KEYS = ['nais3-params', 'nais2-params']
+const LOCAL_PARAM_KEYS = [NAIS_METADATA_KEY, 'nais2-params']
 
 /** PNG tEXt/zTXt/iTXt 청크에서 keyword→text 추출 */
 function parsePngTextChunks(buf: Buffer): Record<string, string> {
@@ -112,23 +118,15 @@ interface Params {
   v4_negative_prompt?: { caption?: { char_captions?: { char_caption?: string }[] } }
 }
 
-interface LocalParams {
-  promptParts?: ImageMetadata['promptParts']
-}
+/** 파일에 든 NAIS 메타데이터. 예전 파일(version 1)은 promptParts만 있다 */
+type LocalParams = Partial<NaisMetadata>
 
 function parseLocalParams(text: Record<string, string>): LocalParams | undefined {
   for (const key of LOCAL_PARAM_KEYS) {
     const raw = text[key]
     if (!raw) continue
-    try {
-      return JSON.parse(Buffer.from(raw, 'base64').toString('utf8')) as LocalParams
-    } catch {
-      try {
-        return JSON.parse(raw) as LocalParams
-      } catch {
-        // 다음 후보 확인
-      }
-    }
+    const parsed = parseNaisParams(raw)
+    if (parsed) return parsed
   }
   return undefined
 }
@@ -182,32 +180,45 @@ function normalize(
   }
 }
 
+interface RequestFields {
+  input?: string
+  model?: string
+  parameters?: Params
+}
+
+/** NAI 요청 필드({input, model, parameters}) → 정규화 메타. 생성 요청이 아니면 null */
+function metadataFromRequest(p: RequestFields, local?: LocalParams): ImageMetadata | null {
+  if (!p.parameters || typeof p.parameters !== 'object') return null
+  return normalize(p.parameters, {
+    prompt: p.input ?? '',
+    uc: p.parameters.negative_prompt ?? '',
+    model: p.model,
+    software: 'NAIS3',
+    local
+  })
+}
+
 /** 우리 payload_json({input, model, parameters}) → 정규화 메타 */
 export function metadataFromPayloadJson(json: string): ImageMetadata | null {
   try {
-    const p = JSON.parse(json) as {
-      input?: string
-      model?: string
-      parameters?: Params
-      nais3?: LocalParams
-    }
-    if (!p.parameters) return null
-    return normalize(p.parameters, {
-      prompt: p.input ?? '',
-      uc: p.parameters.negative_prompt ?? '',
-      model: p.model,
-      software: 'NAIS3',
-      local: p.nais3
-    })
+    const p = JSON.parse(json) as RequestFields & { nais3?: LocalParams }
+    return metadataFromRequest(p, p.nais3)
   } catch {
     return null
   }
 }
 
-/** PNG 버퍼 → 정규화 메타 (tEXt Comment → stealth 폴백). 없으면 null */
-export async function metadataFromPng(buf: Buffer): Promise<ImageMetadata | null> {
+/**
+ * 이미지 버퍼(PNG·WebP) → 정규화 메타. 없으면 null.
+ * 1) 파일에 든 NAIS 메타데이터(재현 설정) 2) NAI 자체 메타데이터(tEXt Comment → stealth)
+ */
+export async function metadataFromImage(buf: Buffer): Promise<ImageMetadata | null> {
   const text = parsePngTextChunks(buf)
-  const local = parseLocalParams(text)
+  const local = parseLocalParams(text) ?? readWebpNaisParams(buf)
+  const fromNais = local?.request
+    ? metadataFromRequest(local.request as RequestFields, local)
+    : null
+  if (fromNais) return fromNais
   let comment: Params | null = null
   let extra = {
     software: text.Software,
