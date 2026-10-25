@@ -478,7 +478,7 @@ function StorageSection(): React.JSX.Element {
   const [autoSave, setAutoSave] = useState(true)
   const [format, setFormat] = useState('png')
   const [dateFolders, setDateFolders] = useState(true)
-  const [historyDeleteFile, setHistoryDeleteFile] = useState(false)
+  const [deleteToTrash, setDeleteToTrash] = useState(false)
 
   useEffect(() => {
     void window.nais
@@ -491,8 +491,8 @@ function StorageSection(): React.JSX.Element {
       .invoke('settings:get', { key: 'date_folders' })
       .then(({ value }) => setDateFolders(value !== '0'))
     void window.nais
-      .invoke('settings:get', { key: 'history_delete_file' })
-      .then(({ value }) => setHistoryDeleteFile(value === '1'))
+      .invoke('settings:get', { key: 'delete_to_trash' })
+      .then(({ value }) => setDeleteToTrash(value === '1'))
   }, [])
 
   return (
@@ -524,17 +524,19 @@ function StorageSection(): React.JSX.Element {
             }}
           />
         </Row>
+        {/* 지우기는 기본이 숨김. 켜면 히스토리·씬 갤러리의 지우기가 파일을 OS 휴지통으로 보낸다
+            (영구 삭제는 없다). 옛 history_delete_file은 다운그레이드한 옛 앱용으로만 남는다 */}
         <Row
-          label={t('ui.alsoDeleteFilesWhenDeletingHistory')}
-          hint={t('ui.whenOffOnlyTheHistoryEntryIsRemovedAndSavedFilesAreKept')}
+          label={t('ui.moveFilesToTheTrashWhenDeleting')}
+          hint={t('ui.appliesToHistoryAndSceneGalleriesWhenOffDeletedItemsGoToTheHiddenList')}
         >
           <Switch
-            aria-label={t('ui.alsoDeleteFilesWhenDeletingHistory')}
-            checked={historyDeleteFile}
+            aria-label={t('ui.moveFilesToTheTrashWhenDeleting')}
+            checked={deleteToTrash}
             onCheckedChange={(v) => {
-              setHistoryDeleteFile(v)
+              setDeleteToTrash(v)
               void window.nais.invoke('settings:set', {
-                key: 'history_delete_file',
+                key: 'delete_to_trash',
                 value: v ? '1' : '0'
               })
             }}

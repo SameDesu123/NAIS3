@@ -840,7 +840,7 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
     await mutateBrowserState((state) => {
       state.images = state.images.filter((item) => item.id !== request.id)
     })
-    return undefined
+    return { mode: 'hide', results: [{ id: request.id, ok: true }] }
   }
   if (channel === 'images:clearAll') {
     const count = await mutateBrowserState((state) => {
@@ -1181,11 +1181,11 @@ async function scenesDispatch(channel: string, request: Record<string, unknown>)
       return { items: all.slice(offset, offset + limit), total: all.length }
     }
     if (channel === 'scenes:deleteNonFavorites') {
-      const before = state.images.length
-      state.images = state.images.filter(
-        (image) => image.sceneId !== request.sceneId || image.favorite
+      const removed = state.images.filter(
+        (image) => image.sceneId === request.sceneId && !image.favorite
       )
-      return { deleted: before - state.images.length }
+      state.images = state.images.filter((image) => !removed.includes(image))
+      return { mode: 'hide', results: removed.map((image) => ({ id: image.id, ok: true })) }
     }
     if (channel === 'scenes:bulkMove')
       state.scenes
@@ -1219,11 +1219,11 @@ async function scenesDispatch(channel: string, request: Record<string, unknown>)
         })
     }
     if (channel === 'scenes:bulkClearImages') {
-      const before = state.images.length
-      state.images = state.images.filter(
-        (image) => !(request.ids as number[]).includes(image.sceneId ?? -1)
+      const removed = state.images.filter((image) =>
+        (request.ids as number[]).includes(image.sceneId ?? -1)
       )
-      return { deleted: before - state.images.length }
+      state.images = state.images.filter((image) => !removed.includes(image))
+      return { mode: 'hide', results: removed.map((image) => ({ id: image.id, ok: true })) }
     }
     if (
       channel.endsWith('exportJson') ||

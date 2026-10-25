@@ -708,10 +708,7 @@ function BulkBar(): React.JSX.Element {
         onClick={async () => {
           if (
             await askConfirm(t('ui.clearImages'), {
-              message: t(
-                'ui.deletesAllGeneratedImagesOfTheValueSelectedScenesThisCannotBeUndone',
-                n
-              ),
+              message: t('ui.removesEveryGeneratedImageFromTheValueSelectedSceneGalleries', n),
               confirmLabel: t('ui.clear.719ea39'),
               danger: true
             })

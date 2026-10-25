@@ -56,9 +56,15 @@ function ConfirmPrompt(): React.JSX.Element {
   const t = useT()
   const req = useDialogStore((s) => s.confirm)
   const resolve = useDialogStore((s) => s._resolveConfirm)
+  const [checked, setChecked] = useState(false)
+  // 체크는 닫을 때 풀어 둔다 — 다음 확인 창은 늘 꺼진 채로 열린다
+  const finish = (ok: boolean): void => {
+    resolve(ok, checked)
+    setChecked(false)
+  }
 
   return (
-    <Dialog open={!!req} onOpenChange={(o) => !o && resolve(false)}>
+    <Dialog open={!!req} onOpenChange={(o) => !o && finish(false)}>
       <DialogContent className="max-w-[400px] p-5">
         <DialogTitle className="mb-2">{req?.title}</DialogTitle>
         {req?.message && (
@@ -66,14 +72,25 @@ function ConfirmPrompt(): React.JSX.Element {
             {req.message}
           </p>
         )}
+        {req?.checkboxLabel && (
+          <label className="mt-4 flex cursor-pointer items-center gap-2 text-[12.5px] text-muted">
+            <input
+              type="checkbox"
+              className="size-3.5 accent-accent"
+              checked={checked}
+              onChange={(e) => setChecked(e.target.checked)}
+            />
+            {req.checkboxLabel}
+          </label>
+        )}
         <div className="mt-5 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => resolve(false)}>
+          <Button variant="ghost" onClick={() => finish(false)}>
             {t('ui.no')}
           </Button>
           <Button
             variant={req?.danger ? 'danger' : 'accent'}
             autoFocus
-            onClick={() => resolve(true)}
+            onClick={() => finish(true)}
           >
             {req?.confirmLabel}
           </Button>

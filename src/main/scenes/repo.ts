@@ -1,12 +1,20 @@
-import { BrowserWindow, dialog } from 'electron'
-import { readFileSync, unlinkSync, writeFileSync } from 'fs'
-import { extname, isAbsolute, relative } from 'path'
+import { BrowserWindow, dialog, shell } from 'electron'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { extname } from 'path'
 import JSZip from 'jszip'
 import { planSceneReservations } from '../../shared/scene-request'
 import type { GenerationQueue } from '../queue/generation-queue'
-import type { IpcInvokeMap, Scene, SceneImage, ScenePreset } from '../../shared/types'
+import type {
+  IpcInvokeMap,
+  RemoveImagesResult,
+  Scene,
+  SceneImage,
+  ScenePreset
+} from '../../shared/types'
 import { getDb } from '../db'
-import { dropMemoryImage, isMemoryPath, libraryRoot, storedThumbnailUrl } from '../images/storage'
+import { clearHistory, hideImages, sceneVisible, type HiddenScope } from '../db/history'
+import { getSetting } from '../db/settings'
+import { dropMemoryImage, isMemoryPath, storedThumbnailUrl } from '../images/storage'
 import { t } from '../i18n'
 
 interface Row {
@@ -145,7 +153,7 @@ export function listScenes(presetId: number): Scene[] {
   const rows = getDb()
     .prepare(
       `SELECT s.id, s.preset_id, s.name, s.prompt, s.negative_prompt, s.width, s.height, s.reserve_count, s.reserve_json,
-              (SELECT COUNT(*) FROM images WHERE scene_id = s.id) AS image_count,
+              (SELECT COUNT(*) FROM images WHERE scene_id = s.id AND ${sceneVisible()}) AS image_count,
               cover.id AS thumb_id,
               cover.created_at AS thumb_created_at,
               length(cover.thumbnail) AS thumb_size,
@@ -153,7 +161,8 @@ export function listScenes(presetId: number): Scene[] {
               COALESCE(cover.favorite, 0) AS has_favorite
        FROM gen_scenes s
        LEFT JOIN images cover ON cover.id = (
-         SELECT id FROM images WHERE scene_id = s.id ORDER BY favorite DESC, id DESC LIMIT 1
+         SELECT id FROM images WHERE scene_id = s.id AND ${sceneVisible()}
+         ORDER BY favorite DESC, id DESC LIMIT 1
        )
        WHERE s.preset_id = ? ORDER BY s.sort_order, s.id`
     )
@@ -188,7 +197,7 @@ export function getScene(id: number): Scene | null {
   const r = getDb()
     .prepare(
       `SELECT id, preset_id, name, prompt, negative_prompt, width, height, reserve_count, reserve_json,
-              (SELECT COUNT(*) FROM images WHERE scene_id = ?) AS image_count
+              (SELECT COUNT(*) FROM images WHERE scene_id = ? AND ${sceneVisible()}) AS image_count
        FROM gen_scenes WHERE id = ?`
     )
     .get(id, id) as (Row & { image_count: number }) | undefined
@@ -383,22 +392,15 @@ export function bulkClearFavorites(ids: number[]): void {
     .run(...ids)
 }
 
-/** 선택 씬들의 생성 이미지를 전부 삭제 (DB 행 + 파일). 대량이라 파일은 best-effort */
-export function bulkClearImages(ids: number[]): number {
-  if (ids.length === 0) return 0
-  const db = getDb()
-  const rows = db
-    .prepare(`SELECT file_path FROM images WHERE scene_id IN (${placeholders(ids.length)})`)
-    .all(...ids) as { file_path: string }[]
-  db.prepare(`DELETE FROM images WHERE scene_id IN (${placeholders(ids.length)})`).run(...ids)
-  for (const r of rows) {
-    try {
-      unlinkSync(r.file_path)
-    } catch {
-      // 파일이 이미 없으면 무시
-    }
-  }
-  return rows.length
+/** 선택 씬들의 생성 이미지를 씬 갤러리에서 지운다 (히스토리에는 그대로) */
+export function bulkClearImages(ids: number[]): Promise<RemoveImagesResult> {
+  const rows = getDb()
+    .prepare(
+      `SELECT id, file_path FROM images
+       WHERE scene_id IN (${placeholders(ids.length)}) AND ${sceneVisible()}`
+    )
+    .all(...ids) as RemovableImage[]
+  return removeImages(rows, 'scene')
 }
 
 // ── 씬 상세 이미지 (페이지네이션) ────────────────────────
@@ -409,7 +411,8 @@ export function sceneImages(
   favoritesOnly?: boolean
 ): { items: SceneImage[]; total: number } {
   const db = getDb()
-  const fav = favoritesOnly ? ' AND favorite = 1' : ''
+  // 씬 갤러리에서 지운(숨긴) 이미지는 빠진다
+  const fav = `${favoritesOnly ? ' AND favorite = 1' : ''} AND ${sceneVisible()}`
   const total = (
     db.prepare(`SELECT COUNT(*) AS c FROM images WHERE scene_id = ?${fav}`).get(sceneId) as {
       c: number
@@ -437,21 +440,14 @@ export function sceneImages(
   }
 }
 
-/** 씬의 즐겨찾기 제외 전체 삭제 (파일 포함) — 반환: 삭제 수 (N5) */
-export function deleteNonFavorites(sceneId: number): number {
-  const db = getDb()
-  const rows = db
-    .prepare('SELECT id, file_path FROM images WHERE scene_id = ? AND favorite = 0')
-    .all(sceneId) as { id: number; file_path: string }[]
-  db.prepare('DELETE FROM images WHERE scene_id = ? AND favorite = 0').run(sceneId)
-  for (const r of rows) {
-    try {
-      unlinkSync(r.file_path)
-    } catch {
-      // 무시
-    }
-  }
-  return rows.length
+/** 씬의 즐겨찾기 제외 이미지를 씬 갤러리에서 지운다 (N5) */
+export function deleteNonFavorites(sceneId: number): Promise<RemoveImagesResult> {
+  const rows = getDb()
+    .prepare(
+      `SELECT id, file_path FROM images WHERE scene_id = ? AND favorite = 0 AND ${sceneVisible()}`
+    )
+    .all(sceneId) as RemovableImage[]
+  return removeImages(rows, 'scene')
 }
 
 export function setImageFavorite(id: number, favorite: boolean): void {
@@ -460,51 +456,66 @@ export function setImageFavorite(id: number, favorite: boolean): void {
     .run(favorite ? 1 : 0, id)
 }
 
-/** 히스토리 전체 비우기 — 모든 이미지 레코드+원본 파일 삭제 (씬 이미지 포함) */
-/** 앱 내부 라이브러리(자동 저장 OFF 보관소) 파일만 실제 삭제 — 유저 저장 폴더 파일은 보존 */
-function unlinkIfInternal(filePath: string): void {
-  const rel = relative(libraryRoot(), filePath)
-  if (rel.startsWith('..') || isAbsolute(rel)) return // 저장 폴더 파일 → 보존
-  try {
-    unlinkSync(filePath)
-  } catch {
-    // 무시
-  }
+/** 히스토리 전체 비우기 — 히스토리 경계만 올린다. 행·파일·씬 갤러리·즐겨찾기는 그대로 */
+export function clearAllImages(): number {
+  return clearHistory(getDb())
 }
 
-/** 히스토리 전체 비우기 — 기록만 삭제, 파일 보존 (내부 라이브러리 파일은 정리) */
-export function clearAllImages(): number {
-  const db = getDb()
-  const rows = db.prepare('SELECT file_path FROM images').all() as { file_path: string }[]
-  db.prepare('DELETE FROM images').run()
-  for (const r of rows) unlinkIfInternal(r.file_path)
-  return rows.length
+/** 이미지 하나를 히스토리 또는 씬 갤러리에서 지운다 */
+export async function deleteImage(id: number, scope: HiddenScope): Promise<RemoveImagesResult> {
+  const row = getDb().prepare('SELECT id, file_path FROM images WHERE id = ?').get(id) as
+    RemovableImage | undefined
+  return removeImages(row ? [row] : [], scope)
+}
+
+interface RemovableImage {
+  id: number
+  file_path: string
 }
 
 /**
- * 이미지 삭제.
- * - deleteFile=true: 파일까지 삭제 (씬 상세의 명시적 삭제)
- * - deleteFile=false: 기록만 삭제, 파일 보존 (히스토리 삭제 — 내부 라이브러리 파일만 정리)
+ * 히스토리·씬 갤러리의 지우기. 파일을 영구 삭제(unlink)하는 길은 없다.
+ * - 기본: 그 scope에서만 숨긴다. 파일·행·다른 화면은 그대로
+ * - delete_to_trash 켜짐: 파일을 OS 휴지통으로 보내고 두 scope 모두에서 숨긴다 (파일이 없으니
+ *   어느 화면에도 깨진 채 남지 않게). 못 보낸 파일은 결과에 오류로 돌려주고 숨기지 않는다
+ * - memory:// (자동 저장 OFF 임시 이미지)는 지금처럼 행과 메모리 원본을 함께 지운다. 씬에는 없다
  */
-export function deleteImage(id: number, deleteFile: boolean): void {
+async function removeImages(
+  rows: RemovableImage[],
+  scope: HiddenScope
+): Promise<RemoveImagesResult> {
   const db = getDb()
-  const r = db.prepare('SELECT file_path FROM images WHERE id = ?').get(id) as
-    { file_path: string } | undefined
-  db.prepare('DELETE FROM images WHERE id = ?').run(id)
-  if (!r) return
-  if (isMemoryPath(r.file_path)) {
-    dropMemoryImage(r.file_path)
-    return
-  }
-  if (deleteFile) {
-    try {
-      unlinkSync(r.file_path)
-    } catch {
-      // 무시
+  const mode = getSetting('delete_to_trash') === '1' ? 'trash' : 'hide'
+  const results: RemoveImagesResult['results'] = []
+  const hidden: number[] = []
+  for (const row of rows) {
+    if (isMemoryPath(row.file_path)) {
+      db.prepare('DELETE FROM images WHERE id = ?').run(row.id)
+      dropMemoryImage(row.file_path)
+    } else if (mode === 'hide') {
+      hidden.push(row.id)
+    } else {
+      try {
+        // 이미 없는 파일(복원으로 파일 없이 남은 행 포함)은 보낼 것이 없다
+        if (row.file_path && existsSync(row.file_path)) await shell.trashItem(row.file_path)
+      } catch (error) {
+        results.push({
+          id: row.id,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        continue
+      }
+      // 하나씩 바로 숨긴다 — 큰 일괄 작업 도중 앱이 꺼져도 보낸 파일이 화면에 남지 않게
+      db.transaction(() => {
+        hideImages(db, [row.id], 'history')
+        hideImages(db, [row.id], 'scene')
+      })()
     }
-  } else {
-    unlinkIfInternal(r.file_path)
+    results.push({ id: row.id, ok: true })
   }
+  hideImages(db, hidden, scope)
+  return { mode, results }
 }
 
 // ── JSON / ZIP ──────────────────────────────────────────
@@ -616,13 +627,19 @@ function zipEntriesForScenes(sceneIds: number[]): ZipEntry[] {
       { name: string } | undefined
     if (!scene) continue
     const favorites = db
-      .prepare('SELECT file_path FROM images WHERE scene_id = ? AND favorite = 1 ORDER BY id DESC')
+      .prepare(
+        `SELECT file_path FROM images
+         WHERE scene_id = ? AND favorite = 1 AND ${sceneVisible()} ORDER BY id DESC`
+      )
       .all(sceneId) as { file_path: string }[]
     const picks =
       favorites.length > 0
         ? favorites
         : (db
-            .prepare('SELECT file_path FROM images WHERE scene_id = ? ORDER BY id DESC LIMIT 1')
+            .prepare(
+              `SELECT file_path FROM images
+               WHERE scene_id = ? AND ${sceneVisible()} ORDER BY id DESC LIMIT 1`
+            )
             .all(sceneId) as { file_path: string }[])
     const safe = scene.name.replace(/[/\\:*?"<>|]/g, '_').trim() || `씬-${sceneId}`
     picks.forEach((p, i) => {

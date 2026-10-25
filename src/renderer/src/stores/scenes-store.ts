@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { applySceneRequest } from '@shared/scene-request'
 import { toast } from './toast-store'
+import { confirmImageRemoval, failedRemovals } from '../lib/image-removal'
 import { recordNav } from '../lib/nav-history'
 import type { GenerationRequest, Scene, SceneCast, SceneImage, ScenePreset } from '@shared/types'
 import { enabledCharacters, useCharactersStore } from './characters-store'
@@ -94,8 +95,8 @@ interface ScenesState {
   deleteImage: (imageId: number) => Promise<void>
   /** 즐겨찾기만 보기 토글 (N4) */
   setFavoritesOnly: (v: boolean) => void
-  /** 즐겨찾기 제외 전체 삭제 (N5) */
-  deleteNonFavorites: (sceneId: number) => Promise<number>
+  /** 즐겨찾기 제외 전체 삭제 (N5) — 반환: 지운 수, 휴지통 경고에서 취소하면 null */
+  deleteNonFavorites: (sceneId: number) => Promise<number | null>
 
   /** 모든 프리셋의 예약을 프리셋 순서대로 전부 큐에 넣는다 (프리셋별 캐릭터 바인드 적용) */
   generateReserved: () => Promise<void>
@@ -387,7 +388,10 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     await window.nais.invoke('scenes:bulkClearFavorites', { ids: [...get().selection] })
   },
   bulkClearImages: async () => {
-    await window.nais.invoke('scenes:bulkClearImages', { ids: [...get().selection] })
+    if (!(await confirmImageRemoval())) return
+    failedRemovals(
+      await window.nais.invoke('scenes:bulkClearImages', { ids: [...get().selection] })
+    )
     set({ selection: new Set() })
     await get().load()
   },
@@ -436,16 +440,33 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     await get().load()
   },
   deleteImage: async (imageId) => {
-    const target = get().images.find((i) => i.id === imageId)
+    if (!(await confirmImageRemoval())) return
+    const index = get().images.findIndex((i) => i.id === imageId)
+    const target = get().images[index]
     set({
       images: get().images.filter((i) => i.id !== imageId),
       imagesTotal: Math.max(0, get().imagesTotal - 1)
     })
+    // 씬 갤러리에서만 숨긴다 (휴지통 설정이면 파일을 휴지통으로). 실패하면 제자리로 되돌린다
+    let removed = false
+    try {
+      const result = await window.nais.invoke('images:delete', { id: imageId, scope: 'scene' })
+      removed = !failedRemovals(result).has(imageId)
+    } catch (error) {
+      toast(error instanceof Error ? error.message : String(error), 'error')
+    }
+    if (!removed) {
+      if (target)
+        set((s) => {
+          const images = [...s.images]
+          images.splice(Math.min(index, images.length), 0, target)
+          return { images, imagesTotal: s.imagesTotal + 1 }
+        })
+      return
+    }
     // 메인 프리뷰가 이 파일을 보고 있으면 정리 — 삭제 후 깨진(NULL) 이미지 방지 (B8)
     const gen = useGenerationStore.getState()
     if (target && gen.viewingFilePath === target.filePath) gen.view(null)
-    // 씬 상세의 명시적 삭제 — 파일까지 삭제 (히스토리 삭제와 달리)
-    await window.nais.invoke('images:delete', { id: imageId, deleteFile: true })
     void gen.refreshHistory()
   },
   setFavoritesOnly: (v) => {
@@ -455,7 +476,9 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
     if (id != null) void get().loadImages(id, true)
   },
   deleteNonFavorites: async (sceneId) => {
-    const { deleted } = await window.nais.invoke('scenes:deleteNonFavorites', { sceneId })
+    if (!(await confirmImageRemoval())) return null
+    const result = await window.nais.invoke('scenes:deleteNonFavorites', { sceneId })
+    const deleted = result.results.length - failedRemovals(result).size
     if (deleted > 0) {
       await get().loadImages(sceneId, true)
       void get().load() // 카드 썸네일/카운트 갱신

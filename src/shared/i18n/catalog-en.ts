@@ -123,8 +123,6 @@ export const EN = {
   'ui.changeResolution': 'Change resolution',
   'ui.removeFavorites': 'Remove favorites',
   'ui.clearImages': 'Clear images',
-  'ui.deletesAllGeneratedImagesOfTheValueSelectedScenesThisCannotBeUndone':
-    'Deletes all generated images of the {0} selected {0|scene|scenes}. This cannot be undone.',
   'ui.clear.719ea39': 'Clear',
   'ui.deleteScene': 'Delete scene',
   'ui.deletesTheValueSelectedScenes': 'Deletes the {0} selected {0|scene|scenes}.',
@@ -195,9 +193,6 @@ export const EN = {
   'ui.dateFolders': 'Date Folders',
   'ui.organizeTheMainSaveFolderIntoYyyyMmSubfolders':
     'Organize the main save folder into YYYY-MM subfolders',
-  'ui.alsoDeleteFilesWhenDeletingHistory': 'Also delete files when deleting history',
-  'ui.whenOffOnlyTheHistoryEntryIsRemovedAndSavedFilesAreKept':
-    'When off, only the history entry is removed and saved files are kept',
   'ui.imageFormat': 'Image Format',
   'ui.webpFilesAreSmaller': 'WEBP files are smaller',
   'ui.mainSaveFolder': 'Main Save Folder',
@@ -371,8 +366,6 @@ export const EN = {
   'ui.showFavoritesOnly': 'Show favorites only',
   'ui.favorites': 'Favorites',
   'ui.deleteNonFavorites': 'Delete Non-favorites',
-  'ui.deletesAllNonFavoritedImagesInThisSceneFilesIncludedThisCannotBeUndone':
-    'Deletes all non-favorited images in this scene (files included). This cannot be undone.',
   'ui.valueImagesDeleted': '{0} {0|image|images} deleted',
   'ui.noImagesToDelete': 'No images to delete',
   'ui.deleteAllExceptFavorites': 'Delete all except favorites',
@@ -662,13 +655,26 @@ export const EN = {
   'ui.showInFileExplorer': 'Show in file explorer',
   'ui.addToLibrary': 'Add to library',
   'ui.clearAllHistory': 'Clear all history',
-  'ui.clearsValueGenerationRecordsIncludingSceneGalleriesImageFilesInT1cb5e46':
-    'Clears {0} generation {0|record|records} (including scene galleries). Image files in the save folder are not deleted.',
   'ui.clearAll': 'Clear all',
   'ui.clearedValueRecordsFilesPreserved': 'Cleared {0} {0|record|records} (files preserved)',
   'ui.history': 'History',
   'ui.nothingYet': 'Nothing yet',
   'ui.removeFromHistoryFilePreserved': 'Remove from history (file preserved)',
+  'ui.moveFilesToTheTrashWhenDeleting': 'Move files to the Trash when deleting',
+  'ui.appliesToHistoryAndSceneGalleriesWhenOffDeletedItemsGoToTheHiddenList':
+    'Applies to history and scene galleries · When off, deleted items go to the hidden list and the files stay',
+  'ui.moveToTrash': 'Move to Trash',
+  'ui.movesTheFilesToTheSystemTrashWhenOffDeletingOnlyHidesThem':
+    'Moves the files to the system Trash. With this option off in Settings, deleting only hides items: the files stay in your save folder and go to the hidden list.',
+  'ui.dontShowThisAgainFor30Minutes': "Don't show this again for 30 minutes",
+  'ui.keptValueFilesThatCouldNotBeMovedToTheTrash':
+    'Kept {0} {0|file|files} that could not be moved to the Trash: {1}',
+  'ui.clearsValueEntriesFromHistoryScenesAndFilesStay':
+    'Clears {0} {0|entry|entries} from history. Scene galleries, favorites and the files in your save folder stay as they are.',
+  'ui.removesEveryNonFavoritedImageFromThisSceneGallery':
+    'Removes every non-favorited image from this scene gallery.',
+  'ui.removesEveryGeneratedImageFromTheValueSelectedSceneGalleries':
+    'Removes every generated image from the galleries of the {0} selected {0|scene|scenes}.',
   'ui.random': 'Random',
   'ui.seedLocked': 'Seed locked',
   'ui.lockSeed': 'Lock seed',

@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'fs'
 import { join } from 'path'
 import { isJobApplied, pendingEnsureSteps, pendingJobs } from './ensure'
+import { assignMissingSeqs, hasMissingSeqs } from './history'
 import { migrations } from './migrations'
 
 // electron에 의존하지 않는다 — 메인 스레드(initDb)와 마이그레이션 워커(migrate.worker.ts)가 같이 쓴다
@@ -82,8 +83,9 @@ export function migrate(db: Database.Database, backupDir: string): void {
       /* 한 버전씩 개별 트랜잭션으로 적용 */
     }
   }
-  // 이미 최신 버전인 DB도 매 실행 확인한다 — 다운그레이드한 옛 앱이 쓰던 DB 포함
-  ensureSchema(db, backupDir)
+  // 이미 최신 버전인 DB도 매 실행 확인한다 — 다운그레이드한 옛 앱이 쓰던 DB 포함.
+  // 방금 pre-migration 스냅샷을 떴거나 새 DB면 작업 전 스냅샷은 또 뜨지 않는다
+  ensureSchema(db, backupDir, current === target)
 }
 
 /**
@@ -91,7 +93,7 @@ export function migrate(db: Database.Database, backupDir: string): void {
  * 남은 것은 쓰기 잠금을 잡은 뒤 다시 고른다 — 다른 프로세스가 먼저 적용했을 수 있다.
  * 스키마는 한 트랜잭션, 작업은 각자 한 트랜잭션: 실패한 작업은 표시가 남지 않아 다음 실행에 다시 돈다
  */
-function ensureSchema(db: Database.Database, backupDir: string): void {
+function ensureSchema(db: Database.Database, backupDir: string, snapshotJobs: boolean): void {
   if (pendingEnsureSteps(db).length > 0) {
     db.transaction(() => {
       for (const step of pendingEnsureSteps(db)) step.apply(db)
@@ -99,12 +101,13 @@ function ensureSchema(db: Database.Database, backupDir: string): void {
   }
 
   const jobs = pendingJobs(db)
-  if (jobs.length === 0) return
-  // 작업은 데이터를 바꾼다 — 첫 작업 이름으로 실행 전 스냅샷
-  mkdirSync(backupDir, { recursive: true })
-  const snapshot = join(backupDir, `pre-job-${jobs[0].name}.db`)
-  writeSnapshot(db, snapshot)
-  pruneBackups(backupDir, 10, snapshot)
+  if (jobs.length > 0 && snapshotJobs) {
+    // 작업은 데이터를 바꾼다 — 첫 작업 이름으로 실행 전 스냅샷
+    mkdirSync(backupDir, { recursive: true })
+    const snapshot = join(backupDir, `pre-job-${jobs[0].name}.db`)
+    writeSnapshot(db, snapshot)
+    pruneBackups(backupDir, 10, snapshot)
+  }
   for (const job of jobs) {
     db.transaction(() => {
       if (isJobApplied(db, job.name)) return
@@ -112,6 +115,11 @@ function ensureSchema(db: Database.Database, backupDir: string): void {
       db.prepare('INSERT INTO applied_jobs (name) VALUES (?)').run(job.name)
     }).immediate()
   }
+
+  // 다운그레이드한 옛 앱이 넣은 행은 순번이 없어 히스토리에 안 보인다 — 매 실행 채운다.
+  // 처음 채우기는 스냅샷을 뜨는 한 번짜리 작업 몫이다
+  if (isJobApplied(db, 'assign-image-seq') && hasMissingSeqs(db))
+    db.transaction(() => assignMissingSeqs(db)).immediate()
 }
 
 function assertSupportedVersion(version: number, target: number): void {

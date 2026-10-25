@@ -1,5 +1,6 @@
 import { History, Trash2 } from 'lucide-react'
 import { thumbnailFallback } from '../lib/constants'
+import { confirmImageRemoval, failedRemovals } from '../lib/image-removal'
 import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { KindBadge } from '../lib/kind-icon'
@@ -18,16 +19,18 @@ export function HistoryPanel(): React.JSX.Element {
   const refreshHistory = useGenerationStore((s) => s.refreshHistory)
   const setCenterMode = useLayoutStore((s) => s.setCenterMode)
 
+  // 히스토리에서만 숨긴다 (휴지통 설정이면 파일을 휴지통으로). 못 보낸 항목은 목록에 남는다
   const deleteOne = async (id: number, filePath: string): Promise<void> => {
-    await window.nais.invoke('images:delete', { id })
-    if (viewingFilePath === filePath) view(null)
+    if (!(await confirmImageRemoval())) return
+    const result = await window.nais.invoke('images:delete', { id, scope: 'history' })
+    if (!failedRemovals(result).has(id) && viewingFilePath === filePath) view(null)
     void refreshHistory()
   }
 
   const clearAll = async (): Promise<void> => {
     const ok = await askConfirm(t('ui.clearAllHistory'), {
       message: t(
-        'ui.clearsValueGenerationRecordsIncludingSceneGalleriesImageFilesInT1cb5e46',
+        'ui.clearsValueEntriesFromHistoryScenesAndFilesStay',
         historyTotal.toLocaleString()
       ),
       confirmLabel: t('ui.clearAll'),

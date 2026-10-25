@@ -122,8 +122,6 @@ export const ZH_CN = {
   'ui.changeResolution': '更改分辨率',
   'ui.removeFavorites': '取消收藏',
   'ui.clearImages': '清空图片',
-  'ui.deletesAllGeneratedImagesOfTheValueSelectedScenesThisCannotBeUndone':
-    '将删除所选 {0} 个场景的全部生成图片。此操作无法撤销。',
   'ui.clear.719ea39': '清空',
   'ui.deleteScene': '删除场景',
   'ui.deletesTheValueSelectedScenes': '将删除所选 {0} 个场景。',
@@ -192,9 +190,6 @@ export const ZH_CN = {
     '关闭后，主模式的图片不会存成文件（历史只临时保留最近 20 张）· 场景模式始终保存',
   'ui.dateFolders': '按日期分文件夹',
   'ui.organizeTheMainSaveFolderIntoYyyyMmSubfolders': '将主保存文件夹整理为 YYYY-MM 子文件夹',
-  'ui.alsoDeleteFilesWhenDeletingHistory': '删除历史时同时删除文件',
-  'ui.whenOffOnlyTheHistoryEntryIsRemovedAndSavedFilesAreKept':
-    '关闭后只删除记录，保留已保存的文件',
   'ui.imageFormat': '图片格式',
   'ui.webpFilesAreSmaller': 'WEBP 文件更小',
   'ui.mainSaveFolder': '主保存文件夹',
@@ -363,8 +358,6 @@ export const ZH_CN = {
   'ui.showFavoritesOnly': '只看收藏',
   'ui.favorites': '收藏',
   'ui.deleteNonFavorites': '删除未收藏的图片',
-  'ui.deletesAllNonFavoritedImagesInThisSceneFilesIncludedThisCannotBeUndone':
-    '将删除此场景中所有未收藏的图片（含文件）。此操作无法撤销。',
   'ui.valueImagesDeleted': '已删除 {0} 张',
   'ui.noImagesToDelete': '没有可删除的图片',
   'ui.deleteAllExceptFavorites': '删除未收藏的图片',
@@ -641,13 +634,24 @@ export const ZH_CN = {
   'ui.showInFileExplorer': '在文件管理器中显示',
   'ui.addToLibrary': '加入图库',
   'ui.clearAllHistory': '清空全部历史',
-  'ui.clearsValueGenerationRecordsIncludingSceneGalleriesImageFilesInT1cb5e46':
-    '将清空 {0} 条生成记录（含场景图库）。保存文件夹中的图片文件不会删除。',
   'ui.clearAll': '全部清空',
   'ui.clearedValueRecordsFilesPreserved': '已清空 {0} 条记录（文件保留）',
   'ui.history': '历史',
   'ui.nothingYet': '暂无',
   'ui.removeFromHistoryFilePreserved': '从历史中删除（文件保留）',
+  'ui.moveFilesToTheTrashWhenDeleting': '删除时将文件移到废纸篓',
+  'ui.appliesToHistoryAndSceneGalleriesWhenOffDeletedItemsGoToTheHiddenList':
+    '适用于历史和场景图库 · 关闭时，删除的项目进入隐藏列表，文件保留',
+  'ui.moveToTrash': '移到废纸篓',
+  'ui.movesTheFilesToTheSystemTrashWhenOffDeletingOnlyHidesThem':
+    '将把文件移到系统废纸篓。在设置中关闭此选项后，删除只会隐藏项目：文件保留在保存文件夹中，仅加入隐藏列表。',
+  'ui.dontShowThisAgainFor30Minutes': '30 分钟内不再提示',
+  'ui.keptValueFilesThatCouldNotBeMovedToTheTrash': '有 {0} 个文件无法移到废纸篓，已保留：{1}',
+  'ui.clearsValueEntriesFromHistoryScenesAndFilesStay':
+    '将从历史中清除 {0} 项。场景图库、收藏和保存文件夹中的文件保持不变。',
+  'ui.removesEveryNonFavoritedImageFromThisSceneGallery': '将从此场景图库中移除所有未收藏的图片。',
+  'ui.removesEveryGeneratedImageFromTheValueSelectedSceneGalleries':
+    '将从所选 {0} 个场景的图库中移除所有生成图片。',
   'ui.random': '随机',
   'ui.seedLocked': '种子已锁定',
   'ui.lockSeed': '锁定种子',

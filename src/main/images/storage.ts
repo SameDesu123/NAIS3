@@ -6,6 +6,7 @@ import sharp from '../sharp'
 import { isThumbnailSource, thumbnailUrl, type ThumbnailSource } from '../../shared/thumbnail-url'
 import type { DirectorMethod, HistoryItem, ImageMetadata } from '../../shared/types'
 import { getDb } from '../db'
+import { allocateSeq, HISTORY_VISIBLE } from '../db/history'
 import { getSetting } from '../db/settings'
 
 /**
@@ -146,17 +147,20 @@ export async function saveEphemeralImage(input: {
     .webp({ quality: 90 })
     .toBuffer()
   const db = getDb()
-  const result = db
-    .prepare(
-      'INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id) VALUES (?, ?, ?, ?, ?, NULL)'
-    )
-    .run(
-      filePath,
-      thumbnail,
-      input.kind,
-      input.seed,
-      payloadWithLocalMetadata(input.sentPayload, input.localMetadata)
-    )
+  const result = db.transaction(() =>
+    db
+      .prepare(
+        'INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id, seq) VALUES (?, ?, ?, ?, ?, NULL, ?)'
+      )
+      .run(
+        filePath,
+        thumbnail,
+        input.kind,
+        input.seed,
+        payloadWithLocalMetadata(input.sentPayload, input.localMetadata),
+        allocateSeq(db)
+      )
+  )()
 
   // GLOB(대소문자 구분)이라야 idx_images_file_path 범위 탐색을 탄다 — LIKE는 전체 스캔
   const stale = db
@@ -242,18 +246,23 @@ export async function saveGeneratedImage(input: {
     .webp({ quality: 90 })
     .toBuffer()
 
-  const result = getDb()
-    .prepare(
-      'INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id) VALUES (?, ?, ?, ?, ?, ?)'
-    )
-    .run(
-      filePath,
-      thumbnail,
-      input.kind,
-      input.seed,
-      payloadWithLocalMetadata(input.sentPayload, input.localMetadata),
-      input.sceneId ?? null
-    )
+  // 순번은 행과 같은 트랜잭션에서 — 비우기 경계를 사이에 두고 갈라지지 않는다
+  const db = getDb()
+  const result = db.transaction(() =>
+    db
+      .prepare(
+        'INSERT INTO images (file_path, thumbnail, kind, seed, payload_json, scene_id, seq) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      )
+      .run(
+        filePath,
+        thumbnail,
+        input.kind,
+        input.seed,
+        payloadWithLocalMetadata(input.sentPayload, input.localMetadata),
+        input.sceneId ?? null,
+        allocateSeq(db)
+      )
+  )()
 
   return { id: Number(result.lastInsertRowid), filePath }
 }
@@ -313,11 +322,14 @@ function injectNais3Params(png: Buffer, meta: Pick<ImageMetadata, 'promptParts'>
 
 export function listImages(limit: number, offset: number): { items: HistoryItem[]; total: number } {
   const db = getDb()
-  const total = (db.prepare('SELECT COUNT(*) AS c FROM images').get() as { c: number }).c
+  // 지운(숨긴) 항목과 비우기 경계 아래는 빠진다 — 행은 씬 갤러리를 위해 남아 있다
+  const total = (
+    db.prepare(`SELECT COUNT(*) AS c FROM images WHERE ${HISTORY_VISIBLE}`).get() as { c: number }
+  ).c
   const rows = db
     .prepare(
       `SELECT id, file_path, length(thumbnail) AS thumb_size, kind, seed, created_at
-       FROM images ORDER BY id DESC LIMIT ? OFFSET ?`
+       FROM images WHERE ${HISTORY_VISIBLE} ORDER BY seq DESC LIMIT ? OFFSET ?`
     )
     .all(limit, offset) as {
     id: number

@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import { assignMissingSeqs } from './history'
 
 /**
  * user_version을 올리지 않는 추가 전용 스키마 (v20 위에 쌓는다).
@@ -173,8 +174,10 @@ export const ensureSteps: EnsureStep[] = [
   ),
 
   // 기존 히스토리 행의 등록 순번 (H 전까지). NULL = 아직 순번 없음 — 옛 앱이 넣은 행 포함.
-  // 배정은 A+1의 몫
-  column('images', 'seq', 'INTEGER')
+  // 새 출력은 행을 넣는 트랜잭션에서, 기존 행은 assign-image-seq가 배정한다 (db/history.ts)
+  column('images', 'seq', 'INTEGER'),
+  // 히스토리 목록(seq 순)과 순번 없는 행 찾기 둘 다 탄다. UNIQUE여도 NULL은 여럿 허용
+  index('idx_images_seq', 'CREATE UNIQUE INDEX idx_images_seq ON images(seq)')
 ]
 
 /**
@@ -187,7 +190,22 @@ export interface OneTimeJob {
   run(db: Database.Database): void
 }
 
-export const oneTimeJobs: OneTimeJob[] = []
+export const oneTimeJobs: OneTimeJob[] = [
+  // 기존 히스토리 행에 images.id 순서로 순번 배정 — 숨김·비우기가 순번에 기대기 전에
+  { name: 'assign-image-seq', run: (db) => void assignMissingSeqs(db) },
+  // "히스토리 삭제 시 파일도 삭제"(영구 삭제)를 켰던 사용자는 휴지통 보내기를 켠 채로 시작한다.
+  // 옛 키는 남긴다 — 다운그레이드한 옛 앱이 읽는다
+  {
+    name: 'delete-to-trash-setting',
+    run: (db) =>
+      void db
+        .prepare(
+          `INSERT OR IGNORE INTO settings (key, value)
+           SELECT 'delete_to_trash', '1' FROM settings WHERE key = 'history_delete_file' AND value = '1'`
+        )
+        .run()
+  }
+]
 
 export function pendingEnsureSteps(db: Database.Database): EnsureStep[] {
   return ensureSteps.filter((step) => !step.isApplied(db))

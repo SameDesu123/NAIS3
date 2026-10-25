@@ -59,15 +59,19 @@ function schema(db: Database.Database): { name: string; sql: string }[] {
     .all() as { name: string; sql: string }[]
 }
 
+// These tests cover the mechanism alone; the app's own jobs are tested in history-visibility
+const appJobs = [...oneTimeJobs]
+
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'nais3-ensure-'))
   environment.directory = join(root, 'workspace')
   mkdirSync(environment.directory)
+  oneTimeJobs.length = 0
 })
 
 afterEach(() => {
   closeDb()
-  oneTimeJobs.length = 0
+  oneTimeJobs.splice(0, oneTimeJobs.length, ...appJobs)
   rmSync(root, { recursive: true, force: true })
 })
 

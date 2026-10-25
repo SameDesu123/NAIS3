@@ -37,10 +37,10 @@ describe('thumbnail URLs', () => {
 
   it('lists history items with protocol URLs that resolve to the stored thumbnail', () => {
     getDb().exec(`
-      INSERT INTO images (id, file_path, thumbnail, payload_json, created_at) VALUES
-        (1, '/a.png', X'0102', '{}', '${T1}'),
-        (2, '/b.png', NULL, '{}', '${T1}'),
-        (3, '/c.png', X'', '{}', '${T1}');
+      INSERT INTO images (id, file_path, thumbnail, payload_json, created_at, seq) VALUES
+        (1, '/a.png', X'0102', '{}', '${T1}', 1),
+        (2, '/b.png', NULL, '{}', '${T1}', 2),
+        (3, '/c.png', X'', '{}', '${T1}', 3);
     `)
     const { items } = listImages(10, 0)
     expect(items.map((i) => [i.id, i.thumbnailUrl])).toEqual([
@@ -57,12 +57,12 @@ describe('thumbnail URLs', () => {
 
   it('changes the URL when a deleted id is reused', () => {
     const db = getDb()
-    db.exec(`INSERT INTO images (id, file_path, thumbnail, payload_json, created_at)
-             VALUES (1, '/a.png', X'01', '{}', '${T1}')`)
+    db.exec(`INSERT INTO images (id, file_path, thumbnail, payload_json, created_at, seq)
+             VALUES (1, '/a.png', X'01', '{}', '${T1}', 1)`)
     const before = listImages(1, 0).items[0].thumbnailUrl
     db.exec('DELETE FROM images')
-    db.exec(`INSERT INTO images (file_path, thumbnail, payload_json, created_at)
-             VALUES ('/b.png', X'02', '{}', '${T2}')`)
+    db.exec(`INSERT INTO images (file_path, thumbnail, payload_json, created_at, seq)
+             VALUES ('/b.png', X'02', '{}', '${T2}', 2)`)
     const after = listImages(1, 0).items[0]
     expect(after.id).toBe(1)
     expect(after.thumbnailUrl).not.toBe(before)
@@ -72,12 +72,12 @@ describe('thumbnail URLs', () => {
   it('changes the URL when a deleted id is reused within the same second', () => {
     // created_at has second precision — the thumbnail size keeps the URLs apart
     const db = getDb()
-    db.exec(`INSERT INTO images (id, file_path, thumbnail, payload_json, created_at)
-             VALUES (1, '/a.png', X'01', '{}', '${T1}')`)
+    db.exec(`INSERT INTO images (id, file_path, thumbnail, payload_json, created_at, seq)
+             VALUES (1, '/a.png', X'01', '{}', '${T1}', 1)`)
     const before = listImages(1, 0).items[0].thumbnailUrl
     db.exec('DELETE FROM images')
-    db.exec(`INSERT INTO images (file_path, thumbnail, payload_json, created_at)
-             VALUES ('/b.png', X'0203', '{}', '${T1}')`)
+    db.exec(`INSERT INTO images (file_path, thumbnail, payload_json, created_at, seq)
+             VALUES ('/b.png', X'0203', '{}', '${T1}', 2)`)
     const after = listImages(1, 0).items[0]
     expect(after.id).toBe(1)
     expect(after.thumbnailUrl).not.toBe(before)

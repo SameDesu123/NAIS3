@@ -267,14 +267,13 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
           <button
             onClick={async () => {
               const ok = await askConfirm(t('ui.deleteNonFavorites'), {
-                message: t(
-                  'ui.deletesAllNonFavoritedImagesInThisSceneFilesIncludedThisCannotBeUndone'
-                ),
+                message: t('ui.removesEveryNonFavoritedImageFromThisSceneGallery'),
                 confirmLabel: t('ui.delete'),
                 danger: true
               })
               if (!ok) return
               const n = await deleteNonFavorites(scene.id)
+              if (n === null) return
               toast(
                 n > 0 ? t('ui.valueImagesDeleted', n.toLocaleString()) : t('ui.noImagesToDelete'),
                 n > 0 ? 'success' : 'info'

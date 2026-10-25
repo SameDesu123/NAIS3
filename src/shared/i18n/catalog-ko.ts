@@ -122,8 +122,6 @@ export const KO = {
   'ui.changeResolution': '해상도 변경',
   'ui.removeFavorites': '즐겨찾기 해제',
   'ui.clearImages': '이미지 비우기',
-  'ui.deletesAllGeneratedImagesOfTheValueSelectedScenesThisCannotBeUndone':
-    '선택한 {0}개 씬의 생성 이미지를 모두 삭제합니다. 되돌릴 수 없습니다.',
   'ui.clear.719ea39': '비우기',
   'ui.deleteScene': '씬 삭제',
   'ui.deletesTheValueSelectedScenes': '선택한 {0}개 씬을 삭제합니다.',
@@ -192,9 +190,6 @@ export const KO = {
     '끄면 메인 생성을 파일로 저장하지 않음 (히스토리에 최근 20장만 임시 보관) · 씬 모드는 항상 저장',
   'ui.dateFolders': '날짜별 폴더',
   'ui.organizeTheMainSaveFolderIntoYyyyMmSubfolders': '메인 저장 폴더 안을 YYYY-MM으로 정리',
-  'ui.alsoDeleteFilesWhenDeletingHistory': '히스토리 삭제 시 파일도 삭제',
-  'ui.whenOffOnlyTheHistoryEntryIsRemovedAndSavedFilesAreKept':
-    '끄면 기록만 지우고 저장된 파일은 보존',
   'ui.imageFormat': '이미지 포맷',
   'ui.webpFilesAreSmaller': 'WEBP는 용량이 더 작음',
   'ui.mainSaveFolder': '메인 저장 폴더',
@@ -364,8 +359,6 @@ export const KO = {
   'ui.showFavoritesOnly': '즐겨찾기만 보기',
   'ui.favorites': '즐겨찾기',
   'ui.deleteNonFavorites': '즐겨찾기 제외 삭제',
-  'ui.deletesAllNonFavoritedImagesInThisSceneFilesIncludedThisCannotBeUndone':
-    '이 씬에서 즐겨찾기하지 않은 이미지를 모두 삭제합니다 (파일 포함). 되돌릴 수 없습니다.',
   'ui.valueImagesDeleted': '{0}장 삭제됨',
   'ui.noImagesToDelete': '삭제할 이미지가 없습니다',
   'ui.deleteAllExceptFavorites': '즐겨찾기 제외 전체 삭제',
@@ -646,13 +639,26 @@ export const KO = {
   'ui.showInFileExplorer': '파일 탐색기에서 보기',
   'ui.addToLibrary': '라이브러리에 추가',
   'ui.clearAllHistory': '히스토리 전체 비우기',
-  'ui.clearsValueGenerationRecordsIncludingSceneGalleriesImageFilesInT1cb5e46':
-    '생성 기록 {0}개를 비웁니다 (씬 갤러리 포함). 저장 폴더의 이미지 파일은 삭제되지 않습니다.',
   'ui.clearAll': '전체 비우기',
   'ui.clearedValueRecordsFilesPreserved': '기록 {0}개 비움 (파일은 보존)',
   'ui.history': '히스토리',
   'ui.nothingYet': '아직 없음',
   'ui.removeFromHistoryFilePreserved': '기록에서 삭제 (파일은 보존)',
+  'ui.moveFilesToTheTrashWhenDeleting': '지울 때 파일을 휴지통으로 보내기',
+  'ui.appliesToHistoryAndSceneGalleriesWhenOffDeletedItemsGoToTheHiddenList':
+    '히스토리와 씬 갤러리에 적용 · 끄면 지운 항목은 숨김 목록으로 가고 파일은 그대로 남음',
+  'ui.moveToTrash': '휴지통으로 보내기',
+  'ui.movesTheFilesToTheSystemTrashWhenOffDeletingOnlyHidesThem':
+    '파일을 OS 휴지통으로 보냅니다. 설정에서 이 옵션을 끄면 지우기는 숨김이 되어, 파일은 저장 폴더에 그대로 두고 숨김 목록에만 넣습니다.',
+  'ui.dontShowThisAgainFor30Minutes': '30분간 이 알림 끄기',
+  'ui.keptValueFilesThatCouldNotBeMovedToTheTrash':
+    '휴지통으로 보내지 못한 파일 {0}개는 그대로 남겨 두었습니다: {1}',
+  'ui.clearsValueEntriesFromHistoryScenesAndFilesStay':
+    '히스토리에서 {0}개 항목을 비웁니다. 씬 갤러리와 즐겨찾기, 저장 폴더의 파일은 그대로 남습니다.',
+  'ui.removesEveryNonFavoritedImageFromThisSceneGallery':
+    '이 씬 갤러리에서 즐겨찾기하지 않은 이미지를 모두 지웁니다.',
+  'ui.removesEveryGeneratedImageFromTheValueSelectedSceneGalleries':
+    '선택한 {0}개 씬의 갤러리에서 생성 이미지를 모두 지웁니다.',
   'ui.random': '랜덤',
   'ui.seedLocked': '시드 고정됨',
   'ui.lockSeed': '시드 고정',

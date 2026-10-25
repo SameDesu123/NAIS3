@@ -134,7 +134,8 @@ describe('DB migration worker', () => {
       migrated: true,
       opened: [{ language: 'ko', pending: false }]
     })
-    expect(readdirSync(environment.directory)).not.toContain('backups')
+    // The schema itself takes no snapshot; the first one-time job does
+    expect(readdirSync(backups())).toEqual(['pre-job-assign-image-seq.db'])
   })
 
   it('rejects with the migration error and leaves the database at its version', async () => {

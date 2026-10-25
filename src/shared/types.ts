@@ -198,6 +198,16 @@ export interface Fragment {
   folderId: number | null
 }
 
+/**
+ * 이미지 지우기 결과. 기본은 숨김(hide) — 파일은 그대로 두고 그 화면에서만 사라진다.
+ * 설정 delete_to_trash를 켜면 파일을 OS 휴지통으로 보낸다(trash). 영구 삭제는 없다.
+ * 휴지통으로 못 보낸 파일은 ok: false로 남고 그 항목은 지워지지 않는다
+ */
+export interface RemoveImagesResult {
+  mode: 'hide' | 'trash'
+  results: { id: number; ok: boolean; error?: string }[]
+}
+
 export interface HistoryItem {
   id: number
   filePath: string
@@ -623,19 +633,20 @@ export interface IpcInvokeMap {
   /** 선택 씬들의 해당 출연 예약을 delta만큼 증감 (최소 0). castId '' = 사이드바 */
   'scenes:bulkAdjustReserve': { req: { ids: number[]; castId: string; delta: number }; res: void }
   'scenes:bulkClearFavorites': { req: { ids: number[] }; res: void }
-  'scenes:bulkClearImages': { req: { ids: number[] }; res: { deleted: number } }
+  /** 선택 씬들의 생성 이미지를 씬 갤러리에서 지운다 (숨김 또는 휴지통 — RemoveImagesResult) */
+  'scenes:bulkClearImages': { req: { ids: number[] }; res: RemoveImagesResult }
   'scenes:bulkExportZip': { req: { ids: number[] }; res: { count: number } }
   /** 씬 상세 이미지 페이지네이션 (수만 장 대비) */
   'scenes:images': {
     req: { sceneId: number; limit: number; offset: number; favoritesOnly?: boolean }
     res: { items: SceneImage[]; total: number }
   }
-  /** 씬의 즐겨찾기 제외 전체 삭제 (파일 포함) */
-  'scenes:deleteNonFavorites': { req: { sceneId: number }; res: { deleted: number } }
+  /** 씬의 즐겨찾기 제외 이미지를 씬 갤러리에서 지운다 */
+  'scenes:deleteNonFavorites': { req: { sceneId: number }; res: RemoveImagesResult }
   'images:setFavorite': { req: { id: number; favorite: boolean }; res: void }
-  /** 이미지 삭제 — deleteFile=true면 파일까지(씬 상세), 아니면 기록만(히스토리, 파일 보존) */
-  'images:delete': { req: { id: number; deleteFile?: boolean }; res: void }
-  /** 히스토리 전체 비우기 (레코드+파일, 씬 이미지 포함) */
+  /** 이미지 하나를 히스토리 또는 씬 갤러리에서 지운다 */
+  'images:delete': { req: { id: number; scope: 'history' | 'scene' }; res: RemoveImagesResult }
+  /** 히스토리 전체 비우기 — 히스토리에서만 사라지고 씬 갤러리·파일은 그대로 */
   'images:clearAll': { req: void; res: { count: number } }
   /** 씬 이미지 폴더 열기 (NAIS3_scene/<프리셋>/<씬>) */
   'scenes:openFolder': { req: { sceneId: number }; res: { ok: boolean } }
