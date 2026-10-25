@@ -1,6 +1,15 @@
 import Database from 'better-sqlite3'
 import { spawn } from 'child_process'
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync
+} from 'fs'
 import { createRequire } from 'module'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -180,6 +189,26 @@ describe('existing workspace migration', () => {
       expect(snapshot(backup)).toEqual(current)
       expect(backup.pragma('user_version', { simple: true })).toBe(migrations.length)
     }, file)
+  })
+
+  it('prunes snapshots by age, so a new pre-import snapshot survives ten older migration ones', () => {
+    seedLegacy().close()
+    initDb()
+    const backups = join(environment.directory, 'backups')
+    // 이름순이면 pre-import-*가 pre-migration-v*보다 앞이라 방금 쓴 스냅샷이 지워졌다
+    const old = Array.from({ length: 10 }, (_, i) => `pre-migration-v${i + 1}.db`)
+    old.forEach((name, i) => {
+      writeFileSync(join(backups, name), 'old snapshot')
+      const time = new Date(Date.UTC(2020, 0, i + 1))
+      utimesSync(join(backups, name), time, time)
+    })
+    rmSync(join(backups, 'pre-migration-v17.db'))
+    const file = backupNow('pre-import')
+    expect(existsSync(file)).toBe(true)
+    const remaining = readdirSync(backups)
+    expect(remaining).toHaveLength(10)
+    expect(remaining).not.toContain('pre-migration-v1.db')
+    expect(remaining).toContain('pre-migration-v10.db')
   })
 
   it('rolls back a failed migration and can safely replace the backup on a later attempt', () => {

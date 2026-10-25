@@ -107,7 +107,7 @@ export function backupNow(prefix = 'auto'): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const dest = join(backupDir, `${prefix}-${stamp}.db`)
   writeSnapshot(getDb(), dest)
-  pruneBackups(backupDir, 10)
+  pruneBackups(backupDir, 10, dest)
   return dest
 }
 

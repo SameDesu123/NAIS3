@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'fs'
 import { join } from 'path'
 import { migrations } from './migrations'
 
@@ -93,8 +93,9 @@ function backupBeforeMigration(
   fromVersion: number
 ): void {
   mkdirSync(backupDir, { recursive: true })
-  writeSnapshot(db, join(backupDir, `pre-migration-v${fromVersion}.db`))
-  pruneBackups(backupDir, 10)
+  const destination = join(backupDir, `pre-migration-v${fromVersion}.db`)
+  writeSnapshot(db, destination)
+  pruneBackups(backupDir, 10, destination)
 }
 
 /** Include committed WAL pages and replace an older backup only after the snapshot succeeds. */
@@ -120,11 +121,21 @@ function removeSnapshotTemps(backupDir: string): void {
   }
 }
 
-export function pruneBackups(backupDir: string, keep: number): void {
+/**
+ * 접두사(pre-migration·pre-import·auto…)와 상관없이 오래된 스냅샷부터 지운다. 이름순으로 고르면
+ * pre-import-*가 pre-migration-v*보다 앞에 놓여 방금 쓴 스냅샷이 바로 지워진다.
+ * keepPath(방금 만든 스냅샷)는 개수와 상관없이 남긴다
+ */
+export function pruneBackups(backupDir: string, keep: number, keepPath?: string): void {
   const files = readdirSync(backupDir)
     .filter((f) => f.endsWith('.db'))
-    .sort()
-  for (const f of files.slice(0, Math.max(0, files.length - keep))) {
-    rmSync(join(backupDir, f))
-  }
+    .map((name) => ({
+      name,
+      path: join(backupDir, name),
+      mtime: statSync(join(backupDir, name)).mtimeMs
+    }))
+    .sort((a, b) => a.mtime - b.mtime || a.name.localeCompare(b.name))
+  const removable = files.filter((f) => keepPath === undefined || f.path !== keepPath)
+  const excess = Math.max(0, files.length - keep)
+  for (const f of removable.slice(0, excess)) rmSync(f.path)
 }
