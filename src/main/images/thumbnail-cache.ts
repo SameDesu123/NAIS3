@@ -19,6 +19,7 @@ const THUMBNAIL_SPEC = '640-webp90'
 const MEMORY_BUDGET = 48 * 1024 * 1024
 // 원본 디코드는 무겁다 — 첫 화면에 타일이 몰려도 메인 프로세스가 버티게 동시에 두 장만
 const MAX_RENDERS = 2
+const RENDER_TIMEOUT = 30_000
 
 export function cacheRoot(): string {
   return join(app.getPath('userData'), 'nais-cache')
@@ -110,14 +111,28 @@ export async function writeCacheFile(file: string, data: Buffer | string): Promi
 let renders = 0
 const waiting: (() => void)[] = []
 
+/**
+ * 동시에 MAX_RENDERS장만 디코드한다. 끝난 자리는 줄 선 다음 작업에 바로 넘긴다 —
+ * 비웠다가 다시 잡으면 그 사이에 새 요청이 끼어들어 상한을 넘는다.
+ * 디코드가 실패하든 RENDER_TIMEOUT 안에 끝나지 않든 자리는 반드시 돌려준다:
+ * 한 장이 멈췄다고 그 뒤의 썸네일이 모두 멈추면 안 된다 (호출부는 DB 썸네일로 폴백).
+ */
 async function limited<T>(task: () => Promise<T>): Promise<T> {
-  if (renders >= MAX_RENDERS) await new Promise<void>((resolve) => waiting.push(resolve))
-  renders++
+  if (renders < MAX_RENDERS) renders++
+  else await new Promise<void>((resolve) => waiting.push(resolve))
+  let timer: NodeJS.Timeout | undefined
   try {
-    return await task()
+    return await Promise.race([
+      task(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('thumbnail render timed out')), RENDER_TIMEOUT)
+      })
+    ])
   } finally {
-    renders--
-    waiting.shift()?.()
+    clearTimeout(timer)
+    const next = waiting.shift()
+    if (next) next()
+    else renders--
   }
 }
 
@@ -146,22 +161,21 @@ export async function thumbnailForFile(
   const running = inflight.get(key)
   if (running) return running
 
-  const task = (async () => {
-    const file = thumbnailFile(key)
-    let thumb = await readCacheFile(file)
-    if (!thumb) {
-      thumb = seed?.(version) ?? null
+  // 같은 파일을 기다리는 요청이 모두 이 약속을 공유한다 — 무슨 일이 있어도 값으로 끝나야 한다
+  const task = (async (): Promise<Buffer | null> => {
+    try {
+      const file = thumbnailFile(key)
+      let thumb = await readCacheFile(file)
       if (!thumb) {
-        try {
-          thumb = await limited(async () => renderThumbnail(await readFile(path)))
-        } catch {
-          return null
-        }
+        thumb =
+          seed?.(version) ?? (await limited(async () => renderThumbnail(await readFile(path))))
+        await writeCacheFile(file, thumb)
       }
-      await writeCacheFile(file, thumb)
+      memorySet(key, thumb)
+      return thumb
+    } catch {
+      return null
     }
-    memorySet(key, thumb)
-    return thumb
   })()
   inflight.set(key, task)
   try {

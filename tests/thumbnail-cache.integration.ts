@@ -9,7 +9,9 @@ import {
 } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import sharp from 'sharp'
+// The app's sharp, not 'sharp' itself: importing sharp first loads the native build under
+// Electron on Linux before src/main/sharp can switch to WebAssembly. This file hung in Linux CI that way.
+import sharp from '../src/main/sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { closeDb, getDb, initDb } from '../src/main/db'
 import { allocateSeq } from '../src/main/db/history'
@@ -151,6 +153,25 @@ describe('output thumbnails', () => {
     expect(await thumb(1)).toEqual(Buffer.from([7]))
     expect(await thumb(2)).toEqual(Buffer.from([8]))
     expect(await thumb(3)).toBeNull()
+  })
+
+  it('falls back for files sharp cannot decode and frees every decode slot', async () => {
+    for (let id = 1; id <= 5; id++) {
+      const path = join(files, `broken-${id}.png`)
+      writeFileSync(path, `not an image ${id}`)
+      insertImage(id, path, { thumbnail: Buffer.from([id]) })
+    }
+    insertImage(6, await writeImage('ok.png', RED, 1_800_000_000))
+    const all = await Promise.all([1, 2, 3, 4, 5, 6].map(thumb))
+    expect(all.slice(0, 5)).toEqual([1, 2, 3, 4, 5].map((id) => Buffer.from([id])))
+    expect(await colorOf(all[5])).toEqual(RED)
+    // Nothing is left holding a slot: more decodes still go through
+    insertImage(7, await writeImage('ok2.png', GREEN, 1_800_000_000))
+    insertImage(8, await writeImage('ok3.png', BLUE, 1_800_000_000))
+    expect(await Promise.all([thumb(7), thumb(8)].map(async (t) => colorOf(await t)))).toEqual([
+      GREEN,
+      BLUE
+    ])
   })
 
   it('keeps writing the stored thumbnail for 1.0.29', async () => {
