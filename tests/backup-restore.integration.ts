@@ -445,6 +445,72 @@ describe('media ledger and scene folders across a restore', () => {
     }
   })
 
+  /** 복사본 폴더(이 기기의 import 루트)에 있는 외부 이미지 하나를 담은 아카이브 */
+  async function importRootArchive(importRoot: string): Promise<Buffer> {
+    mkdirSync(join(importRoot, '2026-10'), { recursive: true })
+    writeFileSync(join(importRoot, '2026-10', 'photo.png'), 'photo bytes')
+    const source = migratedDatabase()
+    source
+      .prepare(`INSERT INTO media_roots (id, kind, path, path_key) VALUES (1, 'external', ?, ?)`)
+      .run(importRoot, importRoot)
+    source.exec(`
+      INSERT INTO media_registrations (seq, root_id, rel_path, path_key, source)
+        VALUES (1, 1, '2026-10/photo.png', '2026-10/photo.png', 'external');
+      UPDATE history_state SET next_seq = 2;
+    `)
+    mocks.getDb.mockReturnValue(source)
+    const database = captureBackupDatabase()
+    source.close()
+    return createNaisArchive(database, '1.0.30')
+  }
+
+  it('writes an external copy back into an empty database with the same import path', async () => {
+    const importRoot = join(imageRoot, 'images', 'NAIS3_imported')
+    const archive = await importRootArchive(importRoot)
+    // 새 기기(같은 사용자 경로) — 파일이 없다
+    rmSync(importRoot, { recursive: true })
+    const target = migratedDatabase()
+    mocks.getDb.mockReturnValue(target)
+    try {
+      restoreBackupDatabase(await readNaisArchive(archive))
+      expect(readFileSync(join(importRoot, '2026-10', 'photo.png'), 'utf8')).toBe('photo bytes')
+      expect(
+        target.prepare('SELECT root_id, rel_path FROM media_registrations').all()
+      ).toEqual([{ root_id: 1, rel_path: '2026-10/photo.png' }])
+    } finally {
+      target.close()
+    }
+  })
+
+  it('writes a deleted external copy back on the same device without a new registration', async () => {
+    const importRoot = join(imageRoot, 'images', 'NAIS3_imported')
+    const archive = await importRootArchive(importRoot)
+    const target = migratedDatabase()
+    mocks.getDb.mockReturnValue(target)
+    try {
+      restoreBackupDatabase(await readNaisArchive(archive))
+      // 파일이 그대로 있으면 쓰지 않는다
+      expect(readdirSync(join(importRoot, '2026-10'))).toEqual(['photo.png'])
+      const seq = target.prepare('SELECT seq FROM media_registrations').pluck().get()
+
+      rmSync(join(importRoot, '2026-10', 'photo.png'))
+      restoreBackupDatabase(await readNaisArchive(archive))
+      expect(readFileSync(join(importRoot, '2026-10', 'photo.png'), 'utf8')).toBe('photo bytes')
+      // 같은 위치라 이 기기의 순번을 그대로 쓴다
+      expect(
+        target.prepare('SELECT seq, root_id, rel_path FROM media_registrations').all()
+      ).toEqual([{ seq, root_id: 1, rel_path: '2026-10/photo.png' }])
+
+      // 다른 내용으로 바뀐 파일은 덮어쓰지 않고 _2에 쓴다
+      writeFileSync(join(importRoot, '2026-10', 'photo.png'), 'edited')
+      restoreBackupDatabase(await readNaisArchive(archive))
+      expect(readFileSync(join(importRoot, '2026-10', 'photo.png'), 'utf8')).toBe('edited')
+      expect(readFileSync(join(importRoot, '2026-10', 'photo_2.png'), 'utf8')).toBe('photo bytes')
+    } finally {
+      target.close()
+    }
+  })
+
   it('keeps the legacy JSON export importable by a schema without ensure columns', () => {
     const source = seedWorkspace()
     mocks.getDb.mockReturnValue(source)

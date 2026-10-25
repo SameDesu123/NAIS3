@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs'
 import { basename, dirname, extname, join } from 'path'
 import { createNaisArchive, readNaisArchive } from './archive'
 import { legacyNais3ToBackupDatabase, LEGACY_BACKUP_TABLES, LEGACY_OMITTED_COLUMNS } from './legacy'
@@ -140,9 +140,18 @@ function captureExternalCopies(ledger: BackupLedger): LedgerFile[] {
   return files
 }
 
+function hasSameBytes(path: string, data: Buffer): boolean {
+  try {
+    return statSync(path).size === data.length && readFileSync(path).equals(data)
+  } catch {
+    return false
+  }
+}
+
 /**
- * 아카이브의 외부 복사본을 이 기기의 복사본 폴더에 쓴다 (복원 트랜잭션 전에). 아카이브의 루트 경로가
- * 이 기기에도 루트로 있으면 같은 기기라 쓰지 않는다 — 원장 합치기가 위치로 중복을 거른다.
+ * 아카이브의 외부 복사본을 이 기기의 복사본 폴더에 쓴다 (복원 트랜잭션 전에). 파일마다 정한다 —
+ * 아카이브의 루트 경로가 이 기기에도 루트로 있고 그 위치에 같은 내용이 있으면 쓰지 않는다
+ * (원장 합치기가 위치로 중복을 거른다). 없거나 내용이 다르면 복사본 폴더에 쓴다.
  * 같은 이름(또는 _N)에 같은 내용이 있으면 그 파일을 쓰고, 없으면 _N 새 이름. 기존 파일을 덮어쓰지
  * 않는다. 복원이 실패해도 쓴 복사본은 지우지 않는다 (재인덱싱으로 다시 올릴 수 있다)
  */
@@ -156,7 +165,7 @@ function writeExternalCopies(
   const db = getDb()
   const rootPath = externalImportRoot()
   const rootId = syncExternalRoot(db, rootPath)
-  // unmapped 루트는 다른 기기에서 복원해 온 경로다 — 같은 기기의 근거가 아니다
+  // unmapped 루트는 다른 기기에서 복원해 온 경로다 — 거기 등록하면 보이지 않는다
   const localRoots = new Set(
     db.prepare(`SELECT path FROM media_roots WHERE status != 'unmapped'`).pluck().all() as string[]
   )
@@ -165,7 +174,15 @@ function writeExternalCopies(
   for (const file of files) {
     const registration = registrations.get(file.seq)
     if (!registration) continue
-    if (localRoots.has(archivedRoots.get(registration.rootId) ?? '')) continue
+    // 파일마다 본다 — 루트 경로가 같아도 새 기기(같은 사용자 경로)이거나 복사본을 지웠을 수 있다.
+    // 이 기기의 루트에서 아카이브 위치에 같은 내용이 있을 때만 쓰지 않는다 (원장 합치기가 위치로 중복을 거른다)
+    const archivedRoot = archivedRoots.get(registration.rootId)
+    if (
+      archivedRoot !== undefined &&
+      localRoots.has(archivedRoot) &&
+      hasSameBytes(locatorPath(archivedRoot, registration.relPath), file.data)
+    )
+      continue
     const relPath = registration.relPath
     const target = locatorPath(rootPath, relPath)
     const dir = dirname(target)
@@ -177,7 +194,7 @@ function writeExternalCopies(
       const name = n === 1 ? basename(relPath) : `${stem}_${n}${ext}`
       const candidate = join(dir, name)
       // 같은 내용이 이미 있으면(다시 복원) 그 파일을 쓴다. 다른 파일이면 다음 번호
-      if (existsSync(candidate) && !readFileSync(candidate).equals(file.data)) continue
+      if (existsSync(candidate) && !hasSameBytes(candidate, file.data)) continue
       try {
         if (!existsSync(candidate)) writeFileSync(candidate, file.data, { flag: 'wx' })
       } catch (error) {
