@@ -267,15 +267,20 @@ describe('saving outputs', () => {
 })
 
 describe('naming after a trashed output', () => {
+  beforeEach(() => {
+    getDb().exec(
+      `INSERT INTO scene_presets (id, name, sort_order) VALUES (1, 'p', 0)
+       ON CONFLICT (id) DO UPDATE SET name = excluded.name`
+    )
+  })
+
   const sceneOutput = async (image?: Buffer): Promise<{ id: number; filePath: string }> =>
     saveGeneratedImage({
       png: image ?? (await png()),
       sentPayload: '{}',
       seed: 8,
       kind: 'scene',
-      sceneId: 1,
-      sceneName: 'a',
-      scenePresetName: 'p'
+      sceneId: 1
     })
 
   /** 휴지통으로 보낸 것처럼 — 행과 등록은 남고 파일만 없다 */
@@ -300,6 +305,17 @@ describe('naming after a trashed output', () => {
       ['p/a/a_3.png', seqOf(next.id)]
     ])
     expect(listImages(10, 0).items[0].id).toBe(next.id)
+  })
+
+  it('numbers past a trashed output in a UUID scene folder too', async () => {
+    const uuid = '0b6f3c1e-8a52-4d7e-9f10-2c4b5a6d7e8f'
+    getDb().prepare('UPDATE gen_scenes SET folder_uuid = ? WHERE id = 1').run(uuid)
+    await sceneOutput()
+    const newest = await sceneOutput()
+    expect(newest.filePath).toBe(join(scenesRoot(), uuid, 'a_2.png'))
+    hideImages(getDb(), [newest.id], 'scene')
+    rmSync(newest.filePath)
+    expect((await sceneOutput()).filePath).toBe(join(scenesRoot(), uuid, 'a_3.png'))
   })
 
   it('still recovers an output that crashed between the file write and the row commit', async () => {
