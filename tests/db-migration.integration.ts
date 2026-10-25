@@ -164,6 +164,24 @@ describe('existing workspace migration', () => {
     withBackup((backup) => expect(snapshot(backup)).toEqual(current), backupNow())
   })
 
+  it('snapshots state added outside the numbered migrations and keeps user_version', () => {
+    seedLegacy().close()
+    initDb()
+    // Persistent state added by additive schema changes (media roots, history state, ...) must live
+    // in nais3.db so the DB-only snapshots carry it without a new backup system.
+    getDb().exec(`
+      CREATE TABLE IF NOT EXISTS backup_contract_state (id INTEGER PRIMARY KEY, value TEXT);
+      INSERT INTO backup_contract_state (id, value) VALUES (1, 'hidden item');
+    `)
+    const current = snapshot(getDb())
+    const file = backupNow('pre-import')
+    expect(file).toMatch(/[\\/]pre-import-[^\\/]+\.db$/)
+    withBackup((backup) => {
+      expect(snapshot(backup)).toEqual(current)
+      expect(backup.pragma('user_version', { simple: true })).toBe(migrations.length)
+    }, file)
+  })
+
   it('rolls back a failed migration and can safely replace the backup on a later attempt', () => {
     const old = seedLegacy()
     const before = snapshot(old)

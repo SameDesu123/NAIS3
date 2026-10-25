@@ -592,12 +592,10 @@ function BackupButtons(): React.JSX.Element {
       return
     }
     if (!result.saved) return
-    const skipped = result.skippedFiles
-      ? t('ui.backupMissingSourcesSkipped', result.skippedFiles)
-      : ''
+    const missing = result.missingFiles ? t('ui.backupMissingSourcesKept', result.missingFiles) : ''
     toast(
-      browser ? t('ui.exportComplete') : t('ui.naisArchiveExported', skipped),
-      result.skippedFiles ? 'info' : 'success'
+      browser ? t('ui.exportComplete') : t('ui.naisArchiveExported', missing),
+      result.missingFiles ? 'info' : 'success'
     )
   }
 

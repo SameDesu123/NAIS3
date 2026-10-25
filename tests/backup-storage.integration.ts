@@ -31,7 +31,8 @@ it('restored curated images stay accessible after save directory changes', () =>
           extension: '.png',
           data: Buffer.from('image')
         }
-      ]
+      ],
+      missingFiles: []
     })
     const restored = mocks.db
       .prepare('SELECT file_path FROM library_images')

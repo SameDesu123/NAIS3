@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,13 +22,15 @@ vi.mock('../src/main/db/settings', () => ({
 }))
 vi.mock('../src/main/images/storage', () => ({ libraryRoot: mocks.libraryRoot }))
 
-import { restoreBackupDatabase } from '../src/main/backup/repo'
-import type { BackupDatabaseV1 } from '../src/main/backup/types'
+import { createNaisArchive, readNaisArchive } from '../src/main/backup/archive'
+import { captureBackupDatabase, restoreBackupDatabase } from '../src/main/backup/repo'
+import type { BackupDatabase } from '../src/main/backup/types'
+import { migrations } from '../src/main/db/migrations'
 
 let db: Database.Database
 let imageRoot: string
 
-function databaseFixture(duplicateNames = false): BackupDatabaseV1 {
+function databaseFixture(duplicateNames = false): BackupDatabase {
   const images = [
     {
       id: 11,
@@ -45,7 +47,7 @@ function databaseFixture(duplicateNames = false): BackupDatabaseV1 {
   if (duplicateNames) images.push({ ...images[0], id: 12 })
 
   return {
-    version: 1,
+    version: 2,
     includedTables: ['library_stacks', 'library_images'],
     tables: {
       library_stacks: [{ id: 10, name: 'new-stack', created_at: '2026-08-24' }],
@@ -58,8 +60,15 @@ function databaseFixture(duplicateNames = false): BackupDatabaseV1 {
       column: 'file_path' as const,
       extension: '.webp',
       data: Buffer.from(`image-${row.id}`)
-    }))
+    })),
+    missingFiles: []
   }
+}
+
+function migratedDatabase(): Database.Database {
+  const database = new Database(':memory:')
+  for (const migration of migrations) migration(database)
+  return database
 }
 
 beforeEach(() => {
@@ -101,7 +110,7 @@ describe('backup database restore', () => {
   it('replaces declared tables and writes archive assets to new local paths', () => {
     const result = restoreBackupDatabase(databaseFixture())
 
-    expect(result.imported).toBe(2)
+    expect(result).toEqual({ imported: 2, missingFiles: 0 })
     expect(db.prepare('SELECT name FROM library_stacks').pluck().all()).toEqual(['new-stack'])
     const image = db.prepare('SELECT name, file_path, thumbnail FROM library_images').get() as {
       name: string
@@ -124,5 +133,78 @@ describe('backup database restore', () => {
     expect(db.prepare('SELECT name FROM library_images').pluck().all()).toEqual(['old-image'])
     const importedRoot = join(imageRoot, '_imported')
     expect(existsSync(importedRoot) ? readdirSync(importedRoot) : []).toEqual([])
+  })
+
+  it('restores a row listed as missing with an empty file path and no file', () => {
+    const database = databaseFixture()
+    database.files = []
+    database.missingFiles = [{ table: 'library_images', rowId: 11, column: 'file_path' }]
+
+    expect(restoreBackupDatabase(database)).toEqual({ imported: 2, missingFiles: 1 })
+    const image = db.prepare('SELECT file_path, thumbnail FROM library_images').get() as {
+      file_path: string
+      thumbnail: Buffer
+    }
+    expect(image).toEqual({ file_path: '', thumbnail: Buffer.from('thumb') })
+    expect(existsSync(join(imageRoot, '_imported'))).toBe(false)
+  })
+
+  it('still refuses a file-backed row with neither a file nor a missing entry', () => {
+    const database = databaseFixture()
+    database.files = []
+
+    expect(() => restoreBackupDatabase(database)).toThrow(
+      'Backup is missing the file for library_images row 11'
+    )
+    expect(db.prepare('SELECT name FROM library_images').pluck().all()).toEqual(['old-image'])
+  })
+})
+
+describe('.nais export of rows with missing files', () => {
+  it('keeps the row, its thumbnail and paid vibe encoding through export and restore', async () => {
+    const source = migratedDatabase()
+    const existing = join(imageRoot, 'present.png')
+    writeFileSync(existing, 'present image')
+    source
+      .prepare(
+        `INSERT INTO vibe_images (id, name, file_path, thumbnail, encoded, encoded_ie)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(1, 'present', existing, Buffer.from('thumb-1'), null, null)
+    source
+      .prepare(
+        `INSERT INTO vibe_images (id, name, file_path, thumbnail, encoded, encoded_ie)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(2, 'gone', join(imageRoot, 'deleted.png'), Buffer.from('thumb-2'), 'paid', 0.7)
+    mocks.getDb.mockReturnValue(source)
+
+    const captured = captureBackupDatabase()
+    expect(captured.missingFiles).toEqual([{ table: 'vibe_images', rowId: 2, column: 'file_path' }])
+    const archive = await createNaisArchive(captured, '1.0.30')
+    source.close()
+
+    const target = migratedDatabase()
+    mocks.getDb.mockReturnValue(target)
+    try {
+      const result = restoreBackupDatabase(await readNaisArchive(archive))
+      expect(result.missingFiles).toBe(1)
+      const rows = target
+        .prepare(
+          'SELECT id, file_path, thumbnail, encoded, encoded_ie FROM vibe_images ORDER BY id'
+        )
+        .all() as { id: number; file_path: string; thumbnail: Buffer; encoded: string | null }[]
+      expect(rows).toHaveLength(2)
+      expect(readFileSync(rows[0].file_path)).toEqual(Buffer.from('present image'))
+      expect(rows[1]).toEqual({
+        id: 2,
+        file_path: '',
+        thumbnail: Buffer.from('thumb-2'),
+        encoded: 'paid',
+        encoded_ie: 0.7
+      })
+    } finally {
+      target.close()
+    }
   })
 })

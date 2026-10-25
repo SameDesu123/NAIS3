@@ -3,12 +3,16 @@ import { extname } from 'path'
 import JSZip from 'jszip'
 import {
   BACKUP_FORMAT_VERSION,
-  type BackupDatabaseV1,
+  backupFileKey,
+  type BackupDatabase,
   type BackupFile,
+  type BackupFileRef,
   type BackupRow,
   type BackupTableName,
+  FILE_BACKED_TABLES,
   isBackupTableName,
-  type NaisArchiveManifestV1
+  isSupportedBackupFormatVersion,
+  type NaisArchiveManifest
 } from './types'
 
 const MAX_ARCHIVE_ENTRIES = 100_000
@@ -76,10 +80,6 @@ function parseJsonObject<T>(data: Buffer, label: string): T {
   }
 }
 
-function fileKey(table: BackupTableName, rowId: number, column: string): string {
-  return `${table}:${rowId}:${column}`
-}
-
 function addEntry(
   zip: JSZip,
   checksums: Checksums,
@@ -93,15 +93,14 @@ function addEntry(
 }
 
 export async function createNaisArchive(
-  database: BackupDatabaseV1,
+  database: BackupDatabase,
   appVersion: string,
   createdAt = new Date().toISOString()
 ): Promise<Buffer> {
   const zip = new JSZip()
   const checksums: Checksums = {}
-  const files = new Map(
-    database.files.map((file) => [fileKey(file.table, file.rowId, file.column), file])
-  )
+  const files = new Map(database.files.map((file) => [backupFileKey(file), file]))
+  const missing = new Set(database.missingFiles.map(backupFileKey))
   const tableCounts: Partial<Record<BackupTableName, number>> = {}
 
   for (const table of database.includedTables) {
@@ -120,7 +119,12 @@ export async function createNaisArchive(
           continue
         }
         if (column === 'file_path') {
-          const file = files.get(fileKey(table, rowId, column))
+          const key = backupFileKey({ table, rowId, column })
+          const file = files.get(key)
+          if (!file && missing.has(key)) {
+            encoded[column] = ''
+            continue
+          }
           if (!file) throw new Error(`Missing asset for ${table} row ${rowId}`)
           const path = `assets/files/${table}/${safeSegment(rowId)}${safeExtension(file.extension)}`
           addEntry(zip, checksums, path, file.data, true)
@@ -135,7 +139,7 @@ export async function createNaisArchive(
   }
 
   addEntry(zip, checksums, 'data/settings.json', jsonBuffer({ mainParams: database.mainParams }))
-  const manifest: NaisArchiveManifestV1 = {
+  const manifest: NaisArchiveManifest = {
     format: 'NAIS',
     formatVersion: BACKUP_FORMAT_VERSION,
     app: 'NAIS3',
@@ -143,7 +147,12 @@ export async function createNaisArchive(
     createdAt,
     scope: 'workspace',
     tables: [...database.includedTables],
-    tableCounts
+    tableCounts,
+    missingFiles: database.missingFiles.map(({ table, rowId, column }) => ({
+      table,
+      rowId,
+      column
+    }))
   }
   zip.file('manifest.json', jsonBuffer(manifest))
   zip.file('checksums.json', jsonBuffer(checksums))
@@ -154,7 +163,41 @@ export async function createNaisArchive(
   })
 }
 
-export async function readNaisArchive(input: Buffer): Promise<BackupDatabaseV1> {
+/** Validate the v2 missing-file list against the tables the archive declares. */
+function parseMissingFiles(manifest: NaisArchiveManifest): BackupFileRef[] {
+  if (manifest.formatVersion === 1) {
+    if (manifest.missingFiles !== undefined) {
+      throw new Error('manifest.json lists missing files in a version 1 archive')
+    }
+    return []
+  }
+  if (!Array.isArray(manifest.missingFiles)) {
+    throw new Error('manifest.json contains an invalid missing file list')
+  }
+  const declared = new Set(manifest.tables)
+  const seen = new Set<string>()
+  return manifest.missingFiles.map((value: unknown) => {
+    const ref = value as Partial<BackupFileRef> | null
+    if (
+      !ref ||
+      typeof ref !== 'object' ||
+      !isBackupTableName(ref.table) ||
+      !declared.has(ref.table) ||
+      !FILE_BACKED_TABLES.has(ref.table) ||
+      typeof ref.rowId !== 'number' ||
+      ref.column !== 'file_path'
+    ) {
+      throw new Error('manifest.json contains an invalid missing file entry')
+    }
+    const parsed: BackupFileRef = { table: ref.table, rowId: ref.rowId, column: 'file_path' }
+    const key = backupFileKey(parsed)
+    if (seen.has(key)) throw new Error(`manifest.json lists a missing file twice: ${key}`)
+    seen.add(key)
+    return parsed
+  })
+}
+
+export async function readNaisArchive(input: Buffer): Promise<BackupDatabase> {
   const zip = await JSZip.loadAsync(input)
   const entries = Object.values(zip.files)
   if (entries.length > MAX_ARCHIVE_ENTRIES) throw new Error('Archive contains too many entries')
@@ -172,14 +215,14 @@ export async function readNaisArchive(input: Buffer): Promise<BackupDatabaseV1> 
     return data
   }
 
-  const manifest = parseJsonObject<NaisArchiveManifestV1>(
+  const manifest = parseJsonObject<NaisArchiveManifest>(
     await readRaw('manifest.json'),
     'manifest.json'
   )
   if (manifest.format !== 'NAIS' || manifest.app !== 'NAIS3') {
     throw new Error('This is not a NAIS3 archive')
   }
-  if (manifest.formatVersion !== BACKUP_FORMAT_VERSION) {
+  if (!isSupportedBackupFormatVersion(manifest.formatVersion)) {
     throw new Error(`Unsupported NAIS archive version: ${String(manifest.formatVersion)}`)
   }
   if (!Array.isArray(manifest.tables) || !manifest.tables.every(isBackupTableName)) {
@@ -188,6 +231,7 @@ export async function readNaisArchive(input: Buffer): Promise<BackupDatabaseV1> 
   if (new Set(manifest.tables).size !== manifest.tables.length) {
     throw new Error('manifest.json contains duplicate tables')
   }
+  const missingFiles = parseMissingFiles(manifest)
 
   const checksums = parseJsonObject<Checksums>(await readRaw('checksums.json'), 'checksums.json')
   let totalBytes = 0
@@ -218,7 +262,7 @@ export async function readNaisArchive(input: Buffer): Promise<BackupDatabaseV1> 
     throw new Error('data/settings.json contains invalid mainParams')
   }
 
-  const tables: BackupDatabaseV1['tables'] = {}
+  const tables: BackupDatabase['tables'] = {}
   const files: BackupFile[] = []
   for (const table of manifest.tables) {
     const path = `data/tables/${table}.json`
@@ -276,12 +320,20 @@ export async function readNaisArchive(input: Buffer): Promise<BackupDatabaseV1> 
     tables[table] = rows
   }
 
+  const missing = new Set(missingFiles.map(backupFileKey))
+  for (const file of files) {
+    if (missing.has(backupFileKey(file))) {
+      throw new Error(`manifest.json lists a stored file as missing: ${backupFileKey(file)}`)
+    }
+  }
+
   return {
-    version: BACKUP_FORMAT_VERSION,
+    version: manifest.formatVersion,
     includedTables: [...manifest.tables],
     tables,
     mainParams: settings.mainParams ?? null,
-    files
+    files,
+    missingFiles
   }
 }
 

@@ -97,12 +97,15 @@ export function migrateInWorker(
   })
 }
 
-/** 주기 백업용: 압축 정리된 스냅샷을 원자적으로 생성 */
-export function backupNow(): string {
+/**
+ * 압축 정리된 DB 전체 스냅샷을 원자적으로 생성. 히스토리·씬 연결 같은 영속 상태도 nais3.db에
+ * 두는 한 여기에 함께 담긴다. prefix로 용도를 구분한다 (예: 가져오기 직전 'pre-import')
+ */
+export function backupNow(prefix = 'auto'): string {
   const backupDir = getBackupDir()
   mkdirSync(backupDir, { recursive: true })
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const dest = join(backupDir, `auto-${stamp}.db`)
+  const dest = join(backupDir, `${prefix}-${stamp}.db`)
   writeSnapshot(getDb(), dest)
   pruneBackups(backupDir, 10)
   return dest

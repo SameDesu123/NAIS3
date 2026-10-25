@@ -6,20 +6,18 @@ import { legacyNais3ToBackupDatabase, LEGACY_BACKUP_TABLES } from './legacy'
 import {
   BACKUP_FORMAT_VERSION,
   BACKUP_TABLES,
-  type BackupDatabaseV1,
+  backupFileKey,
+  type BackupDatabase,
   type BackupFile,
+  type BackupFileRef,
   type BackupRow,
-  type BackupTableName
+  type BackupTableName,
+  FILE_BACKED_TABLES,
+  isSupportedBackupFormatVersion
 } from './types'
 import { getDb } from '../db'
 import { getSetting, setSetting } from '../db/settings'
 import { libraryRoot } from '../images/storage'
-
-const FILE_BACKED_TABLES = new Set<BackupTableName>([
-  'vibe_images',
-  'charref_images',
-  'library_images'
-])
 
 type DbRow = Record<string, string | number | null | Buffer>
 
@@ -60,15 +58,15 @@ export function exportLegacyJson(): Record<string, unknown> {
   }
 }
 
-/** Capture all portable workspace data. Rows whose required source file is missing are skipped. */
-export function captureBackupDatabase(): {
-  database: BackupDatabaseV1
-  skippedFiles: number
-} {
+/**
+ * Capture all portable workspace data. A row whose source file cannot be read is kept with an
+ * empty file_path and reported in missingFiles.
+ */
+export function captureBackupDatabase(): BackupDatabase {
   const db = getDb()
-  const tables: BackupDatabaseV1['tables'] = {}
+  const tables: BackupDatabase['tables'] = {}
   const files: BackupFile[] = []
-  let skippedFiles = 0
+  const missingFiles: BackupFileRef[] = []
 
   for (const table of BACKUP_TABLES) {
     const sourceRows = db.prepare(`SELECT * FROM ${table}`).all() as DbRow[]
@@ -79,19 +77,17 @@ export function captureBackupDatabase(): {
         if (typeof row.id !== 'number' || typeof row.file_path !== 'string') {
           throw new Error(`${table} contains an invalid file row`)
         }
+        const ref: BackupFileRef = { table, rowId: row.id, column: 'file_path' }
         try {
           files.push({
-            table,
-            rowId: row.id,
-            column: 'file_path',
+            ...ref,
             extension: normalizedExtension(row.file_path),
             data: readFileSync(row.file_path)
           })
-          row.file_path = ''
         } catch {
-          skippedFiles++
-          continue
+          missingFiles.push(ref)
         }
+        row.file_path = ''
       }
       rows.push(row)
     }
@@ -99,23 +95,24 @@ export function captureBackupDatabase(): {
   }
 
   return {
-    database: {
-      version: BACKUP_FORMAT_VERSION,
-      includedTables: [...BACKUP_TABLES],
-      tables,
-      mainParams: getSetting('main_params') || null,
-      files
-    },
-    skippedFiles
+    version: BACKUP_FORMAT_VERSION,
+    includedTables: [...BACKUP_TABLES],
+    tables,
+    mainParams: getSetting('main_params') || null,
+    files,
+    missingFiles
   }
 }
 
 export async function exportNais(appVersion: string): Promise<{
   archive: Buffer
-  skippedFiles: number
+  missingFiles: number
 }> {
-  const { database, skippedFiles } = captureBackupDatabase()
-  return { archive: await createNaisArchive(database, appVersion), skippedFiles }
+  const database = captureBackupDatabase()
+  return {
+    archive: await createNaisArchive(database, appVersion),
+    missingFiles: database.missingFiles.length
+  }
 }
 
 function tableColumns(table: BackupTableName): Set<string> {
@@ -123,8 +120,8 @@ function tableColumns(table: BackupTableName): Set<string> {
   return new Set(rows.map((row) => row.name))
 }
 
-function validateRows(database: BackupDatabaseV1): Partial<Record<BackupTableName, BackupRow[]>> {
-  if (database.version !== BACKUP_FORMAT_VERSION) {
+function validateRows(database: BackupDatabase): Partial<Record<BackupTableName, BackupRow[]>> {
+  if (!isSupportedBackupFormatVersion(database.version)) {
     throw new Error(`Unsupported backup database version: ${database.version}`)
   }
   if (new Set(database.includedTables).size !== database.includedTables.length) {
@@ -157,12 +154,18 @@ function validateRows(database: BackupDatabaseV1): Partial<Record<BackupTableNam
   return result
 }
 
-/** Restore a validated snapshot, replacing only the tables declared by that format. */
-export function restoreBackupDatabase(database: BackupDatabaseV1): { imported: number } {
+/**
+ * Restore a validated snapshot, replacing only the tables declared by that format.
+ * Rows listed in missingFiles come back with an empty file_path; missingFiles counts them.
+ */
+export function restoreBackupDatabase(database: BackupDatabase): {
+  imported: number
+  missingFiles: number
+} {
   const tables = validateRows(database)
-  const fileMap = new Map(
-    database.files.map((file) => [`${file.table}:${file.rowId}:${file.column}`, file])
-  )
+  const fileMap = new Map(database.files.map((file) => [backupFileKey(file), file]))
+  const missing = new Set(database.missingFiles.map(backupFileKey))
+  let missingFiles = 0
   const importRoot = join(libraryRoot(), '_imported', randomUUID())
   let wroteFiles = false
 
@@ -170,7 +173,13 @@ export function restoreBackupDatabase(database: BackupDatabaseV1): { imported: n
     for (const table of database.includedTables) {
       if (!FILE_BACKED_TABLES.has(table)) continue
       for (const row of tables[table] ?? []) {
-        const file = fileMap.get(`${table}:${row.id}:file_path`)
+        const key = backupFileKey({ table, rowId: row.id as number, column: 'file_path' })
+        const file = fileMap.get(key)
+        if (!file && missing.has(key)) {
+          row.file_path = ''
+          missingFiles++
+          continue
+        }
         if (!file) throw new Error(`Backup is missing the file for ${table} row ${row.id}`)
         const destination = join(
           importRoot,
@@ -207,7 +216,7 @@ export function restoreBackupDatabase(database: BackupDatabaseV1): { imported: n
       }
     })
     transaction()
-    return { imported }
+    return { imported, missingFiles }
   } catch (error) {
     if (wroteFiles && existsSync(importRoot)) {
       rmSync(importRoot, { recursive: true, force: true })
@@ -216,16 +225,17 @@ export function restoreBackupDatabase(database: BackupDatabaseV1): { imported: n
   }
 }
 
-export async function importNais(input: Buffer): Promise<{ imported: number }> {
+export async function importNais(
+  input: Buffer
+): Promise<{ imported: number; missingFiles: number }> {
   return restoreBackupDatabase(await readNaisArchive(input))
 }
 
 export function importLegacyJson(data: Record<string, unknown>): {
   imported: number
-  skippedFiles: number
+  missingFiles: number
 } {
-  const { database, skippedFiles } = legacyNais3ToBackupDatabase(data)
-  return { ...restoreBackupDatabase(database), skippedFiles }
+  return restoreBackupDatabase(legacyNais3ToBackupDatabase(data))
 }
 
 // Compatibility exports for existing main-process call sites.

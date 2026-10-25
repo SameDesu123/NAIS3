@@ -1,8 +1,9 @@
 import { extname } from 'path'
 import {
   BACKUP_FORMAT_VERSION,
-  type BackupDatabaseV1,
+  type BackupDatabase,
   type BackupFile,
+  type BackupFileRef,
   type BackupRow,
   type BackupTableName
 } from './types'
@@ -36,10 +37,8 @@ function decodeLegacyValue(value: unknown): BackupRow[string] {
   throw new Error('Legacy backup contains an invalid database value')
 }
 
-export function legacyNais3ToBackupDatabase(data: Record<string, unknown>): {
-  database: BackupDatabaseV1
-  skippedFiles: number
-} {
+/** Rows exported without their image (`__image: null`) are kept and listed in missingFiles. */
+export function legacyNais3ToBackupDatabase(data: Record<string, unknown>): BackupDatabase {
   if (data._app !== 'NAIS3') throw new Error('This is not a NAIS3 JSON backup')
   if (typeof data._version === 'number' && data._version > 1) {
     throw new Error(`Unsupported legacy NAIS3 backup version: ${data._version}`)
@@ -49,9 +48,9 @@ export function legacyNais3ToBackupDatabase(data: Record<string, unknown>): {
   }
 
   const sourceTables = data.tables as Record<string, unknown>
-  const tables: BackupDatabaseV1['tables'] = {}
+  const tables: BackupDatabase['tables'] = {}
   const files: BackupFile[] = []
-  let skippedFiles = 0
+  const missingFiles: BackupFileRef[] = []
 
   for (const table of LEGACY_BACKUP_TABLES) {
     const sourceRows = sourceTables[table]
@@ -71,17 +70,16 @@ export function legacyNais3ToBackupDatabase(data: Record<string, unknown>): {
 
       if (FILE_BACKED_TABLES.has(table)) {
         if (typeof row.id !== 'number') throw new Error(`${table} row is missing a numeric id`)
-        if (typeof sourceRow.__image !== 'string') {
-          skippedFiles++
-          continue
+        const ref: BackupFileRef = { table, rowId: row.id, column: 'file_path' }
+        if (typeof sourceRow.__image === 'string') {
+          files.push({
+            ...ref,
+            extension: typeof row.file_path === 'string' ? extname(row.file_path) : '.bin',
+            data: Buffer.from(sourceRow.__image, 'base64')
+          })
+        } else {
+          missingFiles.push(ref)
         }
-        files.push({
-          table,
-          rowId: row.id,
-          column: 'file_path',
-          extension: typeof row.file_path === 'string' ? extname(row.file_path) : '.bin',
-          data: Buffer.from(sourceRow.__image, 'base64')
-        })
         row.file_path = ''
       }
       rows.push(row)
@@ -97,13 +95,11 @@ export function legacyNais3ToBackupDatabase(data: Record<string, unknown>): {
     throw new Error('Legacy NAIS3 backup contains invalid mainParams')
   }
   return {
-    database: {
-      version: BACKUP_FORMAT_VERSION,
-      includedTables: [...LEGACY_BACKUP_TABLES],
-      tables,
-      mainParams: data.mainParams ?? null,
-      files
-    },
-    skippedFiles
+    version: BACKUP_FORMAT_VERSION,
+    includedTables: [...LEGACY_BACKUP_TABLES],
+    tables,
+    mainParams: data.mainParams ?? null,
+    files,
+    missingFiles
   }
 }

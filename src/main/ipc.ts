@@ -24,7 +24,7 @@ import {
   setFolderColor,
   updateCharacter
 } from './characters/repo'
-import { getDbPath, getDb } from './db'
+import { backupNow, getDbPath, getDb } from './db'
 import { analyzeArtists } from './images/artists'
 import { metadataFromPng, metadataFromPayloadJson } from './images/metadata'
 import {
@@ -337,9 +337,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     })
     if (result.canceled || !result.filePath) return { saved: false }
     try {
-      const { archive, skippedFiles } = await exportNais(app.getVersion())
+      const { archive, missingFiles } = await exportNais(app.getVersion())
       writeFileSync(result.filePath, archive)
-      return { saved: true, skippedFiles }
+      return { saved: true, missingFiles }
     } catch (error) {
       return { saved: false, error: error instanceof Error ? error.message : String(error) }
     }
@@ -371,18 +371,21 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     if (result.canceled || !result.filePaths[0]) return { canceled: true as const }
     try {
       const input = readFileSync(result.filePaths[0])
+      // 가져오기는 테이블을 통째로 바꾼다 — 되돌릴 수 있게 DB 전체 스냅샷부터
+      backupNow('pre-import')
       if (hasZipSignature(input)) {
-        const { imported } = await importNais(input)
-        return { summary: t('ui.naisArchiveRestored', imported), needsPromptReload: true }
+        const { imported, missingFiles } = await importNais(input)
+        const missing = missingFiles ? t('ui.backupMissingImagesKept', missingFiles) : ''
+        return { summary: t('ui.naisArchiveRestored', imported, missing), needsPromptReload: true }
       }
 
       const data = JSON.parse(input.toString('utf-8')) as Record<string, unknown>
       // 포맷 감지: NAIS3는 _app='NAIS3', NAIS2는 nais2-* 키
       if (data._app === 'NAIS3') {
-        const { imported, skippedFiles } = importLegacyJson(data)
-        const skipped = skippedFiles ? t('ui.backupMissingImagesSkipped', skippedFiles) : ''
+        const { imported, missingFiles } = importLegacyJson(data)
+        const missing = missingFiles ? t('ui.backupMissingImagesKept', missingFiles) : ''
         return {
-          summary: t('ui.nais3JsonRestored', imported, skipped),
+          summary: t('ui.nais3JsonRestored', imported, missing),
           needsPromptReload: true
         }
       }

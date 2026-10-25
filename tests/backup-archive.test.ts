@@ -2,11 +2,11 @@ import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 import { createNaisArchive, hasZipSignature, readNaisArchive } from '../src/main/backup/archive'
 import { legacyNais3ToBackupDatabase } from '../src/main/backup/legacy'
-import type { BackupDatabaseV1 } from '../src/main/backup/types'
+import type { BackupDatabase } from '../src/main/backup/types'
 
-function fixture(): BackupDatabaseV1 {
+function fixture(): BackupDatabase {
   return {
-    version: 1,
+    version: 2,
     includedTables: ['character_folders', 'character_prompts', 'vibe_images'],
     tables: {
       character_folders: [{ id: 1, name: 'People', sort_order: 0, collapsed: 0, color: null }],
@@ -54,8 +54,34 @@ function fixture(): BackupDatabaseV1 {
         extension: '.webp',
         data: Buffer.from('webp-data')
       }
-    ]
+    ],
+    missingFiles: []
   }
+}
+
+/** The same fixture with a second vibe whose source file was missing at export time. */
+function fixtureWithMissingFile(): BackupDatabase {
+  const database = fixture()
+  database.tables.vibe_images!.push({
+    ...database.tables.vibe_images![0],
+    id: 4,
+    name: 'Encoded vibe',
+    file_path: '',
+    encoded: 'paid encoding'
+  })
+  database.missingFiles = [{ table: 'vibe_images', rowId: 4, column: 'file_path' }]
+  return database
+}
+
+async function editManifest(
+  buffer: Buffer,
+  change: (manifest: Record<string, unknown>) => void
+): Promise<Buffer> {
+  const zip = await JSZip.loadAsync(buffer)
+  const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'))
+  change(manifest)
+  zip.file('manifest.json', JSON.stringify(manifest))
+  return zip.generateAsync({ type: 'nodebuffer' })
 }
 
 describe('.nais backup archive', () => {
@@ -90,14 +116,88 @@ describe('.nais backup archive', () => {
   })
 
   it('rejects unsupported archive versions', async () => {
-    const zip = await JSZip.loadAsync(await createNaisArchive(fixture(), '1.0.23'))
-    const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'))
-    manifest.formatVersion = 999
-    zip.file('manifest.json', JSON.stringify(manifest))
+    const archive = await editManifest(await createNaisArchive(fixture(), '1.0.23'), (manifest) => {
+      manifest.formatVersion = 999
+    })
 
-    await expect(readNaisArchive(await zip.generateAsync({ type: 'nodebuffer' }))).rejects.toThrow(
-      'Unsupported NAIS archive version'
+    await expect(readNaisArchive(archive)).rejects.toThrow('Unsupported NAIS archive version')
+  })
+
+  it('writes format version 2, which older apps refuse before reading any table', async () => {
+    const zip = await JSZip.loadAsync(await createNaisArchive(fixture(), '1.0.30'))
+    const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'))
+
+    // 1.0.29 and earlier accept only formatVersion === 1
+    expect(manifest.formatVersion).toBe(2)
+    expect(manifest.missingFiles).toEqual([])
+  })
+
+  it('still reads version 1 archives', async () => {
+    const archive = await editManifest(await createNaisArchive(fixture(), '1.0.23'), (manifest) => {
+      manifest.formatVersion = 1
+      delete manifest.missingFiles
+    })
+
+    const restored = await readNaisArchive(archive)
+    expect(restored.version).toBe(1)
+    expect(restored.missingFiles).toEqual([])
+    expect(restored.files).toHaveLength(1)
+  })
+
+  it('keeps a row whose source file is missing and reports it', async () => {
+    const buffer = await createNaisArchive(fixtureWithMissingFile(), '1.0.30')
+    const zip = await JSZip.loadAsync(buffer)
+    const assets = Object.values(zip.files).filter(
+      (entry) => !entry.dir && entry.name.startsWith('assets/files/')
     )
+    expect(assets.map((entry) => entry.name)).toEqual(['assets/files/vibe_images/3.webp'])
+
+    const restored = await readNaisArchive(buffer)
+    expect(restored.missingFiles).toEqual([{ table: 'vibe_images', rowId: 4, column: 'file_path' }])
+    expect(restored.tables.vibe_images?.[1]).toEqual(
+      expect.objectContaining({ id: 4, file_path: '', encoded: 'paid encoding' })
+    )
+    expect(restored.files.map((file) => file.rowId)).toEqual([3])
+  })
+
+  it('rejects inconsistent missing file lists', async () => {
+    const created = await createNaisArchive(fixtureWithMissingFile(), '1.0.30')
+    const cases: [string, (manifest: Record<string, unknown>) => void][] = [
+      ['invalid missing file list', (manifest) => delete manifest.missingFiles],
+      [
+        'missing files in a version 1 archive',
+        (manifest) => {
+          manifest.formatVersion = 1
+        }
+      ],
+      [
+        'invalid missing file entry',
+        (manifest) => {
+          manifest.missingFiles = [{ table: 'character_prompts', rowId: 2, column: 'file_path' }]
+        }
+      ],
+      [
+        'lists a missing file twice',
+        (manifest) => {
+          manifest.missingFiles = [
+            { table: 'vibe_images', rowId: 4, column: 'file_path' },
+            { table: 'vibe_images', rowId: 4, column: 'file_path' }
+          ]
+        }
+      ],
+      [
+        'lists a stored file as missing',
+        (manifest) => {
+          manifest.missingFiles = [
+            { table: 'vibe_images', rowId: 3, column: 'file_path' },
+            { table: 'vibe_images', rowId: 4, column: 'file_path' }
+          ]
+        }
+      ]
+    ]
+    for (const [message, change] of cases) {
+      await expect(readNaisArchive(await editManifest(created, change))).rejects.toThrow(message)
+    }
   })
 
   it('normalizes the existing NAIS3 JSON format without touching newer tables', () => {
@@ -128,18 +228,52 @@ describe('.nais backup archive', () => {
       }
     ]
 
-    const { database, skippedFiles } = legacyNais3ToBackupDatabase({
+    const database = legacyNais3ToBackupDatabase({
       _app: 'NAIS3',
       _version: 1,
       mainParams: '{}',
       tables: legacyTables
     })
 
-    expect(skippedFiles).toBe(0)
+    expect(database.missingFiles).toEqual([])
     expect(database.includedTables).not.toContain('library_images')
     expect(database.tables.character_prompts?.[0].thumbnail).toEqual(Buffer.from('thumb'))
     expect(database.files[0]).toEqual(
       expect.objectContaining({ table: 'vibe_images', rowId: 2, data: Buffer.from('vibe') })
     )
+  })
+
+  it('keeps legacy JSON rows exported without their image', () => {
+    const legacyTables: Record<string, unknown[]> = Object.fromEntries(
+      [
+        'character_folders',
+        'character_prompts',
+        'fragment_folders',
+        'fragments',
+        'vibe_folders',
+        'vibe_images',
+        'charref_folders',
+        'charref_images',
+        'scene_presets',
+        'gen_scenes',
+        'prompt_presets'
+      ].map((table) => [table, []])
+    )
+    legacyTables.vibe_images = [
+      { id: 5, name: 'Encoded vibe', file_path: '/gone/vibe.png', encoded: 'paid', __image: null }
+    ]
+
+    const database = legacyNais3ToBackupDatabase({
+      _app: 'NAIS3',
+      _version: 1,
+      mainParams: null,
+      tables: legacyTables
+    })
+
+    expect(database.tables.vibe_images).toEqual([
+      { id: 5, name: 'Encoded vibe', file_path: '', encoded: 'paid' }
+    ])
+    expect(database.missingFiles).toEqual([{ table: 'vibe_images', rowId: 5, column: 'file_path' }])
+    expect(database.files).toEqual([])
   })
 })

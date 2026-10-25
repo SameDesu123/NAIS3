@@ -579,7 +579,8 @@ export interface IpcInvokeMap {
   /** 전체 데이터 .nais 내보내기 (저장 다이얼로그) */
   'backup:export': {
     req: void
-    res: { saved: boolean; skippedFiles?: number; error?: string }
+    /** missingFiles=원본 파일 없이 행만 담은 항목 수 */
+    res: { saved: boolean; missingFiles?: number; error?: string }
   }
   /** 이전 NAIS3 버전에서 읽을 수 있는 JSON 내보내기 */
   'backup:exportLegacy': {
