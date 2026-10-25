@@ -23,8 +23,14 @@ vi.mock('../src/main/db/settings', () => ({
 vi.mock('../src/main/images/storage', () => ({ libraryRoot: mocks.libraryRoot }))
 
 import { createNaisArchive, readNaisArchive } from '../src/main/backup/archive'
-import { captureBackupDatabase, restoreBackupDatabase } from '../src/main/backup/repo'
+import { legacyNais3ToBackupDatabase } from '../src/main/backup/legacy'
+import {
+  captureBackupDatabase,
+  exportLegacyJson,
+  restoreBackupDatabase
+} from '../src/main/backup/repo'
 import type { BackupDatabase } from '../src/main/backup/types'
+import { ensureSteps } from '../src/main/db/ensure'
 import { migrations } from '../src/main/db/migrations'
 
 let db: Database.Database
@@ -65,9 +71,12 @@ function databaseFixture(duplicateNames = false): BackupDatabase {
   }
 }
 
-function migratedDatabase(): Database.Database {
+/** The app's schema: numbered migrations, then ensure.ts unless `ensure` is false (1.0.29). */
+function migratedDatabase(ensure = true): Database.Database {
   const database = new Database(':memory:')
+  database.pragma('foreign_keys = ON')
   for (const migration of migrations) migration(database)
+  if (ensure) for (const step of ensureSteps) step.apply(database)
   return database
 }
 
@@ -205,6 +214,101 @@ describe('.nais export of rows with missing files', () => {
       })
     } finally {
       target.close()
+    }
+  })
+})
+
+describe('media ledger and scene folders across a restore', () => {
+  function seedWorkspace(): Database.Database {
+    const database = migratedDatabase()
+    database.exec(`
+      INSERT INTO gen_scenes (id, name, folder_uuid) VALUES (1, 'local scene', 'uuid-local');
+      INSERT INTO media_roots (id, kind, path, path_key) VALUES (1, 'scene', '/scenes', '/scenes');
+      INSERT INTO scene_sources (scene_id, root_id, rel_dir, dir_key, role)
+        VALUES (1, 1, 'uuid-local', 'uuid-local', 'write');
+      INSERT INTO media_registrations (seq, root_id, rel_path, path_key, source, scene_id)
+        VALUES (1, 1, 'uuid-local/local scene_1.png', 'uuid-local/local scene_1.png', 'generated', 1);
+      INSERT INTO media_hidden (seq, scope) VALUES (1, 'history');
+      UPDATE history_state SET next_seq = 2, cleared_seq = 1;
+    `)
+    return database
+  }
+
+  function scenesArchive(scenes: Record<string, string | number | null>[]): BackupDatabase {
+    return {
+      version: 2,
+      includedTables: ['gen_scenes'],
+      tables: { gen_scenes: scenes },
+      mainParams: null,
+      files: [],
+      missingFiles: []
+    }
+  }
+
+  it('leaves the ledger alone and drops only links to the replaced scenes', () => {
+    const target = seedWorkspace()
+    mocks.getDb.mockReturnValue(target)
+    try {
+      restoreBackupDatabase(
+        scenesArchive([{ id: 1, name: 'restored scene', folder_uuid: 'uuid-restored' }])
+      )
+
+      expect(target.prepare('SELECT id, name, folder_uuid FROM gen_scenes').all()).toEqual([
+        { id: 1, name: 'restored scene', folder_uuid: 'uuid-restored' }
+      ])
+      // Same id, different scene: nothing may still point at it
+      expect(target.prepare('SELECT COUNT(*) FROM scene_sources').pluck().get()).toBe(0)
+      expect(target.prepare('SELECT seq, scene_id FROM media_registrations').all()).toEqual([
+        { seq: 1, scene_id: null }
+      ])
+      expect(target.prepare('SELECT COUNT(*) FROM media_roots').pluck().get()).toBe(1)
+      expect(target.prepare('SELECT seq, scope FROM media_hidden').all()).toEqual([
+        { seq: 1, scope: 'history' }
+      ])
+      expect(target.prepare('SELECT next_seq, cleared_seq FROM history_state').get()).toEqual({
+        next_seq: 2,
+        cleared_seq: 1
+      })
+    } finally {
+      target.close()
+    }
+  })
+
+  it('carries folder_uuid in .nais and restores archives from before it as NULL', async () => {
+    const source = seedWorkspace()
+    mocks.getDb.mockReturnValue(source)
+    const archive = await createNaisArchive(captureBackupDatabase(), '1.0.30')
+    source.close()
+
+    const target = migratedDatabase()
+    mocks.getDb.mockReturnValue(target)
+    try {
+      restoreBackupDatabase(await readNaisArchive(archive))
+      expect(target.prepare('SELECT folder_uuid FROM gen_scenes').pluck().all()).toEqual([
+        'uuid-local'
+      ])
+      restoreBackupDatabase({ ...scenesArchive([{ id: 1, name: 'v1 scene' }]), version: 1 })
+      expect(target.prepare('SELECT folder_uuid FROM gen_scenes').pluck().all()).toEqual([null])
+    } finally {
+      target.close()
+    }
+  })
+
+  it('keeps the legacy JSON export importable by a schema without ensure columns', () => {
+    const source = seedWorkspace()
+    mocks.getDb.mockReturnValue(source)
+    const legacy = exportLegacyJson()
+    source.close()
+    const scenes = (legacy.tables as Record<string, Record<string, unknown>[]>).gen_scenes
+    expect(scenes[0]).not.toHaveProperty('folder_uuid')
+
+    const old = migratedDatabase(false)
+    mocks.getDb.mockReturnValue(old)
+    try {
+      restoreBackupDatabase(legacyNais3ToBackupDatabase(legacy))
+      expect(old.prepare('SELECT name FROM gen_scenes').pluck().all()).toEqual(['local scene'])
+    } finally {
+      old.close()
     }
   })
 })

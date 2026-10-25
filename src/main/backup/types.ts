@@ -9,12 +9,16 @@ export type BackupFormatVersion = (typeof SUPPORTED_BACKUP_FORMAT_VERSIONS)[numb
 /**
  * Portable studio tables. A restore replaces exactly the tables an archive declares.
  *
- * Contract for persistent state added later (media roots, history state, visibility,
- * registrations, scene sources, external copies, scene favorites):
+ * Contract for the media ledger in db/ensure.ts (media_roots, history_state, media_hidden,
+ * media_registrations, scene_sources) and later scene_favorites and external copies:
  * - It lives in nais3.db itself, so the automatic DB snapshots (VACUUM INTO) include it.
  * - .nais keeps user choices and copied files. Device-local absolute roots are exported, but a
- *   restore never makes them active roots on another machine.
- * - Tables an archive does not declare are left untouched by a restore.
+ *   restore never makes them active roots on another machine (media_roots.status 'unmapped').
+ *   These tables join the archive when the code that writes them lands, with that restore policy.
+ * - Tables an archive does not declare are left untouched by a restore. Rows keyed by a scene id
+ *   follow the replaced gen_scenes through their foreign keys: scene_sources rows are deleted and
+ *   media_registrations.scene_id is cleared, so nothing points at a different scene.
+ * - gen_scenes.folder_uuid travels with gen_scenes; the legacy JSON export leaves it out.
  */
 export const BACKUP_TABLES = [
   'character_folders',

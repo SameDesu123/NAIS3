@@ -122,6 +122,21 @@ describe('DB migration worker', () => {
     expect(readdirSync(backups())).toEqual(['pre-migration-v18.db'])
   })
 
+  it('reports a v20 database that still needs the additive schema as pending', async () => {
+    // 1.0.29 leaves user_version 20 without the ensure.ts tables: the version alone says "done"
+    seed(migrations.length)
+    await expect(run()).resolves.toEqual({
+      migrated: true,
+      opened: [{ language: 'ko', pending: true }]
+    })
+    expect(version()).toBe(migrations.length)
+    await expect(run()).resolves.toEqual({
+      migrated: true,
+      opened: [{ language: 'ko', pending: false }]
+    })
+    expect(readdirSync(environment.directory)).not.toContain('backups')
+  })
+
   it('rejects with the migration error and leaves the database at its version', async () => {
     seed(18)
     writeFileSync(backups(), 'blocked directory')

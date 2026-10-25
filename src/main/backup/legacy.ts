@@ -24,6 +24,14 @@ export const LEGACY_BACKUP_TABLES = [
 
 const FILE_BACKED_TABLES = new Set<BackupTableName>(['vibe_images', 'charref_images'])
 
+/**
+ * Columns added by db/ensure.ts after the legacy format froze. The legacy JSON export is meant for
+ * older apps, whose importer rejects unknown columns, so these are left out.
+ */
+export const LEGACY_OMITTED_COLUMNS: Partial<Record<BackupTableName, readonly string[]>> = {
+  gen_scenes: ['folder_uuid']
+}
+
 type LegacyRow = Record<string, unknown>
 
 function decodeLegacyValue(value: unknown): BackupRow[string] {

@@ -8,6 +8,8 @@ import { seedDefaultDanbooruFragments } from '../fragments/defaults'
  * - 이미 배포된 마이그레이션은 절대 수정하지 않는다. 스키마 변경은 항상 새 항목 추가.
  * - 각 마이그레이션은 트랜잭션 안에서 실행된다 (db/index.ts).
  * - 실행 전 DB 파일 백업이 자동 생성된다 (db/index.ts).
+ * - 옛 앱이 몰라도 되는 추가(테이블·nullable 컬럼·인덱스)는 버전을 올리지 말고 ensure.ts에 둔다.
+ *   버전을 올릴 때마다 다운그레이드가 막힌다.
  */
 export const migrations: ((db: Database.Database) => void)[] = [
   // v1: 초기 스키마

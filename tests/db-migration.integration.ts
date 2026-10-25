@@ -34,6 +34,14 @@ const path = (): string => join(environment.directory, 'nais3.db')
 const backupPath = (): string => join(environment.directory, 'backups', 'pre-migration-v17.db')
 type Rows = Record<string, Record<string, unknown>[]>
 
+// Tables without an id column, ordered by their primary key
+const snapshotOrder: Record<string, string> = {
+  settings: 'key',
+  applied_jobs: 'name',
+  media_registrations: 'seq',
+  media_hidden: 'seq, scope'
+}
+
 function snapshot(database: Database.Database): Rows {
   const tables = database
     .prepare(
@@ -43,7 +51,7 @@ function snapshot(database: Database.Database): Rows {
   return Object.fromEntries(
     tables.map(({ name }) => [
       name,
-      database.prepare(`SELECT * FROM ${name} ORDER BY ${name === 'settings' ? 'key' : 'id'}`).all()
+      database.prepare(`SELECT * FROM ${name} ORDER BY ${snapshotOrder[name] ?? 'id'}`).all()
     ])
   )
 }
@@ -138,11 +146,12 @@ describe('existing workspace migration', () => {
     const after = snapshot(getDb())
     for (const [table, rows] of Object.entries(before)) {
       const key = table === 'settings' ? 'key' : 'id'
+      // ensure.ts may add nullable columns; every existing value must be unchanged
       for (const row of rows)
         expect(
           after[table].find((value) => value[key] === row[key]),
           table
-        ).toEqual(row)
+        ).toMatchObject(row)
     }
     expect(after.fragments).toHaveLength(8)
     expect(after.fragment_folders[1].name).toBe('Default (2)')

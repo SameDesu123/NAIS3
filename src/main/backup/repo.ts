@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { extname, join } from 'path'
 import { createNaisArchive, readNaisArchive } from './archive'
-import { legacyNais3ToBackupDatabase, LEGACY_BACKUP_TABLES } from './legacy'
+import { legacyNais3ToBackupDatabase, LEGACY_BACKUP_TABLES, LEGACY_OMITTED_COLUMNS } from './legacy'
 import {
   BACKUP_FORMAT_VERSION,
   BACKUP_TABLES,
@@ -37,9 +37,12 @@ export function exportLegacyJson(): Record<string, unknown> {
   const tables: Record<string, Record<string, unknown>[]> = {}
   for (const table of LEGACY_BACKUP_TABLES) {
     const rows = db.prepare(`SELECT * FROM ${table}`).all() as DbRow[]
+    const omitted = new Set(LEGACY_OMITTED_COLUMNS[table] ?? [])
     tables[table] = rows.map((row) => {
       const output: Record<string, unknown> = {}
-      for (const [column, value] of Object.entries(row)) output[column] = encodeLegacyValue(value)
+      for (const [column, value] of Object.entries(row)) {
+        if (!omitted.has(column)) output[column] = encodeLegacyValue(value)
+      }
       if (FILE_BACKED_TABLES.has(table) && typeof row.file_path === 'string') {
         try {
           output.__image = readFileSync(row.file_path).toString('base64')
