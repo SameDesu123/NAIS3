@@ -151,6 +151,17 @@ await check('범위 선택(Shift+← / 마우스 드래그)하면 목록 닫힘'
   await popupClosed()
 })
 
+await check('↓로 고른 뒤 이어서 입력하고 곧바로 Enter → 이전 선택을 넣지 않고 줄바꿈', async () => {
+  await reset('blue')
+  await popupOpen()
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  // 새 검색 결과(debounce 90ms + IPC)가 오기 전에 Enter
+  await page.keyboard.type(' ey')
+  await page.keyboard.press('Enter')
+  expectEq(await value(), 'blue ey\n', '이전 선택 무효')
+})
+
 await check('뒤에 쉼표가 있을 때 완성해도 목록이 다시 열리지 않음', async () => {
   await reset(', smile')
   await page.keyboard.press('Home')

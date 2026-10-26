@@ -253,6 +253,9 @@ export function PromptEditor({
     const seq = ++searchSeqRef.current // 이 시점 이전에 발사된 검색 결과는 전부 무효
     const before = text.slice(0, cursor)
     tokenRef.current.start = -1
+    // 입력이 바뀌면 고른 항목도 무효 — 새 결과가 오기 전(debounce+IPC) Enter가 이전 목록의
+    // 선택을 새 토큰에 넣지 않게. "blue"에서 ↓로 blue hair → " ey" 입력 → Enter = blue hair
+    setSelected(NO_SELECTION)
 
     // 주석 구간(# 뒤)에서는 추천 안 함 — 어차피 전송 안 되는 텍스트
     const lineStart = before.lastIndexOf('\n') + 1
