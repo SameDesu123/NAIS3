@@ -3,7 +3,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom'
 import type { MessageId } from '@shared/i18n'
 import { cn } from '../lib/utils'
-import { useT } from '../lib/i18n'
+import { useLanguageStore, useT } from '../lib/i18n'
 import { caretCoords } from '../lib/caret'
 import {
   autocompleteKeyAction,
@@ -106,6 +106,7 @@ export function PromptEditor({
   tokenLimit?: number
 }): React.JSX.Element {
   const t = useT()
+  const lang = useLanguageStore((s) => s.lang)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -137,10 +138,13 @@ export function PromptEditor({
     return id ? t(id) : null
   }
 
+  // 읽어 줄 게시물 수는 언어별 단위로 — 1.2M은 "일 점 이 엠"으로 읽힌다 (ko 123만, zh 123万, en 1.2M)
+  const spokenCount = useMemo(() => new Intl.NumberFormat(lang, { notation: 'compact' }), [lang])
+
   /** 스크린 리더가 읽을 항목 이름 — 화면의 색·약식 숫자 대신 종류와 게시물 수를 말로 */
   function optionLabel(s: Suggestion): string {
     if (s.kind === 'frag') return `<${s.path}>, ${t('ui.fragments')}`
-    return [s.tag, typeLabel(s.type), t('ui.valuePosts', formatCount(s.count))]
+    return [s.tag, typeLabel(s.type), t('ui.valuePosts', spokenCount.format(s.count))]
       .filter(Boolean)
       .join(', ')
   }
