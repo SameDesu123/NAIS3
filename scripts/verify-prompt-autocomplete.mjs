@@ -50,7 +50,7 @@ await ta.waitFor()
 page.setDefaultTimeout(5000)
 
 const popup = page.locator(POPUP)
-const items = popup.locator('button')
+const items = popup.locator('[role="option"]')
 const value = () => ta.inputValue()
 
 /** 비우고 새로 입력 — select all + Delete도 undo 기록에 남지만 각 시나리오는 독립 */
@@ -188,11 +188,64 @@ await check('마우스를 올리면 선택이 따라가고 클릭으로 삽입',
 await check('조각(<) 자동완성 — 목록이 뜨면 Tab 완성 + Ctrl+Z', async () => {
   await reset('<verify')
   await popupOpen()
-  const first = (await items.first().textContent()).trim() // "<path>"
+  const first = (await items.first().locator('span').first().textContent()).trim() // "<path>"
   await page.keyboard.press('Tab')
   expectEq(await value(), `${first}, `, '조각 Tab 완성')
   await page.keyboard.press(`${mod}+Z`)
   expectEq(await value(), '<verify', '조각 Ctrl+Z')
+})
+
+await check('접근성 — listbox/option, activedescendant가 ↓를 따라감, 안내 문구', async () => {
+  await reset('blue h')
+  await popupOpen()
+  expectEq(await popup.getAttribute('role'), 'listbox', 'listbox 역할')
+  expectEq(await ta.getAttribute('aria-controls'), await popup.getAttribute('id'), 'aria-controls')
+  expectEq(await ta.getAttribute('aria-activedescendant'), null, '미선택 시 activedescendant 없음')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  const second = items.nth(1)
+  expectEq(await ta.getAttribute('aria-activedescendant'), await second.getAttribute('id'), '↓↓ 후')
+  expectEq(await second.getAttribute('aria-selected'), 'true', 'aria-selected')
+  const label = await second.getAttribute('aria-label')
+  if (!label || !label.includes(',')) throw new Error(`항목 이름에 종류·게시물 수가 없음: ${label}`)
+  const live = await page.locator('[aria-live="polite"]').first().textContent()
+  if (!/\d/.test(live)) throw new Error(`목록 안내가 비었음: ${JSON.stringify(live)}`)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(100)
+  expectEq(await ta.getAttribute('aria-controls'), null, '닫힌 뒤 aria-controls 제거')
+})
+
+await check('팝업 위치 — 커서 줄을 가리지 않고 화면 안에 머묾 (창 높이별)', async () => {
+  for (const height of [900, 560, 420]) {
+    await page.setViewportSize({ width: 1400, height })
+    await reset()
+    await ta.fill('\n'.repeat(30)) // 커서를 텍스트 영역 맨 아래 줄로
+    await page.keyboard.press(`${mod}+End`)
+    await page.keyboard.type('blue h', { delay: 20 })
+    await popupOpen()
+    const pb = await popup.boundingBox()
+    const caret = await ta.evaluate((el) => {
+      const r = el.getBoundingClientRect()
+      return { top: r.top, bottom: r.bottom }
+    })
+    if (pb.y < 0 || pb.y + pb.height > height) {
+      throw new Error(`${height}: 화면 밖 (${pb.y}..${pb.y + pb.height})`)
+    }
+    // 마지막 보이는 줄 = 텍스트 영역 아래쪽. 팝업이 그 줄 위아래 중 한쪽에만 있어야 함
+    const lineTop = caret.bottom - 40
+    const overlaps = pb.y < caret.bottom - 10 && pb.y + pb.height > lineTop + 10
+    if (overlaps) throw new Error(`${height}: 커서 줄을 덮음 (${pb.y}..${pb.y + pb.height})`)
+    // 스크롤되는 목록에서도 ↓로 고른 마지막 항목이 보여야 함
+    const n = await items.count()
+    for (let i = 0; i < n; i++) await page.keyboard.press('ArrowDown')
+    const last = await items.nth(n - 1).boundingBox()
+    const box = await popup.boundingBox()
+    if (last.y + last.height > box.y + box.height + 1) {
+      throw new Error(`${height}: 고른 항목이 가려짐`)
+    }
+    await page.keyboard.press('Escape')
+  }
+  await page.setViewportSize({ width: 1400, height: 900 })
 })
 
 await browser.close()

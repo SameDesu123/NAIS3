@@ -760,7 +760,16 @@ export const KO = {
   'ui.inlineRandomSyntax': '<a|b|c>',
   'ui.queue': '예약',
   'ui.namedCast': '"{0}" 출연',
-  'ui.adjustQueueForSelectedScenes': '선택한 {0}개 씬의 {1} 예약 {2}{3}'
+  'ui.adjustQueueForSelectedScenes': '선택한 {0}개 씬의 {1} 예약 {2}{3}',
+  'ui.suggestions': '자동완성 추천',
+  'ui.valueSuggestionsUpDownToChooseTabToInsert': '추천 {0}개. 위아래 화살표로 고르고 Tab으로 넣기',
+  'ui.insertedValue': '{0} 삽입됨',
+  'ui.tagTypeArtist': '작가',
+  'ui.tagTypeCharacter': '캐릭터',
+  'ui.tagTypeCopyright': '작품',
+  'ui.tagTypeMeta': '메타',
+  'ui.tagTypeGeneral': '일반',
+  'ui.valuePosts': '게시물 {0}개'
 } as const
 
 export type MessageId = keyof typeof KO

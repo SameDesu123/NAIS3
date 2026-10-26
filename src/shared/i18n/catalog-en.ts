@@ -778,5 +778,15 @@ export const EN = {
   'ui.inlineRandomSyntax': '<a|b|c>',
   'ui.queue': 'Queue',
   'ui.namedCast': 'cast "{0}"',
-  'ui.adjustQueueForSelectedScenes': '{2}{3} queue for {1} across {0} selected {0|scene|scenes}'
+  'ui.adjustQueueForSelectedScenes': '{2}{3} queue for {1} across {0} selected {0|scene|scenes}',
+  'ui.suggestions': 'Suggestions',
+  'ui.valueSuggestionsUpDownToChooseTabToInsert':
+    '{0} {0|suggestion|suggestions}. Up and down arrows to choose, Tab to insert',
+  'ui.insertedValue': 'Inserted {0}',
+  'ui.tagTypeArtist': 'Artist',
+  'ui.tagTypeCharacter': 'Character',
+  'ui.tagTypeCopyright': 'Series',
+  'ui.tagTypeMeta': 'Meta',
+  'ui.tagTypeGeneral': 'General',
+  'ui.valuePosts': '{0} posts'
 } as const satisfies MessageCatalog

@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import type { MessageId } from '@shared/i18n'
 import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { caretCoords } from '../lib/caret'
@@ -45,6 +46,19 @@ const TYPE_COLORS: Record<string, string> = {
   character: 'text-tag-character',
   copyright: 'text-tag-copyright',
   meta: 'text-tag-meta'
+}
+
+// 종류는 색만으로 구분하지 않는다 (WCAG 1.4.1) — 색각 이상·스크린 리더용 글자 표시
+const TYPE_LABELS = {
+  artist: 'ui.tagTypeArtist',
+  character: 'ui.tagTypeCharacter',
+  copyright: 'ui.tagTypeCopyright',
+  meta: 'ui.tagTypeMeta',
+  general: 'ui.tagTypeGeneral'
+} as const satisfies Record<string, MessageId>
+
+function typeLabelId(type: string): MessageId | null {
+  return type in TYPE_LABELS ? TYPE_LABELS[type as keyof typeof TYPE_LABELS] : null
 }
 
 /*
@@ -105,7 +119,31 @@ export function PromptEditor({
   const tokenRef = useRef<{ start: number; kind: SuggestionKind }>({ start: -1, kind: 'tag' })
   // complete()의 execCommand가 일으킨 onChange에서 추천을 다시 열지 않기 위한 플래그
   const completingRef = useRef(false)
-  const [popupPos, setPopupPos] = useState<{ left: number; top: number } | null>(null)
+  // 팝업 기준점 (뷰포트 좌표). 실제 위치는 렌더 후 팝업 크기를 재서 정한다 (useLayoutEffect)
+  const [popupAnchor, setPopupAnchor] = useState<{
+    left: number
+    below: number
+    above: number
+  } | null>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+  // 스크린 리더 안내 (aria-live) — 목록 열림·삽입 결과
+  const [announcement, setAnnouncement] = useState('')
+  const listboxId = useId()
+  const optionId = (i: number): string => `${listboxId}-${i}`
+  const popupOpen = suggestions.length > 0 && popupAnchor !== null
+
+  function typeLabel(type: string): string | null {
+    const id = typeLabelId(type)
+    return id ? t(id) : null
+  }
+
+  /** 스크린 리더가 읽을 항목 이름 — 화면의 색·약식 숫자 대신 종류와 게시물 수를 말로 */
+  function optionLabel(s: Suggestion): string {
+    if (s.kind === 'frag') return `<${s.path}>, ${t('ui.fragments')}`
+    return [s.tag, typeLabel(s.type), t('ui.valuePosts', formatCount(s.count))]
+      .filter(Boolean)
+      .join(', ')
+  }
 
   const ranges = useMemo(() => highlightRanges(value), [value])
 
@@ -223,21 +261,60 @@ export function PromptEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [findOpen, current, query])
 
-  /** 커서 아래 팝업 좌표 (뷰포트 기준, 화면 밖으로 나가지 않게 클램프) */
-  function placePopup(itemCount: number): void {
+  /** 커서 위치를 팝업 기준점으로 (뷰포트 기준) */
+  function placePopup(): void {
     const ta = textareaRef.current
     if (!ta) return
     const caret = caretCoords(ta, ta.selectionStart)
     const rect = ta.getBoundingClientRect()
-    const estimatedHeight = Math.min(itemCount, 8) * 27 + 10
-    let left = rect.left + caret.left - ta.scrollLeft
-    let top = rect.top + caret.top - ta.scrollTop + caret.height + 4
-    left = Math.max(8, Math.min(left, window.innerWidth - 288))
-    if (top + estimatedHeight > window.innerHeight - 8) {
-      top = rect.top + caret.top - ta.scrollTop - estimatedHeight - 4
-    }
-    setPopupPos({ left, top })
+    const top = rect.top + caret.top - ta.scrollTop
+    setPopupAnchor({
+      left: rect.left + caret.left - ta.scrollLeft,
+      below: top + caret.height + 4,
+      above: top - 4
+    })
   }
+
+  // 팝업의 실제 크기로 위치 결정 — 항목 높이를 어림하면 글자 크기·확대 배율에 따라 화면 밖으로 나간다.
+  // 아래가 모자라면 커서 위로. 양쪽 다 모자라면 넓은 쪽에 붙이고 높이를 줄여 목록 안에서 스크롤
+  // (화면 끝에 클램프하면 커서 줄을 덮는다). 좌우는 화면 안으로 클램프. 페인트 전이라 깜빡임 없음
+  useLayoutEffect(() => {
+    const el = popupRef.current
+    if (!el || !popupAnchor) return
+    el.style.maxHeight = ''
+    const { offsetWidth: width, offsetHeight: height } = el
+    const spaceBelow = window.innerHeight - 8 - popupAnchor.below
+    const spaceAbove = popupAnchor.above - 8
+    let top = popupAnchor.below
+    if (height > spaceBelow) {
+      if (height <= spaceAbove) {
+        top = popupAnchor.above - height
+      } else if (spaceAbove > spaceBelow) {
+        top = 8
+        el.style.maxHeight = `${spaceAbove}px`
+      } else {
+        el.style.maxHeight = `${Math.max(spaceBelow, 0)}px`
+      }
+    }
+    el.style.left = `${Math.max(8, Math.min(popupAnchor.left, window.innerWidth - width - 8))}px`
+    el.style.top = `${top}px`
+  }, [popupAnchor, suggestions])
+
+  // 높이가 줄어 스크롤되는 목록에서 ↑/↓로 고른 항목이 가려지지 않게
+  useLayoutEffect(() => {
+    if (selected < 0) return
+    document.getElementById(`${listboxId}-${selected}`)?.scrollIntoView({ block: 'nearest' })
+  }, [selected, listboxId])
+
+  // 목록이 열리거나 항목 수가 바뀌면 안내. 선택 이동은 aria-activedescendant로 읽힌다
+  const suggestionCount = popupAnchor ? suggestions.length : 0
+  useEffect(() => {
+    if (suggestionCount === 0) return
+    const timer = setTimeout(() =>
+      setAnnouncement(t('ui.valueSuggestionsUpDownToChooseTabToInsert', suggestionCount))
+    )
+    return () => clearTimeout(timer)
+  }, [suggestionCount, t])
 
   /** 추천 닫기. seq를 올리고 debounce를 취소해 이미 출발한 검색이 패널을 되열지 못하게 (B7) */
   function closeSuggestions(): void {
@@ -270,7 +347,7 @@ export function PromptEditor({
       tokenRef.current = { start: cursor - frag[1].length, kind: 'frag' }
       setSuggestions(paths.map((path) => ({ kind: 'frag', path })))
       setSelected(NO_SELECTION)
-      if (paths.length > 0) placePopup(paths.length)
+      if (paths.length > 0) placePopup()
       return
     }
 
@@ -296,7 +373,7 @@ export function PromptEditor({
           if (searchSeqRef.current !== seq) return // 스테일 — 그 사이 입력이 바뀜
           setSuggestions(items.map((t) => ({ kind: 'tag' as const, ...t })))
           setSelected(NO_SELECTION)
-          if (items.length > 0) placePopup(items.length)
+          if (items.length > 0) placePopup()
         })
     }, 90)
   }
@@ -326,6 +403,8 @@ export function PromptEditor({
     // 완성 후 바로 다음 태그를 이어 칠 수 있게 ", " 부착 (뒤에 이미 쉼표가 있으면 생략)
     if (!text.slice(cursor).trimStart().startsWith(',')) insert += ', '
     closeSuggestions()
+    // Tab은 포커스 이동이 아니라 삽입이므로 무엇이 들어갔는지 알린다
+    setAnnouncement(t('ui.insertedValue', s.kind === 'frag' ? `<${s.path}>` : s.tag))
 
     // value를 프로그램적으로 바꾸면 Chromium이 textarea의 네이티브 undo 기록을 통째로 버린다
     // (Ctrl+Z로 자동완성 이전 입력까지 못 되돌림). execCommand('insertText')는 deprecated지만
@@ -410,6 +489,15 @@ export function PromptEditor({
         )}
         style={{ caretColor: 'var(--ink)' }}
         spellCheck={false}
+        // 자동완성 목록 연결. 포커스는 textarea에 둔 채 activedescendant로 선택 항목을 읽힌다.
+        // (textarea는 combobox 역할을 가질 수 없어 textbox + aria-autocomplete 조합)
+        aria-autocomplete="list"
+        aria-controls={popupOpen ? listboxId : undefined}
+        aria-activedescendant={
+          popupOpen && selected >= 0 && selected < suggestions.length
+            ? optionId(selected)
+            : undefined
+        }
         value={value}
         placeholder={placeholder}
         onChange={(e) => {
@@ -555,17 +643,30 @@ export function PromptEditor({
         </span>
       )}
 
-      {suggestions.length > 0 &&
-        popupPos &&
+      {/* 스크린 리더 안내 — 늘 DOM에 있어야 내용 변경이 읽힌다 */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {announcement}
+      </div>
+
+      {popupOpen &&
+        popupAnchor &&
         createPortal(
           <div
+            ref={popupRef}
+            id={listboxId}
+            role="listbox"
+            aria-label={t('ui.suggestions')}
             data-prompt-suggestions
-            className="fixed z-50 min-w-52 max-w-72 overflow-hidden rounded-md border border-line bg-surface shadow-xl"
-            style={{ left: popupPos.left, top: popupPos.top, pointerEvents: 'auto' }}
+            className="fixed z-50 min-w-52 max-w-72 overflow-y-auto rounded-md border border-line bg-surface shadow-xl"
+            style={{ left: popupAnchor.left, top: popupAnchor.below, pointerEvents: 'auto' }}
           >
             {suggestions.map((s, i) => (
-              <button
+              <div
                 key={s.kind === 'frag' ? `f:${s.path}` : `t:${s.tag}`}
+                id={optionId(i)}
+                role="option"
+                aria-selected={i === selected}
+                aria-label={optionLabel(s)}
                 className={cn(
                   'flex w-full items-center gap-2 px-2.5 py-1 text-left font-mono text-[12px] text-muted',
                   i === selected && 'bg-surface-2 text-ink',
@@ -585,18 +686,34 @@ export function PromptEditor({
                 }}
               >
                 {s.kind === 'frag' ? (
-                  <span className="truncate text-tag-fragment">{`<${s.path}>`}</span>
+                  <span className="min-w-0 flex-1 truncate text-tag-fragment">{`<${s.path}>`}</span>
                 ) : (
                   <>
                     <span className={cn('min-w-0 flex-1 truncate', TYPE_COLORS[s.type])}>
                       {s.tag}
                     </span>
-                    <span className="shrink-0 text-[10.5px] text-faint">
+                    {/* 일반 태그는 표시 생략 — 대부분이라 표시하면 오히려 잡음 */}
+                    {s.type !== 'general' && typeLabel(s.type) && (
+                      <span className="shrink-0 font-sans text-[10.5px] text-muted">
+                        {typeLabel(s.type)}
+                      </span>
+                    )}
+                    {/* faint는 밝은 테마의 선택 배경에서 3.8:1 — 작은 글자 기준(4.5:1) 미달이라 muted */}
+                    <span className="shrink-0 text-[10.5px] text-muted">
                       {formatCount(s.count)}
                     </span>
                   </>
                 )}
-              </button>
+                {/* Tab으로 들어갈 항목 — 강조선(색)만이 아니라 글자로도 표시 */}
+                {i === (selected === NO_SELECTION ? 0 : selected) && (
+                  <kbd
+                    aria-hidden
+                    className="shrink-0 rounded border border-line px-1 font-sans text-[10px] leading-4 text-muted"
+                  >
+                    Tab
+                  </kbd>
+                )}
+              </div>
             ))}
           </div>,
           document.body

@@ -753,5 +753,14 @@ export const ZH_CN = {
   'ui.inlineRandomSyntax': '<a|b|c>',
   'ui.queue': '预约',
   'ui.namedCast': '“{0}”角色组合',
-  'ui.adjustQueueForSelectedScenes': '为选中的 {0} 个场景调整 {1} 预约 {2}{3}'
+  'ui.adjustQueueForSelectedScenes': '为选中的 {0} 个场景调整 {1} 预约 {2}{3}',
+  'ui.suggestions': '自动补全建议',
+  'ui.valueSuggestionsUpDownToChooseTabToInsert': '{0} 条建议。用上下方向键选择，按 Tab 插入',
+  'ui.insertedValue': '已插入 {0}',
+  'ui.tagTypeArtist': '画师',
+  'ui.tagTypeCharacter': '角色',
+  'ui.tagTypeCopyright': '作品',
+  'ui.tagTypeMeta': '元标签',
+  'ui.tagTypeGeneral': '一般',
+  'ui.valuePosts': '{0} 篇投稿'
 } satisfies MessageCatalog
