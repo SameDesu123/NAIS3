@@ -4,6 +4,13 @@ import { createPortal } from 'react-dom'
 import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { caretCoords } from '../lib/caret'
+import {
+  autocompleteKeyAction,
+  isCaretInToken,
+  NO_SELECTION,
+  TAG_TOKEN_SEPARATORS,
+  type SuggestionKind
+} from '../lib/autocomplete'
 import { highlightRanges } from '../lib/prompt-weights'
 import { fragmentAtSelection, fragmentPaths, useFragmentsStore } from '../stores/fragments-store'
 
@@ -26,8 +33,6 @@ const TYPO =
 
 type Suggestion =
   { kind: 'frag'; path: string } | { kind: 'tag'; tag: string; count: number; type: string }
-
-const TAG_TOKEN_SEPARATORS = /[,\n{}[\]|<>:/]/
 
 function formatCount(count: number): string {
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`
@@ -94,8 +99,12 @@ export function PromptEditor({
   // (패널이 남으면 Enter가 줄바꿈 대신 자동완성 삽입으로 먹혀 "줄바꿈이 안 된다"로 나타남)
   const searchSeqRef = useRef(0)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-  const [selected, setSelected] = useState(0)
-  const [tokenStart, setTokenStart] = useState(-1)
+  // -1 = 미선택. ↑/↓·마우스로 고른 항목만 Enter로 삽입된다 (lib/autocomplete)
+  const [selected, setSelected] = useState(NO_SELECTION)
+  // 토큰 시작·종류는 ref — onSelect가 같은 이벤트 루프에서 onChange 직후 읽어도 최신이어야 함
+  const tokenRef = useRef<{ start: number; kind: SuggestionKind }>({ start: -1, kind: 'tag' })
+  // complete()의 execCommand가 일으킨 onChange에서 추천을 다시 열지 않기 위한 플래그
+  const completingRef = useRef(false)
   const [popupPos, setPopupPos] = useState<{ left: number; top: number } | null>(null)
 
   const ranges = useMemo(() => highlightRanges(value), [value])
@@ -193,7 +202,7 @@ export function PromptEditor({
     if (selected && !selected.includes('\n')) setQuery(selected)
     setHit(0)
     setFindOpen(true)
-    setSuggestions([])
+    closeSuggestions()
     requestAnimationFrame(() => findInputRef.current?.select())
   }
 
@@ -230,10 +239,20 @@ export function PromptEditor({
     setPopupPos({ left, top })
   }
 
+  /** 추천 닫기. seq를 올리고 debounce를 취소해 이미 출발한 검색이 패널을 되열지 못하게 (B7) */
+  function closeSuggestions(): void {
+    clearTimeout(debounceRef.current)
+    searchSeqRef.current++
+    tokenRef.current.start = -1
+    setSuggestions([])
+    setSelected(NO_SELECTION)
+  }
+
   function refreshSuggestions(text: string, cursor: number): void {
     clearTimeout(debounceRef.current)
     const seq = ++searchSeqRef.current // 이 시점 이전에 발사된 검색 결과는 전부 무효
     const before = text.slice(0, cursor)
+    tokenRef.current.start = -1
 
     // 주석 구간(# 뒤)에서는 추천 안 함 — 어차피 전송 안 되는 텍스트
     const lineStart = before.lastIndexOf('\n') + 1
@@ -245,9 +264,9 @@ export function PromptEditor({
     const frag = /<([^<>|]*)$/.exec(before)
     if (frag) {
       const paths = fragmentPaths(frag[1])
-      setTokenStart(cursor - frag[1].length)
+      tokenRef.current = { start: cursor - frag[1].length, kind: 'frag' }
       setSuggestions(paths.map((path) => ({ kind: 'frag', path })))
-      setSelected(0)
+      setSelected(NO_SELECTION)
       if (paths.length > 0) placePopup(paths.length)
       return
     }
@@ -266,31 +285,64 @@ export function PromptEditor({
       setSuggestions([])
       return
     }
-    setTokenStart(start)
+    tokenRef.current = { start, kind: 'tag' }
     debounceRef.current = setTimeout(() => {
       void window.nais
         .invoke('tags:search', { query: token.trim(), limit: 8 })
         .then(({ items }) => {
           if (searchSeqRef.current !== seq) return // 스테일 — 그 사이 입력이 바뀜
           setSuggestions(items.map((t) => ({ kind: 'tag' as const, ...t })))
-          setSelected(0)
+          setSelected(NO_SELECTION)
           if (items.length > 0) placePopup(items.length)
         })
     }, 90)
   }
 
+  /** 커서가 토큰을 벗어났으면(클릭·방향키·Home/End·드래그) 추천을 즉시 닫는다 */
+  function checkCaret(): void {
+    const ta = textareaRef.current
+    const { start, kind } = tokenRef.current
+    if (!ta || start < 0) return
+    if (!isCaretInToken(ta.value, start, ta.selectionStart, ta.selectionEnd, kind)) {
+      closeSuggestions()
+    }
+  }
+
   function complete(s: Suggestion): void {
     const ta = textareaRef.current
-    if (!ta || tokenStart < 0) return
+    const { start, kind } = tokenRef.current
+    if (!ta || start < 0) return
+    // 방어: 목록이 뜬 뒤 커서가 움직였다면 삽입하면 글이 지워지거나 중복된다 — 닫기만
+    const text = ta.value
+    if (!isCaretInToken(text, start, ta.selectionStart, ta.selectionEnd, kind)) {
+      closeSuggestions()
+      return
+    }
     const cursor = ta.selectionStart
     let insert = s.kind === 'frag' ? s.path + '>' : s.tag
     // 완성 후 바로 다음 태그를 이어 칠 수 있게 ", " 부착 (뒤에 이미 쉼표가 있으면 생략)
-    if (!value.slice(cursor).trimStart().startsWith(',')) insert += ', '
-    const next = value.slice(0, tokenStart) + insert + value.slice(cursor)
-    onValueChange(next)
-    setSuggestions([])
+    if (!text.slice(cursor).trimStart().startsWith(',')) insert += ', '
+    closeSuggestions()
+
+    // value를 프로그램적으로 바꾸면 Chromium이 textarea의 네이티브 undo 기록을 통째로 버린다
+    // (Ctrl+Z로 자동완성 이전 입력까지 못 되돌림). execCommand('insertText')는 deprecated지만
+    // 사용자 입력과 같은 편집으로 undo 스택에 쌓이는 유일한 수단 — Ctrl+Z 한 번이면 완성 직전.
+    // input 이벤트가 나서 onChange → onValueChange로 값이 동기화된다.
+    ta.focus()
+    ta.setSelectionRange(start, cursor)
+    completingRef.current = true
+    let inserted = false
+    try {
+      inserted = document.execCommand('insertText', false, insert)
+    } finally {
+      completingRef.current = false
+    }
+    if (inserted) return
+
+    // 대체 경로 (execCommand 미지원) — undo 기록은 잃는다
+    onValueChange(text.slice(0, start) + insert + text.slice(cursor))
     requestAnimationFrame(() => {
-      const pos = tokenStart + insert.length
+      const pos = start + insert.length
       ta.setSelectionRange(pos, pos)
       ta.focus()
     })
@@ -359,16 +411,18 @@ export function PromptEditor({
         placeholder={placeholder}
         onChange={(e) => {
           onValueChange(e.target.value)
+          // 자동완성 삽입 자체가 일으킨 변경 — 뒤에 쉼표가 있어 ", "를 안 붙인 경우
+          // 방금 넣은 태그로 목록이 다시 뜨는 것 방지
+          if (completingRef.current) return
           refreshSuggestions(e.target.value, e.target.selectionStart)
         }}
+        onSelect={checkCaret}
         onScroll={syncScroll}
         onDoubleClick={(e) => {
           const ta = e.currentTarget
           const fragment = fragmentAtSelection(value, ta.selectionStart, ta.selectionEnd)
           if (!fragment) return
-          clearTimeout(debounceRef.current)
-          searchSeqRef.current++
-          setSuggestions([])
+          closeSuggestions()
           useFragmentsStore.getState().openEditor(fragment.id)
         }}
         onKeyDown={(e) => {
@@ -384,20 +438,28 @@ export function PromptEditor({
             closeFind()
             return
           }
-          if (suggestions.length === 0) return
-          if (e.key === 'ArrowDown') {
+          const action = autocompleteKeyAction({
+            key: e.key,
+            count: suggestions.length,
+            selected,
+            composing: e.nativeEvent.isComposing || e.keyCode === 229,
+            shiftKey: e.shiftKey,
+            ctrlKey: e.ctrlKey,
+            metaKey: e.metaKey,
+            altKey: e.altKey
+          })
+          if (action.type === 'select') {
             e.preventDefault()
-            setSelected((selected + 1) % suggestions.length)
-          } else if (e.key === 'ArrowUp') {
+            setSelected(action.index)
+          } else if (action.type === 'complete') {
             e.preventDefault()
-            setSelected((selected - 1 + suggestions.length) % suggestions.length)
-          } else if (e.key === 'Enter' || e.key === 'Tab') {
-            e.preventDefault()
-            complete(suggestions[selected])
-          } else if (e.key === 'Escape') {
+            complete(suggestions[action.index])
+          } else if (action.type === 'close') {
+            closeSuggestions() // preventDefault 안 함 — 줄바꿈 등 기본 동작 유지
+          } else if (action.type === 'dismiss') {
             e.preventDefault()
             e.stopPropagation()
-            setSuggestions([])
+            closeSuggestions()
           }
         }}
         onBlur={() => {
@@ -405,6 +467,7 @@ export function PromptEditor({
           // 되열지 못하게 한다 (B7). 150ms 지연은 추천 클릭이 blur보다 먼저 처리되도록.
           clearTimeout(debounceRef.current)
           searchSeqRef.current++
+          tokenRef.current.start = -1
           setTimeout(() => setSuggestions([]), 150)
         }}
       />
@@ -502,8 +565,17 @@ export function PromptEditor({
                 key={s.kind === 'frag' ? `f:${s.path}` : `t:${s.tag}`}
                 className={cn(
                   'flex w-full items-center gap-2 px-2.5 py-1 text-left font-mono text-[12px] text-muted',
-                  i === selected && 'bg-surface-2 text-ink'
+                  i === selected && 'bg-surface-2 text-ink',
+                  // 미선택 상태의 첫 항목 = Tab 기본값 — 배경 없이 좌측 강조선만 약하게
+                  selected === NO_SELECTION &&
+                    i === 0 &&
+                    'text-ink shadow-[inset_2px_0_0_var(--accent)]'
                 )}
+                // mouseenter 대신 mousemove — 목록이 정지한 포인터 아래에 새로 떴을 때
+                // 사용자가 마우스를 움직이지도 않았는데 항목이 "선택"되어 Enter가 먹히는 것 방지
+                onMouseMove={() => {
+                  if (selected !== i) setSelected(i)
+                }}
                 onMouseDown={(e) => {
                   e.preventDefault()
                   complete(s)
