@@ -7,7 +7,7 @@ import { pixelateSmall, type PixelBuffer, type PixelateOptions } from './pixelat
  * 원본은 처음 한 번 base64로 받아 여기서 해독해 두고 (4K는 해독만으로 메인 스레드가 1초 가까이 멈춘다),
  * 이후 요청은 옵션만 주고받는다.
  */
-export type PixelatePreviewOptions = Pick<PixelateOptions, 'dot' | 'colors' | 'dither'>
+export type PixelatePreviewOptions = Pick<PixelateOptions, 'dot' | 'colors' | 'dither' | 'tone'>
 
 export type PixelateWorkerRequest =
   | { type: 'source'; base64: string; width: number; height: number }

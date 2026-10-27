@@ -1,9 +1,10 @@
 /**
  * 도트화(픽셀 아트 변환) — 디렉터 로컬 툴. 외부 호출 없이 RGBA 버퍼만으로 처리한다.
  * 1) dot×dot 블록마다 알파 가중 평균색으로 축소 (알파는 반투명 없이 0/255로 잘라 외곽을 또렷하게)
- * 2) 선택 시 k-means로 팔레트 색 수를 줄임 (시드 고정 — 같은 입력은 항상 같은 결과)
+ * 2) 톤을 고르면 밝기에 따라 색 띠로 다시 칠해 한 색 계통으로 모은다 (팔레트를 줄이기 전이라 팔레트도 그 계통에서 뽑힌다)
+ * 3) 선택 시 k-means로 팔레트 색 수를 줄임 (시드 고정 — 같은 입력은 항상 같은 결과)
  *    디더링을 켜면 Floyd–Steinberg 오차 확산으로 팔레트 사이 중간색을 점무늬로 표현
- * 3) 원본 크기 유지면 최근접 확대로 다시 키운다
+ * 4) 원본 크기 유지면 최근접 확대로 다시 키운다
  * 캔버스 API에 의존하지 않아 테스트에서 그대로 검증할 수 있다.
  */
 export interface PixelBuffer {
@@ -21,6 +22,66 @@ export interface PixelateOptions {
   dither: boolean
   /** true면 원본 해상도로 다시 키우고, false면 도트 1개 = 1픽셀인 작은 이미지 */
   keepSize: boolean
+  /** 색 계통 — 없으면 원본 색 그대로 */
+  tone?: PixelateTone | null
+}
+
+/** 밝기 → 색 띠 매핑 (그라데이션 맵). 명암은 그대로 두고 색만 한 계통으로 바꾼다 */
+export interface PixelateTone {
+  /** 어두운 곳부터 밝은 곳까지의 색 띠 — '#rrggbb' 2개 이상 */
+  ramp: readonly string[]
+  /** 0~1 — 원본 색과 섞는 비율 (1이면 완전히 띠 색) */
+  strength: number
+}
+
+/** 고를 수 있는 톤 — 어두운 곳 → 밝은 곳 */
+export const PIXELATE_TONE_PRESETS = {
+  mono: ['#000000', '#ffffff'],
+  sepia: ['#1e130a', '#7d5631', '#d9b98a', '#f7ecd6'],
+  warm: ['#240c08', '#a8401f', '#f2a35c', '#fff1d9'],
+  cool: ['#08121f', '#24508a', '#8cbce8', '#eef6ff'],
+  gameboy: ['#0f380f', '#306230', '#8bac0f', '#9bbc0f'],
+  dusk: ['#160d2e', '#5e2a78', '#d65a6c', '#ffd2a0']
+} as const satisfies Record<string, readonly string[]>
+
+export type PixelateTonePreset = keyof typeof PIXELATE_TONE_PRESETS
+
+/** 고른 색 하나로 만드는 색 띠 — 거의 검정 → 그 색 → 거의 흰색 */
+export function customToneRamp(hex: string): string[] {
+  const [r, g, b] = parseHex(hex)
+  const mix = (t: number, to: number): string =>
+    toHex([r, g, b].map((c) => c + (to - c) * t) as [number, number, number])
+  return [mix(0.88, 0), hex, mix(0.85, 255)]
+}
+
+function parseHex(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1, 7), 16) || 0
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+function toHex(rgb: [number, number, number]): string {
+  return `#${rgb.map((c) => Math.round(c).toString(16).padStart(2, '0')).join('')}`
+}
+
+/** 불투명 픽셀을 밝기에 따라 색 띠로 다시 칠한다 (제자리 수정) */
+export function applyTone(img: PixelBuffer, tone: PixelateTone): void {
+  const stops = tone.ramp.map(parseHex)
+  if (stops.length < 2) return
+  const s = Math.min(1, Math.max(0, tone.strength))
+  // 밝기 256단계마다 띠 색을 미리 구해 둔다
+  const lut = new Float32Array(256 * 3)
+  for (let l = 0; l < 256; l++) {
+    const pos = (l / 255) * (stops.length - 1)
+    const i = Math.min(stops.length - 2, Math.floor(pos))
+    const t = pos - i
+    for (let c = 0; c < 3; c++) lut[l * 3 + c] = stops[i][c] + (stops[i + 1][c] - stops[i][c]) * t
+  }
+  const { data } = img
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue
+    const l = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2])
+    for (let c = 0; c < 3; c++) data[i + c] += (lut[l * 3 + c] - data[i + c]) * s
+  }
 }
 
 export const PIXELATE_DOT_MIN = 2
@@ -339,12 +400,13 @@ export function upscaleNearest(
   return { data: out, width, height }
 }
 
-/** 축소 + 팔레트 축소까지 — 미리보기는 이 결과를 CSS로 키워 보여 준다 */
+/** 축소 + 톤 + 팔레트 축소까지 — 미리보기는 이 결과를 CSS로 키워 보여 준다 */
 export function pixelateSmall(
   src: PixelBuffer,
-  opts: Pick<PixelateOptions, 'dot' | 'colors' | 'dither'>
+  opts: Pick<PixelateOptions, 'dot' | 'colors' | 'dither' | 'tone'>
 ): PixelBuffer {
   const small = downsample(src, opts.dot)
+  if (opts.tone) applyTone(small, opts.tone)
   if (opts.colors > 0) quantize(small, opts.colors, opts.dither)
   return small
 }

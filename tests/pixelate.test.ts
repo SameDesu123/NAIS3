@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { downsample, pixelate, quantize, type PixelBuffer } from '../src/renderer/src/lib/pixelate'
+import {
+  applyTone,
+  customToneRamp,
+  downsample,
+  pixelate,
+  PIXELATE_TONE_PRESETS,
+  quantize,
+  type PixelBuffer
+} from '../src/renderer/src/lib/pixelate'
 
 function buffer(
   width: number,
@@ -115,5 +123,43 @@ describe('pixelate', () => {
       expect(colorsOf(img)).toBeGreaterThan(256)
       expect(img.data).toEqual(again.data)
     }
+  })
+
+  it('maps brightness onto the tone ramp and keeps transparent pixels', () => {
+    const src = buffer(3, 1, (x) =>
+      x === 0 ? [0, 0, 0, 255] : x === 1 ? [255, 255, 255, 255] : [200, 50, 50, 0]
+    )
+    applyTone(src, { ramp: ['#102030', '#f0e0d0'], strength: 1 })
+    expect(at(src, 0, 0)).toEqual([16, 32, 48, 255])
+    expect(at(src, 1, 0)).toEqual([240, 224, 208, 255])
+    expect(at(src, 2, 0)).toEqual([200, 50, 50, 0])
+  })
+
+  it('blends with the original color by strength', () => {
+    const src = buffer(1, 1, () => [200, 100, 0, 255])
+    applyTone(src, { ramp: PIXELATE_TONE_PRESETS.mono, strength: 0 })
+    expect(at(src, 0, 0)).toEqual([200, 100, 0, 255])
+    applyTone(src, { ramp: PIXELATE_TONE_PRESETS.mono, strength: 0.5 })
+    // 밝기 119 — 원본과 회색의 중간
+    expect(at(src, 0, 0)).toEqual([160, 110, 60, 255])
+  })
+
+  it('draws the reduced palette from the tone family', () => {
+    const src = buffer(16, 16, (x, y) => [x * 16, y * 16, (x + y) * 8, 255])
+    const out = pixelate(src, {
+      dot: 1,
+      colors: 8,
+      dither: false,
+      keepSize: false,
+      tone: { ramp: PIXELATE_TONE_PRESETS.mono, strength: 1 }
+    })
+    for (let i = 0; i < out.data.length; i += 4) {
+      expect(out.data[i]).toBe(out.data[i + 1])
+      expect(out.data[i + 1]).toBe(out.data[i + 2])
+    }
+  })
+
+  it('builds a dark-to-light ramp around a custom color', () => {
+    expect(customToneRamp('#ff8000')).toEqual(['#1f0f00', '#ff8000', '#ffecd9'])
   })
 })

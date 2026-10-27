@@ -1,12 +1,15 @@
-import { Gamepad2, Grid2x2, Loader2, Palette, Scaling } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { Gamepad2, Grid2x2, Loader2, Palette, Scaling, SwatchBook } from 'lucide-react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useT } from '../lib/i18n'
 import { imageDataToBase64 } from '../lib/image-data'
 import {
+  customToneRamp,
   PIXELATE_COLOR_STEPS,
   PIXELATE_DOT_MAX,
   PIXELATE_DOT_MIN,
-  upscaleNearest
+  PIXELATE_TONE_PRESETS,
+  upscaleNearest,
+  type PixelateTonePreset
 } from '../lib/pixelate'
 import { usePixelatePreview } from '../lib/pixelate-preview'
 import { boolSetting, intSetting, useStoredSetting, type SettingCodec } from '../lib/stored-setting'
@@ -30,6 +33,24 @@ const COLORS_SETTING: SettingCodec<number> = {
   format: String
 }
 
+type ToneChoice = 'none' | PixelateTonePreset | 'custom'
+const TONE_CHOICES: ToneChoice[] = [
+  'none',
+  ...(Object.keys(PIXELATE_TONE_PRESETS) as PixelateTonePreset[]),
+  'custom'
+]
+const TONE_SETTING: SettingCodec<ToneChoice> = {
+  parse: (raw) => (TONE_CHOICES.includes(raw as ToneChoice) ? (raw as ToneChoice) : null),
+  format: String
+}
+const TONE_COLOR_SETTING: SettingCodec<string> = {
+  parse: (raw) => (/^#[0-9a-f]{6}$/i.test(raw) ? raw.toLowerCase() : null),
+  format: String
+}
+const TONE_STRENGTH_SETTING = intSetting(0, 100)
+// 원본 버튼의 띠 — 색을 바꾸지 않는다는 뜻으로 여러 색을 그대로 늘어놓는다
+const ORIGINAL_SWATCH = 'linear-gradient(90deg, #e5484d, #f5a524, #46a758, #3e7bfa, #8e4ec6)'
+
 /**
  * 도트화 편집 페이지 (디렉터 로컬 툴): 이미지 전체를 픽셀 아트로 변환.
  * 미리보기는 도트 1개 = 1픽셀인 작은 결과(원본 해독부터 워커에서 계산)를 캔버스에 그리고 CSS(pixelated)로만 키운다
@@ -49,11 +70,30 @@ export function PixelateEditorPage({
   const [colors, setColors] = useStoredSetting('pixelate_colors', 16, COLORS_SETTING)
   const [dither, setDither] = useStoredSetting('pixelate_dither', false, boolSetting)
   const [keepSize, setKeepSize] = useStoredSetting('pixelate_keep_size', true, boolSetting)
+  const [toneChoice, setToneChoice] = useStoredSetting('pixelate_tone', 'none', TONE_SETTING)
+  const [toneColor, setToneColor] = useStoredSetting(
+    'pixelate_tone_color',
+    '#d0488f',
+    TONE_COLOR_SETTING
+  )
+  const [toneStrength, setToneStrength] = useStoredSetting(
+    'pixelate_tone_strength',
+    100,
+    TONE_STRENGTH_SETTING
+  )
+
+  const tone = useMemo(() => {
+    if (toneChoice === 'none' || toneStrength === 0) return null
+    const ramp =
+      toneChoice === 'custom' ? customToneRamp(toneColor) : PIXELATE_TONE_PRESETS[toneChoice]
+    return { ramp, strength: toneStrength / 100 }
+  }, [toneChoice, toneColor, toneStrength])
 
   const { preview, fresh } = usePixelatePreview(imageBase64, width, height, ready, {
     dot,
     colors,
-    dither
+    dither,
+    tone
   })
 
   useEffect(() => {
@@ -172,6 +212,65 @@ export function PixelateEditorPage({
         </div>
       </ToolPageSection>
 
+      <ToolPageSection
+        icon={SwatchBook}
+        label={t('ui.pixelArtTone')}
+        value={toneChoice === 'none' ? undefined : `${toneStrength}%`}
+      >
+        <div
+          role="group"
+          aria-label={t('ui.pixelArtTone')}
+          className="grid grid-cols-2 gap-0.5 rounded-lg border border-line bg-surface-2 p-0.5"
+        >
+          {TONE_CHOICES.map((choice) => (
+            <button
+              key={choice}
+              type="button"
+              aria-pressed={toneChoice === choice}
+              className={cn(
+                'flex flex-col items-center gap-1.5 rounded-md px-2 pb-1.5 pt-2 text-[12.5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent/40',
+                toneChoice === choice
+                  ? 'bg-accent-soft font-medium text-accent-ink'
+                  : 'text-muted hover:bg-surface hover:text-ink'
+              )}
+              onClick={() => setToneChoice(choice)}
+            >
+              <span
+                aria-hidden
+                // 띠는 테두리 아래까지 칠한다 — 기본(padding-box)이면 테두리 칸에 띠 반대쪽 끝이 되풀이돼 비친다
+                className="h-3 w-full rounded-sm border border-black/10 bg-origin-border"
+                style={{ backgroundImage: toneSwatch(choice, toneColor) }}
+              />
+              <span className="w-full truncate">{t(TONE_LABEL[choice])}</span>
+            </button>
+          ))}
+        </div>
+        {toneChoice === 'custom' && (
+          <label className="flex h-8 cursor-pointer items-center gap-2 rounded-lg px-2.5 text-[12.5px] transition-colors hover:bg-surface-2">
+            <span className="min-w-0 flex-1 truncate">{t('ui.pixelArtToneColor')}</span>
+            <span className="font-mono text-[10.5px] text-muted">{toneColor}</span>
+            <input
+              type="color"
+              value={toneColor}
+              onChange={(e) => setToneColor(e.target.value)}
+              className="h-6 w-8 cursor-pointer rounded border border-line bg-transparent p-0"
+            />
+          </label>
+        )}
+        {toneChoice !== 'none' && (
+          <ToolPageSliderRow>
+            <Slider
+              aria-label={t('ui.pixelArtToneStrength')}
+              min={0}
+              max={100}
+              step={5}
+              value={[toneStrength]}
+              onValueChange={([v]) => setToneStrength(v)}
+            />
+          </ToolPageSliderRow>
+        )}
+      </ToolPageSection>
+
       <ToolPageSection icon={Scaling} label={t('ui.pixelArtOutput')}>
         <ToolPageToggle
           label={t('ui.pixelArtKeepSize')}
@@ -182,6 +281,24 @@ export function PixelateEditorPage({
       </ToolPageSection>
     </ToolPage>
   )
+}
+
+const TONE_LABEL = {
+  none: 'ui.pixelArtToneNone',
+  mono: 'ui.pixelArtToneMono',
+  sepia: 'ui.pixelArtToneSepia',
+  warm: 'ui.pixelArtToneWarm',
+  cool: 'ui.pixelArtToneCool',
+  gameboy: 'ui.pixelArtToneGameboy',
+  dusk: 'ui.pixelArtToneDusk',
+  custom: 'ui.pixelArtToneCustom'
+} as const satisfies Record<ToneChoice, string>
+
+/** 버튼에 보이는 색 띠 — 실제로 칠할 띠와 같은 색 */
+function toneSwatch(choice: ToneChoice, color: string): string {
+  if (choice === 'none') return ORIGINAL_SWATCH
+  const ramp = choice === 'custom' ? customToneRamp(color) : PIXELATE_TONE_PRESETS[choice]
+  return `linear-gradient(90deg, ${ramp.join(', ')})`
 }
 
 function nearestColorStep(value: number): number {

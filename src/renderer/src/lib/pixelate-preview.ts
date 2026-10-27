@@ -14,7 +14,8 @@ export interface PixelatePreview {
   opts: PixelatePreviewOptions
 }
 
-const keyOf = (o: PixelatePreviewOptions): string => `${o.dot}/${o.colors}/${o.dither ? 1 : 0}`
+const keyOf = (o: PixelatePreviewOptions): string =>
+  `${o.dot}/${o.colors}/${o.dither ? 1 : 0}/${o.tone ? `${o.tone.ramp.join(',')}@${o.tone.strength}` : ''}`
 
 /**
  * 도트화 미리보기를 워커에서 계산한다 — 색 수가 많으면 계산이 수백 ms를 넘어 렌더러에서 돌리면 화면이 멈춘다.
@@ -78,18 +79,19 @@ export function usePixelatePreview(
     }
   }, [base64, width, height, enabled, useWorker])
 
-  const { dot, colors, dither } = opts
+  // tone은 객체라 호출하는 쪽에서 useMemo로 고정해 넘긴다 — 렌더마다 새로 만들면 매번 다시 계산한다
+  const { dot, colors, dither, tone } = opts
   useEffect(() => {
-    send.current?.({ dot, colors, dither })
-  }, [base64, width, height, enabled, useWorker, dot, colors, dither])
+    send.current?.({ dot, colors, dither, tone })
+  }, [base64, width, height, enabled, useWorker, dot, colors, dither, tone])
 
   // 워커 없이 계산하는 경우 — 원본을 이쪽에서 해독해 렌더 중에 바로 만든다
   const source = useImageData(base64, width, height, enabled && !useWorker)
   const fallback = useMemo<PixelatePreview | null>(() => {
     if (useWorker || !source) return null
-    const o = { dot, colors, dither }
+    const o = { dot, colors, dither, tone }
     return { small: pixelateSmall(source, o), opts: o }
-  }, [useWorker, source, dot, colors, dither])
+  }, [useWorker, source, dot, colors, dither, tone])
 
   const shown = fallback ?? preview
   return { preview: shown, fresh: shown != null && keyOf(shown.opts) === key }
