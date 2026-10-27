@@ -481,6 +481,7 @@ export const ZH_CN = {
   'ui.pixelArtOutput': '输出',
   'ui.pixelArtOutputSize': '输出尺寸',
   'ui.pixelArtKeepSize': '保持原始尺寸',
+  'ui.pixelArtComputing': '计算中',
   'ui.pixelArtPreview': '像素画预览',
   'ui.pixelArtSaveToFile': '将像素画结果直接保存为文件（页面保持打开）',
   'ui.mosaicInstructions':

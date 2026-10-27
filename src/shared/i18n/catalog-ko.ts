@@ -483,6 +483,7 @@ export const KO = {
   'ui.pixelArtOutput': '출력',
   'ui.pixelArtOutputSize': '출력 크기',
   'ui.pixelArtKeepSize': '원본 크기 유지',
+  'ui.pixelArtComputing': '계산 중',
   'ui.pixelArtPreview': '도트화 결과 미리보기',
   'ui.pixelArtSaveToFile': '도트화 결과를 파일로 바로 저장 (페이지는 그대로)',
   'ui.mosaicInstructions':

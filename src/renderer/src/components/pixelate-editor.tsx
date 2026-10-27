@@ -1,14 +1,14 @@
-import { Gamepad2, Grid2x2, Palette, Scaling } from 'lucide-react'
-import { useEffect, useMemo, useRef } from 'react'
+import { Gamepad2, Grid2x2, Loader2, Palette, Scaling } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { useT } from '../lib/i18n'
-import { imageDataToBase64, useImageData } from '../lib/image-data'
+import { imageDataToBase64 } from '../lib/image-data'
 import {
   PIXELATE_COLOR_STEPS,
   PIXELATE_DOT_MAX,
   PIXELATE_DOT_MIN,
-  pixelate,
-  pixelateSmall
+  upscaleNearest
 } from '../lib/pixelate'
+import { usePixelatePreview } from '../lib/pixelate-preview'
 import { boolSetting, intSetting, useStoredSetting, type SettingCodec } from '../lib/stored-setting'
 import { cn } from '../lib/utils'
 import {
@@ -32,8 +32,8 @@ const COLORS_SETTING: SettingCodec<number> = {
 
 /**
  * 도트화 편집 페이지 (디렉터 로컬 툴): 이미지 전체를 픽셀 아트로 변환.
- * 미리보기는 도트 1개 = 1픽셀인 작은 결과를 캔버스에 그리고 CSS(pixelated)로만 키운다
- * — 슬라이더를 움직일 때마다 원본 해상도로 확대하지 않아 가볍다.
+ * 미리보기는 도트 1개 = 1픽셀인 작은 결과(원본 해독부터 워커에서 계산)를 캔버스에 그리고 CSS(pixelated)로만 키운다
+ * — 슬라이더를 움직일 때마다 원본 해상도로 확대하지 않아 가볍다. 저장은 그 결과를 그대로 키워 쓴다.
  */
 export function PixelateEditorPage({
   ready,
@@ -45,35 +45,47 @@ export function PixelateEditorPage({
 }: LocalEditorProps): React.JSX.Element {
   const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const original = useImageData(imageBase64, width, height, ready)
   const [dot, setDot] = useStoredSetting('pixelate_dot', 8, DOT_SETTING)
   const [colors, setColors] = useStoredSetting('pixelate_colors', 16, COLORS_SETTING)
   const [dither, setDither] = useStoredSetting('pixelate_dither', false, boolSetting)
   const [keepSize, setKeepSize] = useStoredSetting('pixelate_keep_size', true, boolSetting)
 
-  const preview = useMemo(
-    () => (original ? pixelateSmall(original, { dot, colors, dither }) : null),
-    [original, dot, colors, dither]
-  )
+  const { preview, fresh } = usePixelatePreview(imageBase64, width, height, ready, {
+    dot,
+    colors,
+    dither
+  })
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !preview) return
-    canvas.width = preview.width
-    canvas.height = preview.height
+    const { small } = preview
+    canvas.width = small.width
+    canvas.height = small.height
     canvas
       .getContext('2d')!
-      .putImageData(new ImageData(preview.data, preview.width, preview.height), 0, 0)
+      .putImageData(new ImageData(small.data, small.width, small.height), 0, 0)
   }, [preview])
 
+  /** 미리보기 결과를 그대로 저장 — 다시 계산하지 않는다 (옵션을 바꾼 뒤 계산이 끝나기 전엔 null) */
   function exportResult(): string | null {
-    if (!original) return null
-    const out = pixelate(original, { dot, colors, dither, keepSize })
+    if (!preview || !fresh) return null
+    const { small } = preview
+    const out = keepSize ? upscaleNearest(small, dot, width, height) : small
     return imageDataToBase64(new ImageData(out.data, out.width, out.height))
   }
 
   const outW = keepSize ? width : Math.ceil(width / dot)
   const outH = keepSize ? height : Math.ceil(height / dot)
+  // 원본 크기 유지는 가장자리 칸이 잘린 채 저장된다 (65px·도트 32 → 32·32·1).
+  // 미리보기도 칸을 도트 크기 그대로 깔고 원본 크기 밖은 잘라 저장 결과와 같은 배치로 보여 준다
+  const covered =
+    preview && keepSize
+      ? {
+          width: `${((preview.small.width * preview.opts.dot) / Math.max(1, width)) * 100}%`,
+          height: `${((preview.small.height * preview.opts.dot) / Math.max(1, height)) * 100}%`
+        }
+      : { width: '100%', height: '100%' }
 
   return (
     <ToolPage
@@ -82,19 +94,30 @@ export function PixelateEditorPage({
       description={t('ui.pixelArtInstructions')}
       onBack={onCancel}
       stage={
-        <ToolPageStage width={width} height={height}>
+        <ToolPageStage width={keepSize ? width : outW} height={keepSize ? height : outH}>
           <canvas
             ref={canvasRef}
             role="img"
             aria-label={t('ui.pixelArtPreview')}
-            className="absolute inset-0 h-full w-full"
-            style={{ imageRendering: 'pixelated' }}
+            className="absolute left-0 top-0"
+            style={{ ...covered, imageRendering: 'pixelated' }}
           />
+          {ready && !fresh && (
+            <div
+              role="status"
+              aria-label={t('ui.pixelArtComputing')}
+              // 멀리서도 보이게 작업대 한가운데에 크게
+              className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-lg bg-black/60 px-4 py-2.5 text-[15px] font-medium text-white shadow-lg"
+            >
+              <Loader2 size={20} className="animate-spin" />
+              {t('ui.pixelArtComputing')}
+            </div>
+          )}
         </ToolPageStage>
       }
       footer={
         <ToolPageActions
-          disabled={!original}
+          disabled={!fresh}
           exportResult={exportResult}
           fileName={`pixel_${outW}x${outH}.png`}
           downloadTitle={t('ui.pixelArtSaveToFile')}

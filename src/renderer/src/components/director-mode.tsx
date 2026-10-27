@@ -177,7 +177,14 @@ export function DirectorMode(): React.JSX.Element {
   } | null>(null)
 
   // 다른 페이지로 옮겨 가면(디렉터가 내려가면) 넘겨 둔 편집 페이지도 덮는다
-  useEffect(() => () => useSidePageStore.getState().closeOwnedBy(DIRECTOR_PAGE_OWNER), [])
+  const mounted = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      useSidePageStore.getState().closeOwnedBy(DIRECTOR_PAGE_OWNER)
+    }
+  }, [])
 
   const source = stack.length > 0 ? stack[stack.length - 1] : null
   const isResult = stack.length > 1 // 툴이 한 번 이상 적용된 상태
@@ -266,7 +273,12 @@ export function DirectorMode(): React.JSX.Element {
       case 'pixelate':
         // 크기를 이미 알면 다시 해독하지 않는다 — 큰 이미지는 해독만으로 페이지 넘김이 늦어진다
         if (sourceDims) openLocalEditor(id, source, sourceDims)
-        else void imageDims(source).then((dims) => openLocalEditor(id, source, dims))
+        else
+          void imageDims(source).then((dims) => {
+            // 크기를 재는 사이 디렉터를 떠났거나 이미지가 바뀌었으면 열지 않는다
+            if (mounted.current && useDirectorStore.getState().current() === source)
+              openLocalEditor(id, source, dims)
+          })
         break
       case 'artist-tags':
         void useArtistTagsStore.getState().show({ base64: source })

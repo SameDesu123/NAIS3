@@ -492,6 +492,7 @@ export const EN = {
   'ui.pixelArtOutput': 'Output',
   'ui.pixelArtOutputSize': 'Output size',
   'ui.pixelArtKeepSize': 'Keep original size',
+  'ui.pixelArtComputing': 'Computing',
   'ui.pixelArtPreview': 'Pixel art preview',
   'ui.pixelArtSaveToFile': 'Save the pixel art result to a file (page stays open)',
   'ui.mosaicInstructions':

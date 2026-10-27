@@ -125,6 +125,39 @@ describe('director local editor pages', () => {
     expect(useSidePageStore.getState().page).toBeNull()
   })
 
+  it('does not open an editor after leaving the director while measuring the image', async () => {
+    // 이미지 크기 해독을 손으로 끝낸다 — 그사이 디렉터를 떠나는 상황을 재현
+    const pending: { onload: (() => void) | null }[] = []
+    vi.stubGlobal(
+      'Image',
+      class {
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        naturalWidth = 8
+        naturalHeight = 8
+        set src(_: string) {
+          pending.push(this)
+        }
+      }
+    )
+    const finishDecodes = (): Promise<void> =>
+      act(async () => pending.splice(0).forEach((img) => img.onload?.()))
+
+    await renderWithHost()
+    await click(button('모자이크'))
+    await click(button('편집기 열기'))
+    await act(async () => root.render(h(SidePageHost, null, h('div'))))
+    await finishDecodes()
+    expect(useSidePageStore.getState().page).toBeNull()
+
+    // 머물러 있으면 해독이 끝난 뒤 그대로 열린다
+    await renderWithHost()
+    await click(button('모자이크'))
+    await click(button('편집기 열기'))
+    await finishDecodes()
+    expect(useSidePageStore.getState().page?.id).toBe('director:mosaic')
+  })
+
   it('leaves pages opened by other screens alone', async () => {
     await renderWithHost()
     useSidePageStore.getState().open({ id: 'other', owner: 'other', render: () => null })
