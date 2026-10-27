@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { DirectorMethod } from '@shared/types'
+import type { DirectorMethod, LocalEditKind } from '@shared/types'
 import { useGenerationStore } from './generation-store'
 import { useLayoutStore } from './layout-store'
 import { toast } from './toast-store'
@@ -17,8 +17,8 @@ interface DirectorState {
   setSource: (base64: string | null) => void
   run: (method: DirectorMethod, opts?: { prompt?: string; defry?: number }) => Promise<void>
   upscale: () => Promise<void>
-  /** API 없는 로컬 편집(모자이크 등) 결과를 스택에 push + 히스토리 저장 */
-  applyLocal: (base64: string, kind: 'mosaic') => Promise<void>
+  /** API 없는 로컬 편집(모자이크·도트화) 결과를 스택에 push + 히스토리 저장 */
+  applyLocal: (base64: string, kind: LocalEditKind) => Promise<void>
   undo: () => void
   clear: () => void
   setInstantRun: (on: boolean) => void

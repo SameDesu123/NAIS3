@@ -2,6 +2,7 @@ import {
   ArrowUpRight,
   Droplets,
   Eraser,
+  Gamepad2,
   Grid3x3,
   ImageIcon,
   Layers,
@@ -34,13 +35,14 @@ import { Input } from './ui/input'
 import { isLeavingDropZone, useDragEndCleanup } from '../lib/drop-zone'
 import { DropOverlay } from './drop-overlay'
 import { MosaicEditor } from './mosaic-editor'
+import { PixelateEditor } from './pixelate-editor'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Slider } from './ui/slider'
 import { MaskWorkspace } from './mask-workspace'
 import { ZoomableImageStage } from './image-viewport'
 
 type ToolGroup = 'ai' | 'main' | 'local'
-type ToolId = DirectorMethod | 'upscale' | 'i2i' | 'inpaint' | 'mosaic' | 'artist-tags'
+type ToolId = DirectorMethod | 'upscale' | 'i2i' | 'inpaint' | 'mosaic' | 'pixelate' | 'artist-tags'
 
 /**
  * 디렉터 툴 목록 — 그룹 순서대로 표시.
@@ -118,6 +120,13 @@ const TOOLS: {
     desc: 'ui.paintWithABrushToPixelateLocalFree',
     icon: Grid3x3
   },
+  {
+    id: 'pixelate',
+    group: 'local',
+    label: 'ui.pixelArt',
+    desc: 'ui.pixelArtDescription',
+    icon: Gamepad2
+  },
   // Anlas는 안 쓰지만 외부(HF Space) 호출 — 인터넷 필요
   {
     id: 'artist-tags',
@@ -137,7 +146,7 @@ const GROUPS: { id: ToolGroup; label: MessageId }[] = [
 /** 실행 버튼 문구 — 그룹/툴마다 실제로 일어나는 일을 말해 준다 */
 function actionLabel(id: ToolId, group: ToolGroup): MessageId {
   if (group === 'main' && id !== 'inpaint') return 'ui.directorOpenInMain'
-  if (id === 'mosaic' || id === 'inpaint') return 'ui.directorOpenEditor'
+  if (id === 'mosaic' || id === 'pixelate' || id === 'inpaint') return 'ui.directorOpenEditor'
   if (id === 'artist-tags') return 'ui.directorAnalyze'
   return 'ui.directorApply'
 }
@@ -164,6 +173,11 @@ export function DirectorMode(): React.JSX.Element {
   const [mosaic, setMosaic] = useState<{ base64: string; width: number; height: number } | null>(
     null
   )
+  const [pixelateTarget, setPixelateTarget] = useState<{
+    base64: string
+    width: number
+    height: number
+  } | null>(null)
   const [inpaint, setInpaint] = useState<{
     base64: string
     width: number
@@ -255,6 +269,9 @@ export function DirectorMode(): React.JSX.Element {
         break
       case 'mosaic':
         void imageDims(source).then((dims) => setMosaic({ base64: source, ...dims }))
+        break
+      case 'pixelate':
+        void imageDims(source).then((dims) => setPixelateTarget({ base64: source, ...dims }))
         break
       case 'artist-tags':
         void useArtistTagsStore.getState().show({ base64: source })
@@ -525,6 +542,18 @@ export function DirectorMode(): React.JSX.Element {
             void applyLocal(b64, 'mosaic')
           }}
           onCancel={() => setMosaic(null)}
+        />
+      )}
+      {pixelateTarget && (
+        <PixelateEditor
+          imageBase64={pixelateTarget.base64}
+          width={pixelateTarget.width}
+          height={pixelateTarget.height}
+          onConfirm={(b64) => {
+            setPixelateTarget(null)
+            void applyLocal(b64, 'pixelate')
+          }}
+          onCancel={() => setPixelateTarget(null)}
         />
       )}
     </div>

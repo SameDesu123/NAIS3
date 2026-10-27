@@ -80,6 +80,18 @@ describe('director tool panel', () => {
   })
 })
 
+describe('director pixel art tool', () => {
+  it('is a free local tool that opens an editor instead of calling the API', async () => {
+    await act(async () => root.render(h(DirectorMode)))
+
+    await click(button('도트화'))
+    expect(button('도트화').textContent).toContain('무료')
+    await click(button('편집기 열기'))
+    expect(run).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalledWith('director:run', expect.anything())
+  })
+})
+
 describe('director instant run preference', () => {
   it('defaults to off and hydrates the stored value', async () => {
     useDirectorStore.setState({ instantRun: false })

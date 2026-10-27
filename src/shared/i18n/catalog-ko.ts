@@ -472,6 +472,18 @@ export const KO = {
   'ui.paintAMaskToRegenerateAnAreaGoesToMain': '마스크 칠해 부분 재생성 (메인으로)',
   'ui.mosaic': '모자이크',
   'ui.paintWithABrushToPixelateLocalFree': '브러시로 칠해 픽셀화 (로컬·무료)',
+  'ui.pixelArt': '도트화',
+  'ui.pixelArtDescription': '이미지 전체를 픽셀 아트로 변환 (로컬·무료)',
+  'ui.pixelArtInstructions':
+    '이미지 전체를 도트 그림으로 바꿉니다. 도트가 클수록 거칠어지고, 색 수를 줄이면 레트로 게임 느낌이 납니다.',
+  'ui.pixelArtDotSize': '도트 크기',
+  'ui.pixelArtColorCount': '색 수',
+  'ui.pixelArtDither': '디더링',
+  'ui.pixelArtDitherDescription': '팔레트에 없는 중간색을 점무늬로 섞어 그라데이션을 살립니다',
+  'ui.pixelArtOutput': '출력',
+  'ui.pixelArtOutputSize': '출력 크기',
+  'ui.pixelArtKeepSize': '원본 크기 유지',
+  'ui.pixelArtSaveToFile': '도트화 결과를 파일로 바로 저장 (창은 열린 채)',
   'ui.artistTagAnalysis': '작가 태그 분석',
   'ui.extractArtistTagsWithASimilarStyleKaloscopeFree':
     '그림체 닮은 작가 태그 추출 (Kaloscope·무료)',
