@@ -9,6 +9,7 @@ import { InpaintHost } from './components/inpaint-host'
 import { LibraryMode } from './components/library-mode'
 import { ArtistTagsDialog } from './components/artist-tags-dialog'
 import { MetadataDialog } from './components/metadata-dialog'
+import { SidePageHost } from './components/side-page-host'
 import { PromptPanel } from './components/prompt-panel'
 import { SceneMode } from './components/scene-mode'
 import { Titlebar } from './components/titlebar'
@@ -102,7 +103,7 @@ export default function App(): React.JSX.Element {
     <TooltipProvider>
       <div className="flex h-screen flex-col bg-paper">
         <Titlebar />
-        <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3">
+        <SidePageHost>
           <AnimatePresence initial={false}>
             {leftOpen && (
               <motion.div
@@ -154,7 +155,7 @@ export default function App(): React.JSX.Element {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </SidePageHost>
         <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
         <TextPromptHost />
         <FragmentEditorDialog />

@@ -20,22 +20,24 @@ import {
   X,
   type LucideIcon
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { directorAugmentCost, UPSCALE_ANLAS_COST } from '@shared/anlas'
 import type { MessageId } from '@shared/i18n'
-import { EMOTIONS, type DirectorMethod } from '@shared/types'
+import { EMOTIONS, type DirectorMethod, type LocalEditKind } from '@shared/types'
 import { useT } from '../lib/i18n'
 import { useArtistTagsStore } from '../stores/artist-tags-store'
 import { openInDirector, useDirectorStore } from '../stores/director-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { useLayoutStore } from '../stores/layout-store'
+import { useSidePageStore } from '../stores/side-page-store'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { isLeavingDropZone, useDragEndCleanup } from '../lib/drop-zone'
 import { DropOverlay } from './drop-overlay'
-import { MosaicEditor } from './mosaic-editor'
-import { PixelateEditor } from './pixelate-editor'
+import { MosaicEditorPage } from './mosaic-editor'
+import { PixelateEditorPage } from './pixelate-editor'
+import type { LocalEditorProps } from './tool-page'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Slider } from './ui/slider'
 import { MaskWorkspace } from './mask-workspace'
@@ -159,7 +161,6 @@ export function DirectorMode(): React.JSX.Element {
   const setSource = useDirectorStore((s) => s.setSource)
   const run = useDirectorStore((s) => s.run)
   const upscale = useDirectorStore((s) => s.upscale)
-  const applyLocal = useDirectorStore((s) => s.applyLocal)
   const undo = useDirectorStore((s) => s.undo)
   const clear = useDirectorStore((s) => s.clear)
   const instantRun = useDirectorStore((s) => s.instantRun)
@@ -169,20 +170,14 @@ export function DirectorMode(): React.JSX.Element {
   // 옵션은 툴별로 따로 — 툴끼리 값 공유 안 되게
   const [colorizeOpt, setColorizeOpt] = useState({ prompt: '', defry: 0 })
   const [emotionOpt, setEmotionOpt] = useState({ emotion: 'neutral', prompt: '', defry: 0 })
-  // 모자이크 편집기 — 열 때의 이미지·해상도 고정 (편집 중 스택 변화와 무관)
-  const [mosaic, setMosaic] = useState<{ base64: string; width: number; height: number } | null>(
-    null
-  )
-  const [pixelateTarget, setPixelateTarget] = useState<{
-    base64: string
-    width: number
-    height: number
-  } | null>(null)
   const [inpaint, setInpaint] = useState<{
     base64: string
     width: number
     height: number
   } | null>(null)
+
+  // 다른 페이지로 옮겨 가면(디렉터가 내려가면) 넘겨 둔 편집 페이지도 덮는다
+  useEffect(() => () => useSidePageStore.getState().closeOwnedBy(DIRECTOR_PAGE_OWNER), [])
 
   const source = stack.length > 0 ? stack[stack.length - 1] : null
   const isResult = stack.length > 1 // 툴이 한 번 이상 적용된 상태
@@ -268,10 +263,10 @@ export function DirectorMode(): React.JSX.Element {
         void beginInpaint()
         break
       case 'mosaic':
-        void imageDims(source).then((dims) => setMosaic({ base64: source, ...dims }))
-        break
       case 'pixelate':
-        void imageDims(source).then((dims) => setPixelateTarget({ base64: source, ...dims }))
+        // 크기를 이미 알면 다시 해독하지 않는다 — 큰 이미지는 해독만으로 페이지 넘김이 늦어진다
+        if (sourceDims) openLocalEditor(id, source, sourceDims)
+        else void imageDims(source).then((dims) => openLocalEditor(id, source, dims))
         break
       case 'artist-tags':
         void useArtistTagsStore.getState().show({ base64: source })
@@ -531,31 +526,6 @@ export function DirectorMode(): React.JSX.Element {
           )}
         </div>
       </div>
-
-      {mosaic && (
-        <MosaicEditor
-          imageBase64={mosaic.base64}
-          width={mosaic.width}
-          height={mosaic.height}
-          onConfirm={(b64) => {
-            setMosaic(null)
-            void applyLocal(b64, 'mosaic')
-          }}
-          onCancel={() => setMosaic(null)}
-        />
-      )}
-      {pixelateTarget && (
-        <PixelateEditor
-          imageBase64={pixelateTarget.base64}
-          width={pixelateTarget.width}
-          height={pixelateTarget.height}
-          onConfirm={(b64) => {
-            setPixelateTarget(null)
-            void applyLocal(b64, 'pixelate')
-          }}
-          onCancel={() => setPixelateTarget(null)}
-        />
-      )}
     </div>
   )
 }
@@ -666,6 +636,40 @@ function ToolRow({
       {trailing}
     </button>
   )
+}
+
+const DIRECTOR_PAGE_OWNER = 'director'
+
+/** API 없는 로컬 편집 툴 — 옆 페이지로 넘겨 여는 편집기. 새 로컬 툴은 여기에 등록한다 */
+const LOCAL_EDITORS: Record<LocalEditKind, ComponentType<LocalEditorProps>> = {
+  mosaic: MosaicEditorPage,
+  pixelate: PixelateEditorPage
+}
+
+/** 로컬 편집기를 옆 페이지로 연다 — 열 때의 이미지·해상도 고정 (편집 중 스택 변화와 무관) */
+function openLocalEditor(
+  kind: LocalEditKind,
+  base64: string,
+  dims: { width: number; height: number }
+): void {
+  const Editor = LOCAL_EDITORS[kind]
+  useSidePageStore.getState().open({
+    id: `director:${kind}`,
+    owner: DIRECTOR_PAGE_OWNER,
+    render: ({ ready, close }) => (
+      <Editor
+        ready={ready}
+        imageBase64={base64}
+        width={dims.width}
+        height={dims.height}
+        onConfirm={(b64) => {
+          close()
+          void useDirectorStore.getState().applyLocal(b64, kind)
+        }}
+        onCancel={close}
+      />
+    )
+  })
 }
 
 /** base64 이미지의 실제 픽셀 크기 */

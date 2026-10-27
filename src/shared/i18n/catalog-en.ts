@@ -492,7 +492,13 @@ export const EN = {
   'ui.pixelArtOutput': 'Output',
   'ui.pixelArtOutputSize': 'Output size',
   'ui.pixelArtKeepSize': 'Keep original size',
-  'ui.pixelArtSaveToFile': 'Save the pixel art result to a file (window stays open)',
+  'ui.pixelArtPreview': 'Pixel art preview',
+  'ui.pixelArtSaveToFile': 'Save the pixel art result to a file (page stays open)',
+  'ui.mosaicInstructions':
+    'Paint over the areas to hide; each cell is filled with its average color from the original. Painting the same spot again does not smear it.',
+  'ui.mosaicCellSize': 'Cell size',
+  'ui.mosaicBrushSize': 'Brush size',
+  'ui.mosaicSaveToFile': 'Save the mosaic result to a file (page stays open)',
   'ui.artistTagAnalysis': 'Artist Tag Analysis',
   'ui.extractArtistTagsWithASimilarStyleKaloscopeFree':
     'Extract artist tags with a similar style (Kaloscope, free)',
@@ -545,17 +551,12 @@ export const EN = {
   'ui.done': 'Done',
   'ui.edit': 'Edit',
   'ui.googleTranslate': 'Google Translate',
-  'ui.mosaicPaintTheAreasToHide': 'Mosaic — paint the areas to hide',
-  'ui.pixelValue': 'Pixel {0}',
   'ui.inpaintCanvas': 'Inpaint canvas',
   'ui.inpaintFitToView': 'Fit to view',
   'ui.inpaintMoveView': 'Move view',
   'ui.inpaintNavigationHint': 'Wheel: zoom · Space + drag / middle mouse button: pan',
   'ui.inpaintBrushSize': 'Brush diameter',
-  'ui.brushValue': 'Brush {0}',
   'ui.reset': 'Reset',
-  'ui.saveTheMosaicResultToAFileWindowStaysOpen':
-    'Save the mosaic result to a file (window stays open)',
   'ui.saved': 'Saved',
   'ui.download': 'Download',
   'ui.multipleLinesRandomPickPerGenerationWildcard':
