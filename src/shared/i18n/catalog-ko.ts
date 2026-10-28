@@ -210,6 +210,10 @@ export const KO = {
     '데이터 불러오기로 기존 데이터가 유실될 수 있습니다. 계속할까요?',
   'ui.import': '불러오기',
   'ui.importErrorValue': '가져오기 오류: {0}',
+  'ui.restoringBackup': '백업 복원 중…',
+  'ui.restoringBackupHint': '작업 공간을 백업으로 교체하고 있습니다. 끝날 때까지 편집이 잠깁니다.',
+  'ui.backupRestoreInProgress':
+    '백업 복원 중이라 지금은 변경할 수 없습니다. 복원이 끝난 뒤 다시 시도하세요.',
   'ui.clickAnItemThenPressANewKeyCombination': '항목을 클릭하고 새 키 조합을 누르세요.',
   'ui.defaults': '기본값',
   'ui.pressKeys': '키 입력…',

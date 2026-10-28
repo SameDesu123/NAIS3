@@ -33,7 +33,13 @@ vi.mock('../src/renderer/src/browser/browser-db', async (original) => ({
 }))
 
 let api: NaisApi
-let download: { href: string; download: string; click: () => void }
+let download: {
+  href: string
+  download: string
+  click: () => void
+  files?: unknown[]
+  onchange?: () => void
+}
 beforeAll(async () => {
   vi.stubGlobal('window', {})
   vi.stubGlobal('document', { createElement: () => download })
@@ -276,5 +282,41 @@ describe('browser runtime regressions', () => {
       'beta'
     ])
     random.mockRestore()
+  })
+  it('refuses writes while a backup file is read, so the import cannot wipe them', async () => {
+    await api.invoke('backup:export', undefined)
+    const json = Buffer.from(download.href.split(',')[1], 'base64').toString('utf8')
+    let finishRead!: (text: string) => void
+    const file = { text: () => new Promise<string>((resolve) => (finishRead = resolve)) }
+    const events: boolean[] = []
+    const off = api.on('backup:restoreChanged', ({ restoring }) => events.push(restoring))
+    download = {
+      href: '',
+      download: '',
+      click: () => {
+        download.files = [file]
+        download.onchange?.()
+      }
+    }
+
+    const restore = api.invoke('backup:import', undefined)
+    await vi.waitFor(() => expect(events).toEqual([true]))
+    await expect(api.invoke('backup:restoreStatus', undefined)).resolves.toEqual({
+      restoring: true
+    })
+    await expect(
+      api.invoke('chars:create', { name: 'during restore', folderId: null })
+    ).rejects.toThrow('A backup restore is in progress')
+    await expect(api.invoke('chars:list', undefined)).resolves.toBeDefined()
+
+    finishRead(json)
+    await expect(restore).resolves.toEqual({ summary: 'Browser backup imported' })
+    expect(events).toEqual([true, false])
+    await expect(api.invoke('backup:restoreStatus', undefined)).resolves.toEqual({
+      restoring: false
+    })
+    await api.invoke('chars:create', { name: 'after restore', folderId: null })
+    expect(state.characters.map((item) => item.name)).toEqual(['after restore'])
+    off()
   })
 })

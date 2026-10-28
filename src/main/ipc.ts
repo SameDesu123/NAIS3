@@ -160,14 +160,21 @@ import { basename } from 'path'
 import sharp from './sharp'
 import { verifyToken } from './nai/client'
 import { t } from './i18n'
+import { RestoreLock } from '../shared/backup-restore'
 import type { GenerationQueue } from './queue/generation-queue'
 
-/** IpcInvokeMap 계약을 강제하는 handle 등록 헬퍼 */
+// Owned here, not by a renderer: the lock outlives a reload and covers every window
+const restoreLock = new RestoreLock({
+  notify: (restoring) => broadcast('backup:restoreChanged', { restoring }),
+  refusal: () => new Error(t('ui.backupRestoreInProgress'))
+})
+
+/** IpcInvokeMap 계약을 강제하는 handle 등록 헬퍼. 백업 복원 중에는 쓰기 채널을 거절한다 */
 function handle<C extends keyof IpcInvokeMap>(
   channel: C,
   handler: (req: IpcInvokeMap[C]['req']) => Promise<IpcInvokeMap[C]['res']> | IpcInvokeMap[C]['res']
 ): void {
-  ipcMain.handle(channel, (_event, req) => handler(req))
+  ipcMain.handle(channel, (_event, req) => restoreLock.request(channel, () => handler(req)))
 }
 
 export function broadcast<C extends keyof IpcEventMap>(channel: C, payload: IpcEventMap[C]): void {
@@ -369,44 +376,46 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
       properties: ['openFile']
     })
     if (result.canceled || !result.filePaths[0]) return { canceled: true as const }
+    const filePath = result.filePaths[0]
     try {
-      const input = readFileSync(result.filePaths[0])
-      if (hasZipSignature(input)) {
-        const { imported } = await importNais(input)
-        return { summary: t('ui.naisArchiveRestored', imported), needsPromptReload: true }
-      }
+      // From the file pick to the end of the transaction — .nais unzips asynchronously before
+      // its transaction replaces whole tables, and a write landing in that gap would be wiped
+      return await restoreLock.restore(async () => {
+        const input = readFileSync(filePath)
+        if (hasZipSignature(input)) {
+          const { imported } = await importNais(input)
+          return { summary: t('ui.naisArchiveRestored', imported) }
+        }
 
-      const data = JSON.parse(input.toString('utf-8')) as Record<string, unknown>
-      // 포맷 감지: NAIS3는 _app='NAIS3', NAIS2는 nais2-* 키
-      if (data._app === 'NAIS3') {
-        const { imported, skippedFiles } = importLegacyJson(data)
-        const skipped = skippedFiles ? t('ui.backupMissingImagesSkipped', skippedFiles) : ''
-        return {
-          summary: t('ui.nais3JsonRestored', imported, skipped),
-          needsPromptReload: true
+        const data = JSON.parse(input.toString('utf-8')) as Record<string, unknown>
+        // 포맷 감지: NAIS3는 _app='NAIS3', NAIS2는 nais2-* 키
+        if (data._app === 'NAIS3') {
+          const { imported, skippedFiles } = importLegacyJson(data)
+          const skipped = skippedFiles ? t('ui.backupMissingImagesSkipped', skippedFiles) : ''
+          return { summary: t('ui.nais3JsonRestored', imported, skipped) }
         }
-      }
-      if (Object.keys(data).some((k) => k.startsWith('nais2-'))) {
-        const r = importNais2(data)
-        const parts = [
-          r.characters ? t('ui.characterValue', r.characters) : '',
-          r.presets ? t('ui.valuePresets', r.presets) : '',
-          r.fragments ? t('ui.valueFragments', r.fragments) : '',
-          r.scenes ? t('ui.valueScenes', r.scenes) : '',
-          r.prompt ? t('ui.prompt') : ''
-        ].filter(Boolean)
-        return {
-          summary: parts.length
-            ? t('ui.importedValueFromNais2', parts.join(' · '))
-            : t('ui.nothingToImport'),
-          needsPromptReload: r.prompt
+        if (Object.keys(data).some((k) => k.startsWith('nais2-'))) {
+          const r = importNais2(data)
+          const parts = [
+            r.characters ? t('ui.characterValue', r.characters) : '',
+            r.presets ? t('ui.valuePresets', r.presets) : '',
+            r.fragments ? t('ui.valueFragments', r.fragments) : '',
+            r.scenes ? t('ui.valueScenes', r.scenes) : '',
+            r.prompt ? t('ui.prompt') : ''
+          ].filter(Boolean)
+          return {
+            summary: parts.length
+              ? t('ui.importedValueFromNais2', parts.join(' · '))
+              : t('ui.nothingToImport')
+          }
         }
-      }
-      return { error: t('ui.unknownBackupFormat') }
+        return { error: t('ui.unknownBackupFormat') }
+      })
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) }
     }
   })
+  handle('backup:restoreStatus', () => ({ restoring: restoreLock.active }))
   handle('scenes:list', ({ presetId }) => ({ items: listScenes(presetId) }))
   handle('scenes:create', ({ presetId, name }) => ({ id: createScene(presetId, name) }))
   handle('scenes:get', ({ id }) => ({ scene: getScene(id) }))

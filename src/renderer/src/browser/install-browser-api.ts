@@ -11,6 +11,7 @@ import {
   randomizedGenerationDelayMs
 } from '@shared/generation-delay'
 import { FinishedQueueLog, queueItemSnapshot } from '@shared/queue-status'
+import { RestoreLock } from '@shared/backup-restore'
 import {
   browserFragmentSource,
   exportBrowserWorkspace,
@@ -61,6 +62,13 @@ function markQueueItemFinished(id: string): void {
 function emit<C extends keyof IpcEventMap>(channel: C, payload: IpcEventMap[C]): void {
   listeners.get(channel)?.forEach((listener) => listener(payload))
 }
+
+// Same contract as the desktop main process. A reload drops this page's lock, but the import
+// is a single IndexedDB write, so the reloaded page reads either the old or the restored state
+const restoreLock = new RestoreLock({
+  notify: (restoring) => emit('backup:restoreChanged', { restoring }),
+  refusal: () => new Error('A backup restore is in progress')
+})
 
 async function gateway<T>(route: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/__nais/api/${route}`, {
@@ -892,14 +900,17 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
     const file = (await pickFiles('.json,application/json'))[0]
     if (!file) return { canceled: true }
     try {
-      const parsed: unknown = JSON.parse(await file.text())
-      await mutateBrowserState((state) => importBrowserWorkspace(state, parsed))
-      resetSequentialCounters()
-      return { summary: 'Browser backup imported', needsPromptReload: true }
+      return await restoreLock.restore(async () => {
+        const parsed: unknown = JSON.parse(await file.text())
+        await mutateBrowserState((state) => importBrowserWorkspace(state, parsed))
+        resetSequentialCounters()
+        return { summary: 'Browser backup imported' }
+      })
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) }
     }
   }
+  if (channel === 'backup:restoreStatus') return { restoring: restoreLock.active }
   if (channel === 'update:status') return undefined
 
   throw new Error(`Browser runtime does not support ${channel}`)
@@ -1382,7 +1393,9 @@ function install(): void {
   const api: NaisApi = {
     runtime: 'browser',
     invoke<C extends keyof IpcInvokeMap>(channel: C, request: IpcInvokeMap[C]['req']) {
-      return dispatch(channel, request) as Promise<IpcInvokeMap[C]['res']>
+      return restoreLock.request(channel, () => dispatch(channel, request)) as Promise<
+        IpcInvokeMap[C]['res']
+      >
     },
     on<C extends keyof IpcEventMap>(channel: C, listener: (payload: IpcEventMap[C]) => void) {
       const set = listeners.get(channel) ?? new Set<(payload: unknown) => void>()

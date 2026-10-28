@@ -10,6 +10,7 @@ import { LibraryMode } from './components/library-mode'
 import { ArtistTagsDialog } from './components/artist-tags-dialog'
 import { MetadataDialog } from './components/metadata-dialog'
 import { PromptPanel } from './components/prompt-panel'
+import { RestoreOverlay } from './components/restore-overlay'
 import { SceneMode } from './components/scene-mode'
 import { Titlebar } from './components/titlebar'
 import { SettingsDialog } from './components/token-dialog'
@@ -26,6 +27,7 @@ import { bindSceneEvents } from './stores/scenes-store'
 import { bindShortcuts, useShortcutsStore } from './stores/shortcuts-store'
 import { bindUpdateEvents } from './stores/update-store'
 import { bindNavMouse } from './lib/nav-history'
+import { bindBackupRestore, useBackupRestoreStore } from './lib/backup-import'
 import { useLanguageStore } from './lib/i18n'
 import { useLayoutStore } from './stores/layout-store'
 import { useThemeStore } from './stores/theme-store'
@@ -80,11 +82,12 @@ export default function App(): React.JSX.Element {
     const unbindKeys = bindShortcuts()
     const unbindUpdate = bindUpdateEvents()
     const unbindNav = bindNavMouse() // 마우스 4/5번 버튼 뒤로/앞으로
-    // F5 새로고침 (프로덕션에서도)
+    const unbindRestore = bindBackupRestore()
+    // F5 새로고침 (프로덕션에서도). 백업 복원 중에는 막는다 — 새로고친 창도 잠금을 되찾지만 굳이 끊지 않는다
     const onF5 = (e: KeyboardEvent): void => {
       if (e.key === 'F5') {
         e.preventDefault()
-        window.location.reload()
+        if (!useBackupRestoreStore.getState().restoring) window.location.reload()
       }
     }
     window.addEventListener('keydown', onF5)
@@ -94,6 +97,7 @@ export default function App(): React.JSX.Element {
       unbindKeys()
       unbindUpdate()
       unbindNav()
+      unbindRestore()
       window.removeEventListener('keydown', onF5)
     }
   }, [])
@@ -161,6 +165,7 @@ export default function App(): React.JSX.Element {
         <InpaintHost />
         <MetadataDialog />
         <ArtistTagsDialog />
+        <RestoreOverlay />
         <Toaster />
         <AnimatePresence>{!ready && <LoadingScreen key="loading" />}</AnimatePresence>
       </div>

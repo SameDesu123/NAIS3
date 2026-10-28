@@ -589,8 +589,10 @@ export interface IpcInvokeMap {
   /** .nais/NAIS3 JSON/NAIS2 JSON 가져오기. summary=사람이 읽는 결과 */
   'backup:import': {
     req: void
-    res: { summary: string; needsPromptReload: boolean } | { error: string } | { canceled: true }
+    res: { summary: string } | { error: string } | { canceled: true }
   }
+  /** Whether a backup restore is replacing the workspace right now (writes are refused meanwhile) */
+  'backup:restoreStatus': { req: void; res: { restoring: boolean } }
   /** 특정 프리셋의 씬 목록 */
   'scenes:list': { req: { presetId: number }; res: { items: Scene[] } }
   'scenes:create': { req: { presetId: number; name: string }; res: { id: number } }
@@ -742,6 +744,8 @@ export interface IpcEventMap {
   'scenes:changed': { sceneId: number; filePath: string }
   /** 바이브 인코딩 완료 — 카드의 인코딩 표시 갱신용 */
   'vibes:encoded': Record<string, never>
+  /** A backup restore started or ended — on end, every window reloads its workspace stores */
+  'backup:restoreChanged': { restoring: boolean }
   /** 자동 업데이트 상태 (GitHub release) */
   'update:status': {
     state: 'available' | 'none' | 'downloading' | 'downloaded' | 'error'

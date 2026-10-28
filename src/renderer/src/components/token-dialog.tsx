@@ -28,14 +28,9 @@ import { useDirectorStore } from '../stores/director-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { useLayoutStore, type CenterMode } from '../stores/layout-store'
 import { useThemeStore } from '../stores/theme-store'
-import { useCharactersStore } from '../stores/characters-store'
-import { useFragmentsStore } from '../stores/fragments-store'
-import { useVibesStore, useCharRefsStore } from '../stores/refs-store'
-import { usePromptPresetsStore } from '../stores/prompt-presets-store'
-import { useScenesStore } from '../stores/scenes-store'
-import { useLibraryStore } from '../stores/library-store'
 import { useUpdateStore } from '../stores/update-store'
 import { askConfirm } from '../stores/dialog-store'
+import { importBackup, useBackupRestoreStore } from '../lib/backup-import'
 import { toast } from '../stores/toast-store'
 import {
   SHORTCUT_LABELS,
@@ -585,6 +580,9 @@ function StorageSection(): React.JSX.Element {
 function BackupButtons(): React.JSX.Element {
   const t = useT()
   const browser = window.nais.runtime === 'browser'
+  // importing: confirm + file picker in this window. restoring: the runtime's lock (survives F5)
+  const [importing, setImporting] = useState(false)
+  const restoring = useBackupRestoreStore((s) => s.restoring)
   async function exportArchive(): Promise<void> {
     const result = await window.nais.invoke('backup:export', undefined)
     if (result.error) {
@@ -623,30 +621,19 @@ function BackupButtons(): React.JSX.Element {
       <Button
         variant="default"
         className="gap-1.5"
+        disabled={importing || restoring}
         onClick={async () => {
-          const ok = await askConfirm(t('ui.importData'), {
-            message: t('ui.importingDataMayOverwriteExistingDataContinue'),
-            confirmLabel: t('ui.import'),
-            danger: true
-          })
-          if (!ok) return
-          const r = await window.nais.invoke('backup:import', undefined)
-          if ('canceled' in r) return
-          if ('error' in r) {
-            toast(t('ui.importErrorValue', r.error), 'error')
-            return
+          setImporting(true)
+          try {
+            const ok = await askConfirm(t('ui.importData'), {
+              message: t('ui.importingDataMayOverwriteExistingDataContinue'),
+              confirmLabel: t('ui.import'),
+              danger: true
+            })
+            if (ok) await importBackup()
+          } finally {
+            setImporting(false)
           }
-          toast(r.summary, 'success')
-          // 관련 스토어 새로고침
-          void useCharactersStore.getState().load()
-          void useFragmentsStore.getState().load()
-          void useVibesStore.getState().load()
-          void useCharRefsStore.getState().load()
-          void usePromptPresetsStore.getState().load()
-          void useScenesStore.getState().loadPresets()
-          useLibraryStore.getState().openStack(null)
-          // 메인 프롬프트가 바뀌었으면 재하이드레이트
-          if (r.needsPromptReload) void useGenerationStore.getState().hydrate()
         }}
       >
         <Download size={14} /> {t('ui.import')}

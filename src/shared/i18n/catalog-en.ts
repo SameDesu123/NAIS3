@@ -215,6 +215,10 @@ export const EN = {
     'Importing data may overwrite existing data. Continue?',
   'ui.import': 'Import',
   'ui.importErrorValue': 'Import error: {0}',
+  'ui.restoringBackup': 'Restoring backup…',
+  'ui.restoringBackupHint':
+    'Your workspace is being replaced with the backup. Editing is paused until it finishes.',
+  'ui.backupRestoreInProgress': 'A backup restore is in progress. Try again when it finishes.',
   'ui.clickAnItemThenPressANewKeyCombination': 'Click an item, then press a new key combination.',
   'ui.defaults': 'Defaults',
   'ui.pressKeys': 'Press keys…',
