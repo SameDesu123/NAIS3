@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { HistoryPanel } from './components/history-panel'
 import { LoadingScreen } from './components/loading-screen'
 import { Toaster } from './components/toaster'
@@ -27,8 +27,14 @@ import { bindShortcuts, useShortcutsStore } from './stores/shortcuts-store'
 import { bindUpdateEvents } from './stores/update-store'
 import { bindNavMouse } from './lib/nav-history'
 import { useLanguageStore } from './lib/i18n'
+import { cn } from './lib/utils'
 import { useLayoutStore } from './stores/layout-store'
 import { useThemeStore } from './stores/theme-store'
+
+// 새 설치 첫 실행에만 뜨므로 평소 실행에선 읽지 않는다
+const Onboarding = lazy(() =>
+  import('./components/onboarding').then(({ Onboarding }) => ({ default: Onboarding }))
+)
 
 export default function App(): React.JSX.Element {
   const leftOpen = useLayoutStore((s) => s.leftOpen)
@@ -37,6 +43,7 @@ export default function App(): React.JSX.Element {
   const setSettingsOpen = useLayoutStore((s) => s.setSettingsOpen)
   const centerMode = useLayoutStore((s) => s.centerMode)
   const sidebarWidth = useLayoutStore((s) => s.sidebarWidth)
+  const onboardingOpen = useLayoutStore((s) => s.onboardingOpen)
   const [ready, setReady] = useState(false)
   const [resizing, setResizing] = useState(false)
 
@@ -102,7 +109,20 @@ export default function App(): React.JSX.Element {
     <TooltipProvider>
       <div className="flex h-screen flex-col bg-paper">
         <Titlebar />
-        <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3">
+        {/* 새 설치 첫 실행 — 작업 영역 자리에 표시 (타이틀바의 창 컨트롤은 그대로).
+            스플래시가 걷힐 때 마운트해야 첫 등장 애니메이션이 가려지지 않는다 */}
+        {onboardingOpen && ready && (
+          <Suspense fallback={null}>
+            <Onboarding />
+          </Suspense>
+        )}
+        {/* 온보딩을 마치면 카드가 빠진 뒤 작업 화면이 페이드인 (평소 시작에는 애니메이션 없음) */}
+        <motion.div
+          className={cn('flex min-h-0 flex-1 gap-3 px-3 pb-3', onboardingOpen && 'hidden')}
+          initial={false}
+          animate={{ opacity: onboardingOpen ? 0 : 1 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        >
           <AnimatePresence initial={false}>
             {leftOpen && (
               <motion.div
@@ -154,7 +174,7 @@ export default function App(): React.JSX.Element {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </motion.div>
         <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
         <TextPromptHost />
         <FragmentEditorDialog />

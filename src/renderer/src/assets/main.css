@@ -2,6 +2,9 @@
 
 /* WHIMS 디자인 시스템 이식: 다크 변형은 [data-theme='dark'] 기준 */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+/* 낮은 창 높이 (온보딩처럼 세로로 긴 화면을 줄일 때) */
+@custom-variant short (@media (max-height: 820px));
+@custom-variant shorter (@media (max-height: 720px));
 
 @font-face {
   font-family: 'Pretendard Variable';
