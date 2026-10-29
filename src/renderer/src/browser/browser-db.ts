@@ -70,7 +70,8 @@ export interface BrowserState {
 export function emptyState(): BrowserState {
   return {
     nextId: 1,
-    settings: {},
+    // 새 브라우저 작업 공간에서만 온보딩 표시 (저장된 상태가 있으면 그 settings가 덮어쓴다)
+    settings: { onboarding_pending: '1' },
     accounts: [],
     activeAccountId: null,
     anlasLog: [],
