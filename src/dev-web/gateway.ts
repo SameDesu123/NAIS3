@@ -4,7 +4,7 @@ import { resolve } from 'path'
 import JSZip from 'jszip'
 import sharp from 'sharp'
 import type { Plugin } from 'vite'
-import type { GenerationRequest, SubscriptionInfo } from '../shared/types'
+import type { GenerationRequest } from '../shared/types'
 import { analyzeArtists } from '../main/images/artists'
 import {
   buildGenerateImagePayload,
@@ -15,33 +15,18 @@ import {
 import { ENDPOINTS } from '../main/nai/endpoints'
 import { upscaleRequest } from '../main/nai/upscale-request'
 import { isV5Model } from '../shared/nai-models'
+import { parseSubscriptionResponse, type NaiSubscriptionResponse } from '../shared/subscription'
 import { countWithQwenTokenizer, loadQwenTokenizer } from '../main/nai/qwen-tokenizer-core'
 
 const API_PREFIX = '/__nais/api/'
 const MAX_BODY_BYTES = 64 * 1024 * 1024
 let qwenTokenizer: ReturnType<typeof loadQwenTokenizer> | null = null
 
-interface SubscriptionResponse {
-  tier?: number
-  trainingStepsLeft?: { fixedTrainingStepsLeft?: number; purchasedTrainingSteps?: number }
-  usage?: SubscriptionInfo['usage']
-}
-
 function naiHeaders(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token.trim()}`,
     'Content-Type': 'application/json',
     'x-correlation-id': Math.random().toString(36).slice(2, 8)
-  }
-}
-
-function parseSubscription(data: SubscriptionResponse): SubscriptionInfo {
-  const tiers = ['paper', 'tablet', 'scroll', 'opus'] as const
-  return {
-    tier: tiers[data.tier ?? 0] ?? 'paper',
-    anlasFixed: data.trainingStepsLeft?.fixedTrainingStepsLeft ?? 0,
-    anlasPurchased: data.trainingStepsLeft?.purchasedTrainingSteps ?? 0,
-    ...(data.usage ? { usage: data.usage } : {})
   }
 }
 
@@ -167,14 +152,14 @@ async function route(
     if (!response.ok) return { valid: false, error: `API error: ${response.status}` }
     return {
       valid: true,
-      subscription: parseSubscription((await response.json()) as SubscriptionResponse)
+      subscription: parseSubscriptionResponse((await response.json()) as NaiSubscriptionResponse)
     }
   }
 
   if (path === 'balance') {
     const response = await subscription(String(body.token ?? ''), signal)
     if (!response.ok) return { anlas: null, tier: null }
-    const parsed = parseSubscription((await response.json()) as SubscriptionResponse)
+    const parsed = parseSubscriptionResponse((await response.json()) as NaiSubscriptionResponse)
     return {
       anlas: parsed.anlasFixed + parsed.anlasPurchased,
       tier: parsed.tier,

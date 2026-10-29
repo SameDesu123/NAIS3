@@ -16,7 +16,13 @@ import { useGenerationStore } from '../stores/generation-store'
 import { useLayoutStore } from '../stores/layout-store'
 import { useUpdateStore } from '../stores/update-store'
 import { useVibesStore, useCharRefsStore } from '../stores/refs-store'
-import { displayOpusUsagePercent, effectiveGenerationStrength, estimateAnlas } from '@shared/anlas'
+import {
+  displayOpusUsagePercent,
+  effectiveGenerationStrength,
+  estimateAnlas,
+  formatOpusUsageRefill,
+  opusUsagePurchasedPercent
+} from '@shared/anlas'
 import { inpaintingModelFor, modelCapabilities } from '@shared/nai-models'
 import { snapNaiResolution } from '@shared/nai-resolution'
 import { PageNav } from './page-nav'
@@ -106,21 +112,20 @@ function OpusUsageChip(): React.JSX.Element | null {
   const model = useGenerationStore((s) => s.request.model)
   if (subscriptionTier !== 'opus' || !usage || !model.startsWith('nai-diffusion-5-')) return null
   const percent = displayOpusUsagePercent(usage)
-  const hours = Math.max(0, usage.timeUntilNextPercent / 3600)
+  const purchased = opusUsagePurchasedPercent(usage)
+  const status = usage.isNegative
+    ? t('ui.v5RechargeGaugeDepletedAnlasIsUsedUntilItRecharges')
+    : t('ui.v5OpusRechargeGaugeValue', formatOpusUsageRefill(usage, t))
   return (
     <span
       className="no-drag flex items-center gap-1.5 rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[11.5px] text-muted"
-      title={
-        usage.isNegative
-          ? t('ui.v5RechargeGaugeDepletedAnlasIsUsedUntilItRecharges')
-          : t('ui.v5OpusRechargeGaugeAboutValueHUntilTheNext1', hours.toFixed(1))
-      }
+      title={purchased > 0 ? `${status} · ${t('ui.v5ExtraUsageValue', purchased)}` : status}
     >
       <BatteryCharging
         size={12}
         className={usage.isNegative ? 'text-danger-ink' : 'text-accent-ink'}
       />
-      {percent}%
+      {percent}%{purchased > 0 && <span className="text-faint">+{purchased}%</span>}
     </span>
   )
 }

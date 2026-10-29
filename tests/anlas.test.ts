@@ -5,9 +5,13 @@ import {
   effectiveGenerationStrength,
   estimateAnlas,
   formatAnlasEstimate,
+  formatOpusUsageRefill,
   opusUsagePercentSegments,
+  opusUsagePurchasedPercent,
+  opusUsageRefillPercentPerDay,
   UPSCALE_ANLAS_COST
 } from '../src/shared/anlas'
+import type { OpusUsageStatus } from '../src/shared/types'
 
 const base = {
   model: 'nai-diffusion-4-5-full',
@@ -33,6 +37,36 @@ describe('Anlas 추정 (NAI 웹 공식 이식)', () => {
     expect(
       displayOpusUsagePercent({ percent: 35, isNegative: true, timeUntilNextPercent: 0 })
     ).toBe(0)
+  })
+
+  it('timeUntilNextPercent는 카운트다운이 아니라 1%당 주기로 환산한다', () => {
+    const usage = (timeUntilNextPercent: number): OpusUsageStatus => ({
+      percent: 57,
+      isNegative: false,
+      timeUntilNextPercent
+    })
+    expect(opusUsageRefillPercentPerDay(usage(7888))).toBe(11)
+    expect(opusUsageRefillPercentPerDay(usage(6171))).toBe(14)
+    expect(opusUsageRefillPercentPerDay(usage(0))).toBe(0)
+  })
+
+  it('충전 문구는 100% 이상과 100% 미만 정지를 구분한다', () => {
+    expect(
+      formatOpusUsageRefill({ percent: 57, isNegative: false, timeUntilNextPercent: 7888 })
+    ).toBe('하루 약 11%씩 충전')
+    expect(
+      formatOpusUsageRefill({ percent: 100, isNegative: false, timeUntilNextPercent: 0 })
+    ).toBe('100% 이상에서는 충전이 멈춤')
+    expect(formatOpusUsageRefill({ percent: 57, isNegative: false, timeUntilNextPercent: 0 })).toBe(
+      '100% 미만인데 서버가 충전을 멈춘 상태로 보고함'
+    )
+  })
+
+  it('Extra Usage는 없거나 음수면 0으로 본다', () => {
+    const usage = { percent: 10, isNegative: false, timeUntilNextPercent: 0 }
+    expect(opusUsagePurchasedPercent(usage)).toBe(0)
+    expect(opusUsagePurchasedPercent({ ...usage, purchasedPercent: -5 })).toBe(0)
+    expect(opusUsagePurchasedPercent({ ...usage, purchasedPercent: 200 })).toBe(200)
   })
 
   it('V5 Usage 막대는 100% 단위 구간으로 나눈다', () => {

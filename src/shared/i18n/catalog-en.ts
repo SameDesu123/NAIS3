@@ -241,7 +241,10 @@ export const EN = {
     'Depleted · Will switch to an available account before the next V5 generation.',
   'ui.depletedV5GenerationsWillUseAnlasUntilItRecharges':
     'Depleted · V5 generations will use Anlas until it recharges.',
-  'ui.aboutValueHUntilTheNext1': 'About {0}h until the next 1%',
+  'ui.v5RefillsAboutValuePerDay': 'Refills about {0}% per day',
+  'ui.v5RefillPausedAtOrAbove100': 'Recharge pauses at 100% or above',
+  'ui.v5RefillStalledBelow100': 'Below 100%, but the server reports recharge as paused',
+  'ui.v5ExtraUsageValue': 'Extra Usage +{0}%',
   'ui.checkingUsage': 'Checking usage.',
   'ui.currentBalance': 'Current balance',
   'ui.usedToday': 'Used today',
@@ -632,7 +635,7 @@ export const EN = {
   'ui.greetingNight3': 'A starry night',
   'ui.greetingNight4': 'What shall we draw tonight?',
   'ui.greetingNight5': 'A quiet night for focus',
-  'ui.greetingNight6': 'Don\'t stay up too late',
+  'ui.greetingNight6': "Don't stay up too late",
   'ui.preparing': 'Preparing',
   'ui.seedLockedClickToUnlock': 'Seed locked — click to unlock',
   'ui.clickToLockThisSeed': 'Click to lock this seed',
@@ -648,8 +651,7 @@ export const EN = {
     'Anlas cost of this generation (incl. high resolution · character reference · unencoded vibes)',
   'ui.v5RechargeGaugeDepletedAnlasIsUsedUntilItRecharges':
     'V5 recharge gauge depleted — Anlas is used until it recharges',
-  'ui.v5OpusRechargeGaugeAboutValueHUntilTheNext1':
-    'V5 Opus recharge gauge · about {0}h until the next 1%',
+  'ui.v5OpusRechargeGaugeValue': 'V5 Opus recharge gauge · {0}',
   'ui.togglePromptPanel.6ab7472': 'Toggle prompt panel',
   'ui.toggleHistoryPanel.b5c0fb9': 'Toggle history panel',
   'ui.minimize': 'Minimize',

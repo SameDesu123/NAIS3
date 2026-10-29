@@ -1,9 +1,12 @@
 import JSZip from 'jszip'
 import type { GenerationRequest, OpusUsageStatus, SubscriptionInfo } from '../../shared/types'
+import { parseSubscriptionResponse, type NaiSubscriptionResponse } from '../../shared/subscription'
 import { t } from '../i18n'
 import { ENDPOINTS } from './endpoints'
 import { buildGenerateImagePayload, type BuildOptions } from './payload'
 import { readImageStream } from './stream'
+
+export { parseSubscriptionResponse }
 
 /**
  * NAI HTTP 클라이언트. 메인 프로세스 전용 (CORS/CSP 무관).
@@ -23,31 +26,6 @@ export class NaiHttpError extends Error {
   ) {
     super(message)
     this.name = 'NaiHttpError'
-  }
-}
-
-interface NaiSubscriptionResponse {
-  tier?: number
-  trainingStepsLeft?: { fixedTrainingStepsLeft?: number; purchasedTrainingSteps?: number }
-  usage?: OpusUsageStatus
-}
-
-export function parseSubscriptionResponse(data: NaiSubscriptionResponse): SubscriptionInfo {
-  const tierNames = ['paper', 'tablet', 'scroll', 'opus'] as const
-  const tier = tierNames[data.tier ?? 0] ?? 'paper'
-  const usage = data.usage
-  const validUsage =
-    tier === 'opus' &&
-    usage &&
-    Number.isFinite(usage.percent) &&
-    typeof usage.isNegative === 'boolean' &&
-    Number.isFinite(usage.timeUntilNextPercent) &&
-    usage.timeUntilNextPercent >= 0
-  return {
-    tier,
-    anlasFixed: data.trainingStepsLeft?.fixedTrainingStepsLeft ?? 0,
-    anlasPurchased: data.trainingStepsLeft?.purchasedTrainingSteps ?? 0,
-    ...(validUsage ? { usage } : {})
   }
 }
 
@@ -89,6 +67,7 @@ export async function fetchAnlasBalance(token: string): Promise<{
   anlas: number | null
   tier: SubscriptionInfo['tier'] | null
   usage?: OpusUsageStatus
+  expired?: boolean
 }> {
   try {
     const res = await fetch(ENDPOINTS.subscription, { headers: headers(token) })
@@ -98,7 +77,8 @@ export async function fetchAnlasBalance(token: string): Promise<{
     return {
       anlas: parsed.anlasFixed + parsed.anlasPurchased,
       tier: parsed.tier,
-      ...(parsed.usage ? { usage: parsed.usage } : {})
+      ...(parsed.usage ? { usage: parsed.usage } : {}),
+      ...(parsed.expired ? { expired: true } : {})
     }
   } catch {
     return { anlas: null, tier: null }

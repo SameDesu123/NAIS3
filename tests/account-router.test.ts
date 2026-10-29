@@ -52,6 +52,22 @@ describe('NAI 다계정 V5 순환', () => {
     expect(isOpusUsageExhausted(balance(1))).toBe(false)
   })
 
+  it('일반 게이지가 0%여도 Extra Usage가 남아 있으면 소진으로 보지 않는다', () => {
+    const boosted = balance(0)
+    boosted.usage = { ...boosted.usage!, purchasedPercent: 100 }
+    expect(isOpusUsageExhausted(boosted)).toBe(false)
+  })
+
+  it('구독이 만료된 활성 계정은 다른 사용 가능한 Opus 계정으로 넘긴다', async () => {
+    const expired: NaiAccountBalance = { anlas: 1000, tier: 'paper', expired: true }
+    expect(isOpusUsageExhausted(expired)).toBe(true)
+    const lookup = vi.fn(async (token: string) => (token === 'token-a' ? expired : balance(37)))
+
+    const selected = await chooseNaiAccount(accounts, 'a', true, lookup)
+    expect(selected.account.id).toBe('b')
+    expect(selected.rotated).toBe(true)
+  })
+
   it('활성 계정이 소진되면 원형 순서의 다음 사용 가능한 Opus 계정을 고른다', async () => {
     const lookup = vi.fn(async (token: string) => {
       if (token === 'token-a') return balance(0)

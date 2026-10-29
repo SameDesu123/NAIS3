@@ -15,7 +15,12 @@ import {
   Upload
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { displayOpusUsagePercent, opusUsagePercentSegments } from '@shared/anlas'
+import {
+  displayOpusUsagePercent,
+  formatOpusUsageRefill,
+  opusUsagePercentSegments,
+  opusUsagePurchasedPercent
+} from '@shared/anlas'
 import { isLang, LANGUAGES, SUPPORTED_LANGUAGES, type MessageId } from '@shared/i18n'
 import type { NaiAccountInfo } from '@shared/types'
 import discordSvg from '../assets/discord.svg'
@@ -823,6 +828,7 @@ function AccountSection(): React.JSX.Element {
 
   const activeAccount = accounts.find((account) => account.active)
   const opusUsageSegments = opusUsage ? opusUsagePercentSegments(opusUsage) : [0]
+  const opusPurchased = opusUsage ? opusUsagePurchasedPercent(opusUsage) : 0
 
   return (
     <div className="flex min-h-full min-w-0 flex-col gap-3 overflow-x-hidden">
@@ -870,6 +876,7 @@ function AccountSection(): React.JSX.Element {
         ) : (
           accounts.map((account) => {
             const percent = account.usage ? displayOpusUsagePercent(account.usage) : null
+            const purchased = account.usage ? opusUsagePurchasedPercent(account.usage) : 0
             const masked = `${account.prefix}${'*'.repeat(Math.max(4, account.length - 8))}${account.suffix}`
             return (
               <div
@@ -907,7 +914,9 @@ function AccountSection(): React.JSX.Element {
                         ? t('ui.v5GaugeUnavailable')
                         : account.usage?.isNegative
                           ? t('ui.v5ValueDepleted', percent)
-                          : `V5 ${percent}%`
+                          : purchased > 0
+                            ? `V5 ${percent}% · ${t('ui.v5ExtraUsageValue', purchased)}`
+                            : `V5 ${percent}%`
                       : account.tier
                         ? `Anlas ${account.anlas?.toLocaleString() ?? '—'}`
                         : t('ui.statusUnavailable')}
@@ -961,7 +970,7 @@ function AccountSection(): React.JSX.Element {
               <div key={index} className="h-full min-w-0 overflow-hidden rounded-full bg-paper">
                 <div
                   className={cn(
-                    'h-full rounded-full transition-[width] duration-300',
+                    'h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none',
                     opusUsage?.isNegative ? 'bg-danger' : 'bg-accent'
                   )}
                   style={{ width: `${percent}%` }}
@@ -970,16 +979,17 @@ function AccountSection(): React.JSX.Element {
             ))}
           </div>
           <p className="mt-2 text-[10.5px] text-muted">
+            {/* 소진 상태에서도 충전 속도·중단 여부를 함께 보여 준다 */}
             {opusUsage
               ? opusUsage.isNegative
-                ? accounts.length > 1
-                  ? t('ui.depletedWillSwitchToAnAvailableAccountBeforeTheNextV5Generation')
-                  : t('ui.depletedV5GenerationsWillUseAnlasUntilItRecharges')
-                : t(
-                    'ui.aboutValueHUntilTheNext1',
-                    Math.max(0, opusUsage.timeUntilNextPercent / 3600).toFixed(1)
-                  )
+                ? `${
+                    accounts.length > 1
+                      ? t('ui.depletedWillSwitchToAnAvailableAccountBeforeTheNextV5Generation')
+                      : t('ui.depletedV5GenerationsWillUseAnlasUntilItRecharges')
+                  } · ${formatOpusUsageRefill(opusUsage, t)}`
+                : formatOpusUsageRefill(opusUsage, t)
               : t('ui.checkingUsage')}
+            {opusPurchased > 0 && ` · ${t('ui.v5ExtraUsageValue', opusPurchased)}`}
           </p>
         </div>
       )}
