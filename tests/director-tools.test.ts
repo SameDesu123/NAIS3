@@ -4,8 +4,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NaisApi } from '../src/preload/index'
 import { DirectorMode } from '../src/renderer/src/components/director-mode'
+import { SidePageHost } from '../src/renderer/src/components/side-page-host'
 import { useLanguageStore } from '../src/renderer/src/lib/i18n'
 import { useDirectorStore } from '../src/renderer/src/stores/director-store'
+import { useSidePageStore } from '../src/renderer/src/stores/side-page-store'
+import './happy-dom-animations'
 
 let root: Root
 let container: HTMLDivElement
@@ -36,6 +39,7 @@ afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
   useDirectorStore.setState(initialDirectorState, true)
+  useSidePageStore.setState({ page: null })
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -77,6 +81,89 @@ describe('director tool panel', () => {
     await click(button('스케치'))
     expect(run).toHaveBeenCalledTimes(1)
     expect(run).toHaveBeenCalledWith('sketch')
+  })
+})
+
+describe('director local editor pages', () => {
+  const renderWithHost = (): Promise<void> =>
+    act(async () => root.render(h(SidePageHost, null, h(DirectorMode))))
+  const headings = (): (string | null)[] =>
+    [...container.querySelectorAll('h2')].map((el) => el.textContent)
+
+  it('opens pixel art as a free local side page instead of calling the API', async () => {
+    await renderWithHost()
+
+    await click(button('도트화'))
+    expect(button('도트화').textContent).toContain('무료')
+    await click(button('편집기 열기'))
+    expect(run).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalledWith('director:run', expect.anything())
+    // 오버레이 대신 옆 페이지로 넘겨 연다
+    await vi.waitFor(() => expect(useSidePageStore.getState().page?.id).toBe('director:pixelate'))
+    expect(headings()).toContain('도트화')
+  })
+
+  it('opens mosaic on the same page shell and goes back from its header', async () => {
+    await renderWithHost()
+
+    await click(button('모자이크'))
+    await click(button('편집기 열기'))
+    await vi.waitFor(() => expect(useSidePageStore.getState().page?.id).toBe('director:mosaic'))
+    expect(headings()).toContain('모자이크')
+
+    await click(container.querySelector<HTMLButtonElement>('button[aria-label="뒤로"]')!)
+    expect(useSidePageStore.getState().page).toBeNull()
+  })
+
+  it('closes its side page when the director page goes away', async () => {
+    await renderWithHost()
+    await click(button('모자이크'))
+    await click(button('편집기 열기'))
+    await vi.waitFor(() => expect(useSidePageStore.getState().page).not.toBeNull())
+
+    await act(async () => root.render(h(SidePageHost, null, h('div'))))
+    expect(useSidePageStore.getState().page).toBeNull()
+  })
+
+  it('does not open an editor after leaving the director while measuring the image', async () => {
+    // 이미지 크기 해독을 손으로 끝낸다 — 그사이 디렉터를 떠나는 상황을 재현
+    const pending: { onload: (() => void) | null }[] = []
+    vi.stubGlobal(
+      'Image',
+      class {
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        naturalWidth = 8
+        naturalHeight = 8
+        set src(_: string) {
+          pending.push(this)
+        }
+      }
+    )
+    const finishDecodes = (): Promise<void> =>
+      act(async () => pending.splice(0).forEach((img) => img.onload?.()))
+
+    await renderWithHost()
+    await click(button('모자이크'))
+    await click(button('편집기 열기'))
+    await act(async () => root.render(h(SidePageHost, null, h('div'))))
+    await finishDecodes()
+    expect(useSidePageStore.getState().page).toBeNull()
+
+    // 머물러 있으면 해독이 끝난 뒤 그대로 열린다
+    await renderWithHost()
+    await click(button('모자이크'))
+    await click(button('편집기 열기'))
+    await finishDecodes()
+    expect(useSidePageStore.getState().page?.id).toBe('director:mosaic')
+  })
+
+  it('leaves pages opened by other screens alone', async () => {
+    await renderWithHost()
+    useSidePageStore.getState().open({ id: 'other', owner: 'other', render: () => null })
+
+    await act(async () => root.render(h('div')))
+    expect(useSidePageStore.getState().page?.id).toBe('other')
   })
 })
 

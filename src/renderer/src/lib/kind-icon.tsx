@@ -2,6 +2,7 @@ import {
   Droplets,
   Eraser,
   Film,
+  Gamepad2,
   Grid3x3,
   ImageIcon,
   Layers,
@@ -39,7 +40,8 @@ const KIND_MAP: Record<string, KindMeta> = {
     className: 'text-hue-violet-soft',
     label: 'ui.declutter.85446fc'
   },
-  mosaic: { Icon: Grid3x3, className: 'text-hue-orange', label: 'ui.mosaic' }
+  mosaic: { Icon: Grid3x3, className: 'text-hue-orange', label: 'ui.mosaic' },
+  pixelate: { Icon: Gamepad2, className: 'text-hue-indigo', label: 'ui.pixelArt' }
 }
 
 export function kindMeta(kind: string): KindMeta {

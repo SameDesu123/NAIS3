@@ -209,6 +209,9 @@ export interface HistoryItem {
 }
 
 /** 디렉터 툴 (augment-image req_type) */
+/** 디렉터 로컬 툴(API 없음) 결과의 히스토리 kind */
+export type LocalEditKind = 'mosaic' | 'pixelate'
+
 export type DirectorMethod =
   | 'bg-removal'
   | 'lineart'
@@ -532,7 +535,7 @@ export interface IpcInvokeMap {
   }
   /** 렌더러 로컬 편집 결과(base64 PNG)를 히스토리에 저장 — 모자이크 등 API 없는 디렉터 로컬 툴용 */
   'images:saveLocal': {
-    req: { base64: string; kind: 'mosaic' }
+    req: { base64: string; kind: LocalEditKind }
     res: { filePath: string } | { error: string }
   }
   /** 이미지 메타데이터 읽기 (filePath는 우리 파일, base64는 외부 드롭). PNG tEXt→DB→stealth */
