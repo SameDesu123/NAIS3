@@ -20,6 +20,8 @@ import { isLang, LANGUAGES, SUPPORTED_LANGUAGES, type MessageId } from '@shared/
 import type { NaiAccountInfo } from '@shared/types'
 import discordSvg from '../assets/discord.svg'
 import nais3Logo from '../assets/nais3-logo.svg'
+import { importBackup } from '../lib/backup-import'
+import { useBoolSetting, useSaveDir, useSetting } from '../lib/setting-hooks'
 import { playChime } from '../lib/completion-alert'
 import { useLanguageStore, useT } from '../lib/i18n'
 import { cn } from '../lib/utils'
@@ -28,12 +30,6 @@ import { useDirectorStore } from '../stores/director-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { useLayoutStore, type CenterMode } from '../stores/layout-store'
 import { useThemeStore } from '../stores/theme-store'
-import { useCharactersStore } from '../stores/characters-store'
-import { useFragmentsStore } from '../stores/fragments-store'
-import { useVibesStore, useCharRefsStore } from '../stores/refs-store'
-import { usePromptPresetsStore } from '../stores/prompt-presets-store'
-import { useScenesStore } from '../stores/scenes-store'
-import { useLibraryStore } from '../stores/library-store'
 import { useUpdateStore } from '../stores/update-store'
 import { askConfirm } from '../stores/dialog-store'
 import { toast } from '../stores/toast-store'
@@ -424,15 +420,7 @@ function SaveDirRow({
   hint: string
 }): React.JSX.Element {
   const t = useT()
-  const [dir, setDir] = useState('')
-  const [isDefault, setIsDefault] = useState(true)
-  const refresh = (): void => {
-    void window.nais.invoke('settings:getSaveDir', { target }).then((r) => {
-      setDir(r.dir)
-      setIsDefault(r.isDefault)
-    })
-  }
-  useEffect(refresh, [target])
+  const { dir, isDefault, refresh } = useSaveDir(target)
   return (
     <div className="flex flex-col gap-1.5">
       <div>
@@ -475,25 +463,10 @@ function SaveDirRow({
 
 function StorageSection(): React.JSX.Element {
   const t = useT()
-  const [autoSave, setAutoSave] = useState(true)
-  const [format, setFormat] = useState('png')
-  const [dateFolders, setDateFolders] = useState(true)
-  const [historyDeleteFile, setHistoryDeleteFile] = useState(false)
-
-  useEffect(() => {
-    void window.nais
-      .invoke('settings:get', { key: 'auto_save' })
-      .then(({ value }) => setAutoSave(value !== '0'))
-    void window.nais
-      .invoke('settings:get', { key: 'image_format' })
-      .then(({ value }) => setFormat(value || 'png'))
-    void window.nais
-      .invoke('settings:get', { key: 'date_folders' })
-      .then(({ value }) => setDateFolders(value !== '0'))
-    void window.nais
-      .invoke('settings:get', { key: 'history_delete_file' })
-      .then(({ value }) => setHistoryDeleteFile(value === '1'))
-  }, [])
+  const [autoSave, setAutoSave] = useBoolSetting('auto_save', true)
+  const [format, setFormat] = useSetting('image_format', 'png')
+  const [dateFolders, setDateFolders] = useBoolSetting('date_folders', true)
+  const [historyDeleteFile, setHistoryDeleteFile] = useBoolSetting('history_delete_file', false)
 
   return (
     <div className="flex flex-col gap-3">
@@ -502,14 +475,7 @@ function StorageSection(): React.JSX.Element {
           label={t('ui.autoSave')}
           hint={t('ui.whenOffMainGenerationsAreNotSavedToFilesHistoryKeepsOnlyTheLast28457b8e')}
         >
-          <Switch
-            aria-label={t('ui.autoSave')}
-            checked={autoSave}
-            onCheckedChange={(v) => {
-              setAutoSave(v)
-              void window.nais.invoke('settings:set', { key: 'auto_save', value: v ? '1' : '0' })
-            }}
-          />
+          <Switch aria-label={t('ui.autoSave')} checked={autoSave} onCheckedChange={setAutoSave} />
         </Row>
         <Row
           label={t('ui.dateFolders')}
@@ -518,10 +484,7 @@ function StorageSection(): React.JSX.Element {
           <Switch
             aria-label={t('ui.dateFolders')}
             checked={dateFolders}
-            onCheckedChange={(v) => {
-              setDateFolders(v)
-              void window.nais.invoke('settings:set', { key: 'date_folders', value: v ? '1' : '0' })
-            }}
+            onCheckedChange={setDateFolders}
           />
         </Row>
         <Row
@@ -531,23 +494,11 @@ function StorageSection(): React.JSX.Element {
           <Switch
             aria-label={t('ui.alsoDeleteFilesWhenDeletingHistory')}
             checked={historyDeleteFile}
-            onCheckedChange={(v) => {
-              setHistoryDeleteFile(v)
-              void window.nais.invoke('settings:set', {
-                key: 'history_delete_file',
-                value: v ? '1' : '0'
-              })
-            }}
+            onCheckedChange={setHistoryDeleteFile}
           />
         </Row>
         <Row label={t('ui.imageFormat')} hint={t('ui.webpFilesAreSmaller')}>
-          <Select
-            value={format}
-            onValueChange={(v) => {
-              setFormat(v)
-              void window.nais.invoke('settings:set', { key: 'image_format', value: v })
-            }}
-          >
+          <Select value={format} onValueChange={setFormat}>
             <SelectTrigger className="w-28" aria-label={t('ui.imageFormat')}>
               <SelectValue />
             </SelectTrigger>
@@ -630,23 +581,7 @@ function BackupButtons(): React.JSX.Element {
             danger: true
           })
           if (!ok) return
-          const r = await window.nais.invoke('backup:import', undefined)
-          if ('canceled' in r) return
-          if ('error' in r) {
-            toast(t('ui.importErrorValue', r.error), 'error')
-            return
-          }
-          toast(r.summary, 'success')
-          // 관련 스토어 새로고침
-          void useCharactersStore.getState().load()
-          void useFragmentsStore.getState().load()
-          void useVibesStore.getState().load()
-          void useCharRefsStore.getState().load()
-          void usePromptPresetsStore.getState().load()
-          void useScenesStore.getState().loadPresets()
-          useLibraryStore.getState().openStack(null)
-          // 메인 프롬프트가 바뀌었으면 재하이드레이트
-          if (r.needsPromptReload) void useGenerationStore.getState().hydrate()
+          await importBackup()
         }}
       >
         <Download size={14} /> {t('ui.import')}

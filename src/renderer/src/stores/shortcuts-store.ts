@@ -204,6 +204,8 @@ export function bindShortcuts(): () => void {
     const st = useShortcutsStore.getState()
     // 단축키 녹화 중이면 여기서 처리하지 않음 (설정 UI가 직접 캡처)
     if (st.recording) return
+    // 온보딩 화면 뒤에서 생성·탭 전환이 일어나지 않게
+    if (useLayoutStore.getState().onboardingOpen) return
     const combo = comboFromEvent(e)
     if (!combo) return
     const entry = (Object.entries(st.bindings) as [ShortcutAction, string][]).find(

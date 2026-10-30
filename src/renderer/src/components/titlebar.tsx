@@ -10,6 +10,7 @@ import {
   Square,
   X
 } from 'lucide-react'
+import { motion } from 'motion/react'
 import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { useGenerationStore } from '../stores/generation-store'
@@ -142,6 +143,54 @@ function BarButton({
   )
 }
 
+/** 개발 서버로 띄운 창임을 표시 (배포 빌드엔 없음) */
+function DevBadge(): React.JSX.Element | null {
+  if (!import.meta.env.DEV) return null
+  return (
+    <span
+      className="no-drag ml-1 rounded-md border border-accent/40 bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-[0.14em] text-accent-ink"
+      title="Development mode"
+    >
+      DEV
+    </span>
+  )
+}
+
+/** 개발 서버 전용 — 온보딩을 다시 띄워 확인하는 테스트용 버튼 (배포 빌드엔 없음, 개발용이라 번역하지 않는다) */
+function DevOnboardingButton(): React.JSX.Element | null {
+  if (!import.meta.env.DEV) return null
+  return (
+    <BarButton
+      className="w-auto px-2 text-[12px]"
+      onClick={() => useLayoutStore.setState({ onboardingOpen: true })}
+    >
+      Force onboarding
+    </BarButton>
+  )
+}
+
+/** Windows 창 컨트롤(─ □ ✕). macOS는 시스템 신호등을 쓴다 */
+function WindowControls(): React.JSX.Element {
+  const t = useT()
+  return (
+    <div className="no-drag ml-1 flex items-center">
+      <BarButton className="w-9" onClick={() => ctrl('minimize')} aria-label={t('ui.minimize')}>
+        <Minus size={15} />
+      </BarButton>
+      <BarButton className="w-9" onClick={() => ctrl('maximize')} aria-label={t('ui.maximize')}>
+        <Square size={12} />
+      </BarButton>
+      <BarButton
+        className="w-9 hover:bg-window-close hover:text-white"
+        onClick={() => ctrl('close')}
+        aria-label={t('ui.close')}
+      >
+        <X size={15} />
+      </BarButton>
+    </div>
+  )
+}
+
 export function Titlebar(): React.JSX.Element {
   const t = useT()
   const leftOpen = useLayoutStore((s) => s.leftOpen)
@@ -149,6 +198,8 @@ export function Titlebar(): React.JSX.Element {
   const toggleLeft = useLayoutStore((s) => s.toggleLeft)
   const toggleRight = useLayoutStore((s) => s.toggleRight)
   const setSettingsOpen = useLayoutStore((s) => s.setSettingsOpen)
+  const onboardingOpen = useLayoutStore((s) => s.onboardingOpen)
+  const onboardingFinished = useLayoutStore((s) => s.onboardingFinished)
   const anlasBalance = useGenerationStore((s) => s.anlasBalance)
   const opusUsage = useGenerationStore((s) => s.opusUsage)
 
@@ -185,10 +236,29 @@ export function Titlebar(): React.JSX.Element {
     unencodedVibes: capabilities.vibes ? unencodedVibes : 0
   }).total
 
+  // 첫 실행 온보딩 중엔 창 컨트롤(과 DEV 표시)만 — 앱 기능은 온보딩을 마친 뒤에 드러낸다.
+  // 바탕은 투명하게 두어 온보딩 배경 무늬가 창 맨 위까지 이어지게 (배경보다 위에 그린다)
+  if (onboardingOpen) {
+    return (
+      <header
+        className="drag relative z-10 flex h-14 shrink-0 select-none items-center px-2"
+        style={{ paddingLeft: isMac ? 90 : undefined }}
+      >
+        <DevBadge />
+        <div className="flex-1" />
+        {!isMac && <WindowControls />}
+      </header>
+    )
+  }
+
   return (
-    <header
+    <motion.header
       className="drag relative flex h-14 shrink-0 select-none items-center gap-1 bg-paper px-2"
       style={{ paddingLeft: isMac ? 90 : undefined }}
+      // 온보딩을 막 마쳤으면 작업 화면과 함께 페이드인
+      initial={onboardingFinished ? { opacity: 0 } : false}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
     >
       {/* 네비게이션 — 타이틀바 중앙 (컨테이너는 pointer-events-none, PageNav만 클릭 가능) */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -201,14 +271,8 @@ export function Titlebar(): React.JSX.Element {
 
       <UpdateButton />
 
-      {import.meta.env.DEV && (
-        <span
-          className="no-drag ml-1 rounded-md border border-accent/40 bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-[0.14em] text-accent-ink"
-          title="Development mode"
-        >
-          DEV
-        </span>
-      )}
+      <DevBadge />
+      <DevOnboardingButton />
 
       {/* Windows는 우측에 창 컨트롤(─ □ ✕)이 있어 테마·Anlas를 좌측에 배치 */}
       {!isMac && (
@@ -242,23 +306,7 @@ export function Titlebar(): React.JSX.Element {
         <Settings size={15} />
       </BarButton>
 
-      {!isMac && (
-        <div className="no-drag ml-1 flex items-center">
-          <BarButton className="w-9" onClick={() => ctrl('minimize')} aria-label={t('ui.minimize')}>
-            <Minus size={15} />
-          </BarButton>
-          <BarButton className="w-9" onClick={() => ctrl('maximize')} aria-label={t('ui.maximize')}>
-            <Square size={12} />
-          </BarButton>
-          <BarButton
-            className="w-9 hover:bg-window-close hover:text-white"
-            onClick={() => ctrl('close')}
-            aria-label={t('ui.close')}
-          >
-            <X size={15} />
-          </BarButton>
-        </div>
-      )}
-    </header>
+      {!isMac && <WindowControls />}
+    </motion.header>
   )
 }

@@ -13,6 +13,10 @@ interface LayoutState {
   /** 상단 탭에서 숨긴 페이지 (메인은 숨길 수 없음) */
   hiddenPages: CenterMode[]
   quickGenerationControlsEnabled: boolean
+  /** 새 설치 첫 실행 온보딩 표시 여부 (메인이 새 DB를 만들 때 onboarding_pending=1을 남긴다) */
+  onboardingOpen: boolean
+  /** 이번 실행에서 온보딩을 막 마쳤다 — 작업 화면을 페이드인으로 드러낸다 */
+  onboardingFinished: boolean
   toggleLeft: () => void
   toggleRight: () => void
   setSettingsOpen: (open: boolean) => void
@@ -20,6 +24,7 @@ interface LayoutState {
   setSidebarWidth: (w: number) => void
   setPageHidden: (page: CenterMode, hidden: boolean) => void
   setQuickGenerationControlsEnabled: (enabled: boolean) => void
+  finishOnboarding: () => void
   hydrate: () => Promise<void>
 }
 
@@ -78,12 +83,19 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     persist('ui_right_open', rightOpen)
   },
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+  onboardingOpen: false,
+  onboardingFinished: false,
+  finishOnboarding: () => {
+    set({ onboardingOpen: false, onboardingFinished: true })
+    void window.nais.invoke('settings:set', { key: 'onboarding_pending', value: '0' })
+  },
   hydrate: async () => {
-    const [left, right, hidden, quickGenerationControls] = await Promise.all([
+    const [left, right, hidden, quickGenerationControls, onboarding] = await Promise.all([
       window.nais.invoke('settings:get', { key: 'ui_left_open' }),
       window.nais.invoke('settings:get', { key: 'ui_right_open' }),
       window.nais.invoke('settings:get', { key: 'ui_hidden_pages' }),
-      window.nais.invoke('settings:get', { key: 'ui_quick_generation_controls' })
+      window.nais.invoke('settings:get', { key: 'ui_quick_generation_controls' }),
+      window.nais.invoke('settings:get', { key: 'onboarding_pending' })
     ])
     let hiddenPages: CenterMode[] = []
     try {
@@ -95,7 +107,9 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       leftOpen: left.value !== '0',
       rightOpen: right.value !== '0',
       hiddenPages,
-      quickGenerationControlsEnabled: quickGenerationControls.value === '1'
+      quickGenerationControlsEnabled: quickGenerationControls.value === '1',
+      // 키가 없는 기존 설치는 온보딩을 보지 않는다
+      onboardingOpen: onboarding.value === '1'
     })
   }
 }))

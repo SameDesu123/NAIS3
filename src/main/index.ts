@@ -6,7 +6,7 @@ import sharp from './sharp'
 import icon from '../../resources/icon.png?asset'
 import { closeDb, initDb, migrateInWorker } from './db'
 import migrationWorkerPath from './db/migrate.worker?modulePath'
-import { getSetting } from './db/settings'
+import { getSetting, markOnboardingPending } from './db/settings'
 import { preprocessRequest } from './fragments/request'
 import { effectiveSteps, inpaintingModelFor, modelCapabilities } from '../shared/nai-models'
 import { snapNaiResolution } from '../shared/nai-resolution'
@@ -161,6 +161,8 @@ const startup = app.whenReady().then(async () => {
     dbVersion = initialized.version
     // DB가 열린 직후 언어를 1회 확정·고정 (기존 설치는 한국어 유지)
     resolveInitialLanguage(initialized.isNewDatabase)
+    // 새 설치만 첫 실행 온보딩 — 렌더러가 끝나면 0으로 바꾼다
+    if (initialized.isNewDatabase) markOnboardingPending()
   } catch (e) {
     // DB를 못 열면 조용히 빈 상태로 시작하지 않는다 — 세이브 유실로 오인되는 최악의 UX
     const message = (id: MessageId): string =>

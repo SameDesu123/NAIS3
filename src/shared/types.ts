@@ -402,6 +402,8 @@ export interface IpcInvokeMap {
     res: {
       valid: boolean
       accountId?: string
+      /** 저장된 계정 이름 — 잔액까지 묻는 nai:listAccounts 없이 바로 보여 줄 수 있게 */
+      label?: string
       subscription?: SubscriptionInfo
       error?: string
     }
