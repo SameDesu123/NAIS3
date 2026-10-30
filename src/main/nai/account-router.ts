@@ -4,6 +4,7 @@ import type { GenerationRequest, OpusUsageStatus, SubscriptionInfo } from '../..
 import {
   getActiveNaiAccount,
   getNaiAccounts,
+  getSetting,
   setActiveNaiAccount,
   type StoredNaiAccount
 } from '../db/settings'
@@ -92,10 +93,12 @@ export async function resolveNaiAccountForGeneration(
 ): Promise<NaiAccountSelection | null> {
   const active = getActiveNaiAccount()
   if (!active) return null
+  // 자동 전환을 끄면 게이지가 바닥나도 지금 계정으로 (Anlas를 써서) 생성한다
+  const autoSwitch = getSetting('nai_auto_switch') !== '0'
   const selection = await chooseNaiAccount(
     getNaiAccounts(),
     active.id,
-    usesV5Usage,
+    usesV5Usage && autoSwitch,
     fetchAnlasBalance
   )
   if (selection.rotated) setActiveNaiAccount(selection.account.id)

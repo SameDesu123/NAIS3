@@ -232,6 +232,9 @@ export const KO = {
   'ui.showToken': '토큰 보기',
   'ui.deleteAccount': '계정 삭제',
   'ui.v5Usage': 'V5 사용량',
+  'ui.autoSwitchNaiAccounts': '계정 자동 전환',
+  'ui.autoSwitchNaiAccountsHint':
+    'V5 게이지가 바닥나면 다음 V5 생성 전에 게이지가 남은 다른 계정으로 바꿉니다. 끄면 지금 계정으로 계속 생성합니다 (Anlas 사용).',
   'ui.depletedWillSwitchToAnAvailableAccountBeforeTheNextV5Generation':
     '소진됨 · 다음 V5 생성 전에 사용 가능한 계정으로 전환합니다.',
   'ui.depletedV5GenerationsWillUseAnlasUntilItRecharges':

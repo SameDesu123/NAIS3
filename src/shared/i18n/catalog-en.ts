@@ -237,6 +237,9 @@ export const EN = {
   'ui.showToken': 'Show token',
   'ui.deleteAccount': 'Delete account',
   'ui.v5Usage': 'V5 Usage',
+  'ui.autoSwitchNaiAccounts': 'Switch accounts automatically',
+  'ui.autoSwitchNaiAccountsHint':
+    'When the V5 gauge runs out, switch to another account that still has gauge before the next V5 generation. Turn off to keep using this account (with Anlas).',
   'ui.depletedWillSwitchToAnAvailableAccountBeforeTheNextV5Generation':
     'Depleted · Will switch to an available account before the next V5 generation.',
   'ui.depletedV5GenerationsWillUseAnlasUntilItRecharges':

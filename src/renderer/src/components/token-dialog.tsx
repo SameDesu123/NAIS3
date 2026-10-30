@@ -659,6 +659,9 @@ function AccountSection(): React.JSX.Element {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [revealed, setRevealed] = useState<Record<string, string>>({})
   const [usage, setUsage] = useState<{ today: number; week: number } | null>(null)
+  // 계정 자동 전환 (기본 켜짐) — 브라우저 버전은 전환하지 않는다
+  const [autoSwitch, setAutoSwitch] = useState(true)
+  const canAutoSwitch = window.nais.runtime !== 'browser' && accounts.length > 1
   const anlasBalance = useGenerationStore((s) => s.anlasBalance)
   const opusUsage = useGenerationStore((s) => s.opusUsage)
   const subscriptionTier = useGenerationStore((s) => s.subscriptionTier)
@@ -678,6 +681,11 @@ function AccountSection(): React.JSX.Element {
     refresh()
     return window.nais.on('nai:accountChanged', () => refresh(false))
   }, [refresh])
+  useEffect(() => {
+    void window.nais
+      .invoke('settings:get', { key: 'nai_auto_switch' })
+      .then(({ value }) => setAutoSwitch(value !== '0'))
+  }, [])
 
   async function toggleReveal(id: string): Promise<void> {
     if (revealed[id]) {
@@ -881,6 +889,22 @@ function AccountSection(): React.JSX.Element {
         )}
       </div>
 
+      {canAutoSwitch && (
+        <Row label={t('ui.autoSwitchNaiAccounts')} hint={t('ui.autoSwitchNaiAccountsHint')}>
+          <Switch
+            aria-label={t('ui.autoSwitchNaiAccounts')}
+            checked={autoSwitch}
+            onCheckedChange={(v) => {
+              setAutoSwitch(v)
+              void window.nais.invoke('settings:set', {
+                key: 'nai_auto_switch',
+                value: v ? '1' : '0'
+              })
+            }}
+          />
+        </Row>
+      )}
+
       {activeAccount && subscriptionTier === 'opus' && (
         <div className="min-w-0 rounded-lg border border-line bg-surface-2/50 p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
@@ -918,7 +942,7 @@ function AccountSection(): React.JSX.Element {
             {opusUsage
               ? opusUsage.isNegative
                 ? `${
-                    accounts.length > 1
+                    canAutoSwitch && autoSwitch
                       ? t('ui.depletedWillSwitchToAnAvailableAccountBeforeTheNextV5Generation')
                       : t('ui.depletedV5GenerationsWillUseAnlasUntilItRecharges')
                   } · ${formatOpusUsageRefill(opusUsage, t)}`

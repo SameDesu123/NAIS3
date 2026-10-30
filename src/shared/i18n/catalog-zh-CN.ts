@@ -231,6 +231,9 @@ export const ZH_CN = {
   'ui.showToken': '显示 Token',
   'ui.deleteAccount': '删除账户',
   'ui.v5Usage': 'V5 用量',
+  'ui.autoSwitchNaiAccounts': '自动切换账户',
+  'ui.autoSwitchNaiAccountsHint':
+    'V5 额度耗尽时，在下一次 V5 生成前切换到仍有额度的其他账户。关闭后将继续使用当前账户（消耗 Anlas）。',
   'ui.depletedWillSwitchToAnAvailableAccountBeforeTheNextV5Generation':
     '已耗尽 · 下一次 V5 生成前将切换到可用账户。',
   'ui.depletedV5GenerationsWillUseAnlasUntilItRecharges':
