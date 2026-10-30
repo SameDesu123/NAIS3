@@ -6,6 +6,32 @@ export function displayOpusUsagePercent(usage: OpusUsageStatus): number {
   return usage.isNegative ? 0 : Math.max(0, usage.percent)
 }
 
+export function opusUsagePurchasedPercent(usage: OpusUsageStatus): number {
+  return Math.max(0, usage.purchasedPercent ?? 0)
+}
+
+/** NAI 웹 `usageRefillRatePerDay`: 1%당 주기(초)를 하루 충전량으로 환산, 0 = 충전 정지 */
+export function opusUsageRefillPercentPerDay(usage: OpusUsageStatus): number {
+  return usage.timeUntilNextPercent <= 0
+    ? 0
+    : Math.round((86400 / usage.timeUntilNextPercent) * 10) / 10
+}
+
+/**
+ * 충전 상태 문구. NAI 웹은 100% 미만이고 주기가 양수일 때만 충전 속도를 보여 준다.
+ * 100% 미만인데 주기가 0이면 서버가 충전을 멈춘 비정상 상태라 따로 알린다.
+ */
+export function formatOpusUsageRefill(
+  usage: OpusUsageStatus,
+  tr: (id: MessageId, ...args: (string | number)[]) => string = (id, ...args) =>
+    translate('ko', id, args)
+): string {
+  if (displayOpusUsagePercent(usage) >= 100) return tr('ui.v5RefillPausedAtOrAbove100')
+  const perDay = opusUsageRefillPercentPerDay(usage)
+  if (perDay <= 0) return tr('ui.v5RefillStalledBelow100')
+  return tr('ui.v5RefillsAboutValuePerDay', perDay)
+}
+
 export function opusUsagePercentSegments(usage: OpusUsageStatus): number[] {
   const percent = displayOpusUsagePercent(usage)
   const fullSegments = Math.floor(percent / 100)

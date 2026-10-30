@@ -8,6 +8,7 @@ import {
   PanelRight,
   Settings,
   Square,
+  Ticket,
   X
 } from 'lucide-react'
 import { motion } from 'motion/react'
@@ -17,7 +18,13 @@ import { useGenerationStore } from '../stores/generation-store'
 import { useLayoutStore } from '../stores/layout-store'
 import { useUpdateStore } from '../stores/update-store'
 import { useVibesStore, useCharRefsStore } from '../stores/refs-store'
-import { displayOpusUsagePercent, effectiveGenerationStrength, estimateAnlas } from '@shared/anlas'
+import {
+  displayOpusUsagePercent,
+  effectiveGenerationStrength,
+  estimateAnlas,
+  formatOpusUsageRefill,
+  opusUsagePurchasedPercent
+} from '@shared/anlas'
 import { inpaintingModelFor, modelCapabilities } from '@shared/nai-models'
 import { snapNaiResolution } from '@shared/nai-resolution'
 import { PageNav } from './page-nav'
@@ -107,21 +114,85 @@ function OpusUsageChip(): React.JSX.Element | null {
   const model = useGenerationStore((s) => s.request.model)
   if (subscriptionTier !== 'opus' || !usage || !model.startsWith('nai-diffusion-5-')) return null
   const percent = displayOpusUsagePercent(usage)
-  const hours = Math.max(0, usage.timeUntilNextPercent / 3600)
+  const purchased = opusUsagePurchasedPercent(usage)
+  const refill = formatOpusUsageRefill(usage, t)
+  const status = usage.isNegative
+    ? `${t('ui.v5RechargeGaugeDepletedAnlasIsUsedUntilItRecharges')} · ${refill}`
+    : t('ui.v5OpusRechargeGaugeValue', refill)
+  // 기본 게이지를 먼저 쓰고 추가 사용량은 그다음 — 소모 순서대로 왼쪽부터 놓는다.
+  // 추가 사용량은 부스트 1개(100%)당 한 칸씩, 최대 400%라 네 칸 — 한 막대로 400%를 그리면
+  // 부스트 1개가 1/4밖에 안 차 보인다.
+  // 게이지까지 다 그리면 폭이 늘어 중앙 탭과 겹치므로, 2xl 미만 폭에서는 숫자만 남긴다.
+  const meterVisibility = purchased > 0 ? 'hidden 2xl:block' : undefined
+  const title = purchased > 0 ? `${status} · ${t('ui.v5ExtraUsageValue', purchased)}` : status
   return (
     <span
       className="no-drag flex items-center gap-1.5 rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[11.5px] text-muted"
-      title={
-        usage.isNegative
-          ? t('ui.v5RechargeGaugeDepletedAnlasIsUsedUntilItRecharges')
-          : t('ui.v5OpusRechargeGaugeAboutValueHUntilTheNext1', hours.toFixed(1))
-      }
+      title={title}
     >
+      {/* 화면의 숫자만으로는 어느 쪽이 추가 사용량인지 알 수 없어, 스크린 리더에는 title과 같은
+          설명을 숫자와 함께 읽히고 눈에 보이는 게이지·숫자는 숨긴다 */}
+      <span className="sr-only">{`${t('ui.v5Usage')} ${percent}% · ${title}`}</span>
       <BatteryCharging
         size={12}
         className={usage.isNegative ? 'text-danger-ink' : 'text-accent-ink'}
       />
-      {percent}%
+      <UsageMeter
+        fill={percent / 100}
+        className={cn('w-8', meterVisibility)}
+        barClassName={usage.isNegative ? 'bg-danger' : 'bg-accent'}
+      />
+      <span aria-hidden>{percent}%</span>
+      {purchased > 0 && (
+        <>
+          <span aria-hidden className="h-3 w-px bg-faint" />
+          <Ticket size={12} className="text-hue-violet" />
+          <span className="hidden gap-0.5 2xl:flex">
+            {Array.from({ length: MAX_PURCHASED_PERCENT / 100 }, (_, index) => (
+              <UsageMeter
+                key={index}
+                fill={(purchased - index * 100) / 100}
+                className="w-3"
+                barClassName="bg-hue-violet"
+              />
+            ))}
+          </span>
+          <span aria-hidden>{purchased}%</span>
+        </>
+      )}
+    </span>
+  )
+}
+
+/** NAI 웹 `MaxPurchasedPercent` — 추가 사용량 칸의 최대치 */
+const MAX_PURCHASED_PERCENT = 400
+
+function UsageMeter({
+  fill,
+  className,
+  barClassName
+}: {
+  fill: number
+  className: string
+  barClassName: string
+}): React.JSX.Element {
+  // 빈 트랙(paper)은 칩 배경(surface-2)과 대비가 1.2:1뿐이라, 3:1이 보장된 faint 테두리로
+  // 칸 경계를 그린다 — 추가 사용량 100%일 때 남은 칸도 보이도록
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'h-1.5 overflow-hidden rounded-full bg-paper inset-ring inset-ring-faint',
+        className
+      )}
+    >
+      <span
+        className={cn(
+          'block h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none',
+          barClassName
+        )}
+        style={{ width: `${Math.min(1, Math.max(0, fill)) * 100}%` }}
+      />
     </span>
   )
 }

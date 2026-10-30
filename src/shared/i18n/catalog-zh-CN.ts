@@ -235,7 +235,10 @@ export const ZH_CN = {
     '已耗尽 · 下一次 V5 生成前将切换到可用账户。',
   'ui.depletedV5GenerationsWillUseAnlasUntilItRecharges':
     '已耗尽 · 额度恢复前，V5 生成将消耗 Anlas。',
-  'ui.aboutValueHUntilTheNext1': '距下一个 1% 约 {0} 小时',
+  'ui.v5RefillsAboutValuePerDay': '每天约恢复 {0}%',
+  'ui.v5RefillPausedAtOrAbove100': '达到 100% 及以上时暂停恢复',
+  'ui.v5RefillStalledBelow100': '未满 100%，但服务器报告已暂停恢复',
+  'ui.v5ExtraUsageValue': '额外额度 +{0}%',
   'ui.checkingUsage': '正在查询用量。',
   'ui.currentBalance': '当前余额',
   'ui.usedToday': '今日用量',
@@ -655,7 +658,7 @@ export const ZH_CN = {
   'ui.anlasCostOfThisGenerationInclHighResolutionCharacterReferenceUneaa8754e':
     '本次生成将消耗的 Anlas（含高分辨率 · 角色参考 · 未编码的氛围）',
   'ui.v5RechargeGaugeDepletedAnlasIsUsedUntilItRecharges': 'V5 额度已耗尽 — 恢复前将消耗 Anlas',
-  'ui.v5OpusRechargeGaugeAboutValueHUntilTheNext1': 'V5 Opus 额度 · 距下一个 1% 约 {0} 小时',
+  'ui.v5OpusRechargeGaugeValue': 'V5 Opus 额度 · {0}',
   'ui.togglePromptPanel.6ab7472': '折叠/展开提示词面板',
   'ui.toggleHistoryPanel.b5c0fb9': '折叠/展开历史面板',
   'ui.minimize': '最小化',

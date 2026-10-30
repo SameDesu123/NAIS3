@@ -39,6 +39,51 @@ describe('V5 Opus usage 응답', () => {
     expect(parseSubscriptionResponse({ tier: 3, usage }).usage).toEqual(usage)
   })
 
+  it('Extra Usage(purchasedPercent)도 함께 전달하고 잘못된 값은 usage를 버린다', () => {
+    const usage = {
+      percent: 40,
+      purchasedPercent: 120,
+      isNegative: false,
+      timeUntilNextPercent: 6048
+    }
+    expect(parseSubscriptionResponse({ tier: 3, usage }).usage).toEqual(usage)
+    expect(
+      parseSubscriptionResponse({ tier: 3, usage: { ...usage, purchasedPercent: Number.NaN } })
+        .usage
+    ).toBeUndefined()
+  })
+
+  it('만료된 구독은 tier가 남아 있어도 혜택 없는 paper로 취급한다', () => {
+    const now = 1_800_000_000_000
+    const expired = {
+      tier: 3,
+      accountType: 0,
+      expiresAt: now / 1000 - 60,
+      usage: { percent: 57, isNegative: false, timeUntilNextPercent: 6048 }
+    }
+    expect(parseSubscriptionResponse(expired, now)).toEqual({
+      tier: 'paper',
+      anlasFixed: 0,
+      anlasPurchased: 0,
+      expired: true
+    })
+    expect(parseSubscriptionResponse({ ...expired, expiresAt: now / 1000 + 60 }, now)).toEqual(
+      expect.objectContaining({ tier: 'opus', usage: expired.usage })
+    )
+    expect(
+      parseSubscriptionResponse({ ...expired, expiresAt: now / 1000 + 60 }, now)
+    ).not.toHaveProperty('expired')
+    // 처음부터 무료였던 계정은 만료가 아니다
+    expect(parseSubscriptionResponse({ ...expired, tier: 0 }, now)).not.toHaveProperty('expired')
+  })
+
+  it('NAI 웹처럼 RETAIL이 아닌 계정은 만료 시각과 무관하게 활성으로 본다', () => {
+    const now = 1_800_000_000_000
+    expect(parseSubscriptionResponse({ tier: 3, accountType: 2, expiresAt: 0 }, now).tier).toBe(
+      'opus'
+    )
+  })
+
   it('잘못된 usage 값은 UI에 전달하지 않는다', () => {
     expect(
       parseSubscriptionResponse({

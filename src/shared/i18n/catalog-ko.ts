@@ -236,7 +236,10 @@ export const KO = {
     '소진됨 · 다음 V5 생성 전에 사용 가능한 계정으로 전환합니다.',
   'ui.depletedV5GenerationsWillUseAnlasUntilItRecharges':
     '소진됨 · 충전될 때까지 V5 생성에 Anlas를 사용합니다.',
-  'ui.aboutValueHUntilTheNext1': '다음 1%까지 약 {0}시간',
+  'ui.v5RefillsAboutValuePerDay': '하루 약 {0}%씩 충전',
+  'ui.v5RefillPausedAtOrAbove100': '100% 이상에서는 충전이 멈춤',
+  'ui.v5RefillStalledBelow100': '100% 미만인데 서버가 충전을 멈춘 상태로 보고함',
+  'ui.v5ExtraUsageValue': '추가 사용량 +{0}%',
   'ui.checkingUsage': '사용량을 확인하고 있습니다.',
   'ui.currentBalance': '현재 잔액',
   'ui.usedToday': '오늘 사용',
@@ -661,7 +664,7 @@ export const KO = {
     '이번 생성에 소모될 Anlas (고해상도 · 캐릭터 레퍼런스 · 미인코딩 바이브 포함)',
   'ui.v5RechargeGaugeDepletedAnlasIsUsedUntilItRecharges':
     'V5 충전 게이지 소진 — 충전될 때까지 Anlas 사용',
-  'ui.v5OpusRechargeGaugeAboutValueHUntilTheNext1': 'V5 Opus 충전 게이지 · 다음 1%까지 약 {0}시간',
+  'ui.v5OpusRechargeGaugeValue': 'V5 Opus 충전 게이지 · {0}',
   'ui.togglePromptPanel.6ab7472': '프롬프트 패널 접기/펴기',
   'ui.toggleHistoryPanel.b5c0fb9': '히스토리 패널 접기/펴기',
   'ui.minimize': '최소화',

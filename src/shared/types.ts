@@ -124,8 +124,13 @@ export interface OpusUsageStatus {
   percent: number
   /** True once the allowance is exhausted and V5 falls back to Anlas. */
   isNegative: boolean
-  /** Seconds until the server adds the next percentage point. */
+  /**
+   * Seconds per +1% (the refill period, not a countdown). 0 while the refill is paused,
+   * which the server reports at or above 100%.
+   */
   timeUntilNextPercent: number
+  /** Extra Usage bought with boosts, spent after the regular allowance (0–400). */
+  purchasedPercent?: number
 }
 
 export interface SubscriptionInfo {
@@ -133,6 +138,8 @@ export interface SubscriptionInfo {
   anlasFixed: number
   anlasPurchased: number
   usage?: OpusUsageStatus
+  /** 유료 구독이 만료됨 — tier는 paper로 내려가고 V5 게이지도 쓸 수 없다 */
+  expired?: boolean
 }
 
 /** 렌더러에 노출되는 NAI 계정 메타. 실제 토큰은 명시적으로 공개할 때만 전달한다. */
