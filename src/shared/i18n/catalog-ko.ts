@@ -788,7 +788,51 @@ export const KO = {
   'ui.inlineRandomSyntax': '<a|b|c>',
   'ui.queue': '예약',
   'ui.namedCast': '"{0}" 출연',
-  'ui.adjustQueueForSelectedScenes': '선택한 {0}개 씬의 {1} 예약 {2}{3}'
+  'ui.adjustQueueForSelectedScenes': '선택한 {0}개 씬의 {1} 예약 {2}{3}',
+  'ui.onboardingWelcomeTitle': 'NAIS3에 오신 것을 환영합니다',
+  'ui.onboardingLanguageTitle': '언어 선택',
+  'ui.onboardingStepOf': '{0} / {1}단계',
+  'ui.onboardingSkip': '건너뛰기',
+  'ui.onboardingSkipAll': '온보딩 생략',
+  'ui.onboardingStart': '시작하기',
+  'ui.onboardingNext': '다음',
+  'ui.onboardingFinish': 'NAIS3 시작하기',
+  'ui.onboardingSettingsLater': '모든 항목은 나중에 설정에서 바꿀 수 있습니다.',
+  'ui.onboardingAccountTitle': 'NovelAI 계정 연결',
+  'ui.onboardingTokenStep1': 'NovelAI에 로그인합니다.',
+  'ui.onboardingTokenStep2':
+    '왼쪽 위 햄버거 버튼(☰)으로 사이드바를 열고 설정(톱니바퀴) → Account → "Get Persistent API Token"을 누릅니다.',
+  'ui.onboardingTokenStep3': 'pst-로 시작하는 토큰을 복사해 아래에 붙여넣습니다.',
+  'ui.onboardingTokenLabel': 'NovelAI API 토큰',
+  'ui.onboardingConnect': '연결',
+  'ui.onboardingTokenPrivacy':
+    '토큰은 이 기기에만 저장되며 NovelAI 요청에만 쓰입니다. 데스크톱 앱에서는 OS 키체인을 쓸 수 있으면 키체인으로 암호화합니다.',
+  'ui.onboardingAccountConnected': '연결됨 — {0}',
+  'ui.onboardingAccountConnectedNoLabel': '연결됨',
+  'ui.onboardingAccountMore': '계정은 설정 → NAI 계정에서 더 추가하거나 바꿀 수 있습니다.',
+  'ui.onboardingImportTitle': '기존 데이터 가져오기',
+  'ui.onboardingImportDone': '데이터를 불러왔습니다.',
+  'ui.onboardingImportOptional':
+    '처음 사용한다면 건너뛰면 됩니다. 설정 → 저장에서 언제든 불러올 수 있습니다.',
+  'ui.onboardingTipsTitle': '알아두면 좋은 것',
+  'ui.onboardingTipCommentTitle': '프롬프트 주석',
+  'ui.onboardingTipComment': '#로 시작하는 줄은 통째로 주석이라 전송되지 않습니다.',
+  'ui.onboardingTipFragmentTitle': '조각(와일드카드)',
+  'ui.onboardingTipFragment': '<이름>으로 넣으면 여러 줄 중 하나가 무작위로 들어갑니다.',
+  'ui.onboardingTipCharacterTitle': '캐릭터 프롬프트',
+  'ui.onboardingTipCharacter':
+    '라이브러리에 저장해 두고 여러 명을 한꺼번에 켤 수 있습니다. 동시 인원은 모델마다 다릅니다.',
+  'ui.onboardingTipTabsTitle': '상단 탭',
+  'ui.onboardingTipTabs':
+    '씬·디렉터·라이브러리·웹으로 이동합니다. 안 쓰는 탭은 설정 → 모양 → 표시할 탭에서 숨길 수 있습니다.',
+  'ui.onboardingTipGenerate': '{0} 키로 바로 생성할 수 있습니다.',
+  'ui.onboardingAppearanceTitle': '모양 선택',
+  'ui.onboardingPromptTitle': '프롬프트 입력 방식',
+  'ui.onboardingPromptSingle': '한 칸',
+  'ui.onboardingPromptSingleHint': '모든 태그를 한곳에 씁니다.',
+  'ui.onboardingPromptSplit': '세 칸',
+  'ui.onboardingPromptSplitHint': '자주 쓰는 태그는 고정해 두고 바꿀 부분만 고칩니다.',
+  'ui.onboardingStorageTitle': '이미지 저장'
 } as const
 
 export type MessageId = keyof typeof KO

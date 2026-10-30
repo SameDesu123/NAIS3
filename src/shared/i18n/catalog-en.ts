@@ -805,5 +805,50 @@ export const EN = {
   'ui.inlineRandomSyntax': '<a|b|c>',
   'ui.queue': 'Queue',
   'ui.namedCast': 'cast "{0}"',
-  'ui.adjustQueueForSelectedScenes': '{2}{3} queue for {1} across {0} selected {0|scene|scenes}'
+  'ui.adjustQueueForSelectedScenes': '{2}{3} queue for {1} across {0} selected {0|scene|scenes}',
+  'ui.onboardingWelcomeTitle': 'Welcome to NAIS3',
+  'ui.onboardingLanguageTitle': 'Choose your language',
+  'ui.onboardingStepOf': 'Step {0} of {1}',
+  'ui.onboardingSkip': 'Skip',
+  'ui.onboardingSkipAll': 'Skip setup',
+  'ui.onboardingStart': 'Get started',
+  'ui.onboardingNext': 'Next',
+  'ui.onboardingFinish': 'Start using NAIS3',
+  'ui.onboardingSettingsLater': 'You can change all of this later in Settings.',
+  'ui.onboardingAccountTitle': 'Connect your NovelAI account',
+  'ui.onboardingTokenStep1': 'Sign in to NovelAI.',
+  'ui.onboardingTokenStep2':
+    'Open the sidebar with the hamburger button (☰) at the top left, then Settings (gear) → Account → "Get Persistent API Token".',
+  'ui.onboardingTokenStep3': 'Copy the token starting with pst- and paste it below.',
+  'ui.onboardingTokenLabel': 'NovelAI API token',
+  'ui.onboardingConnect': 'Connect',
+  'ui.onboardingTokenPrivacy':
+    'The token is stored only on this device and used only for NovelAI requests. The desktop app encrypts it with your OS keychain when one is available.',
+  'ui.onboardingAccountConnected': 'Connected — {0}',
+  'ui.onboardingAccountConnectedNoLabel': 'Connected',
+  'ui.onboardingAccountMore': 'Add or switch accounts any time in Settings → NAI Account.',
+  'ui.onboardingImportTitle': 'Bring your existing data',
+  'ui.onboardingImportDone': 'Data imported.',
+  'ui.onboardingImportOptional':
+    'New to NAIS? Just skip this. You can import any time in Settings → Storage.',
+  'ui.onboardingTipsTitle': 'Good to know',
+  'ui.onboardingTipCommentTitle': 'Prompt comments',
+  'ui.onboardingTipComment':
+    'A line that starts with # is a comment, and the whole line is not sent.',
+  'ui.onboardingTipFragmentTitle': 'Fragments (wildcards)',
+  'ui.onboardingTipFragment': 'Insert <name> to pick one of several lines at random.',
+  'ui.onboardingTipCharacterTitle': 'Character prompts',
+  'ui.onboardingTipCharacter':
+    'Save them to the library and turn several on at once. The limit depends on the model.',
+  'ui.onboardingTipTabsTitle': 'Top tabs',
+  'ui.onboardingTipTabs':
+    'Switch to Scene, Director, Library and Web. Hide unused tabs in Settings → Appearance → Visible Tabs.',
+  'ui.onboardingTipGenerate': 'Press {0} to generate right away.',
+  'ui.onboardingAppearanceTitle': 'Choose your look',
+  'ui.onboardingPromptTitle': 'Prompt Layout',
+  'ui.onboardingPromptSingle': 'One box',
+  'ui.onboardingPromptSingleHint': 'All tags in one place.',
+  'ui.onboardingPromptSplit': 'Three boxes',
+  'ui.onboardingPromptSplitHint': 'Keep your usual tags fixed and edit only what changes.',
+  'ui.onboardingStorageTitle': 'Saving Images'
 } as const satisfies MessageCatalog

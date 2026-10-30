@@ -425,28 +425,28 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
       request
     )
     if (!verification.valid) return verification
-    const accountId = await mutateBrowserState((state) => {
+    const { id: accountId, label } = await mutateBrowserState((state) => {
       const token = String(request.token).trim()
       const duplicate = state.accounts.find((account) => account.token === token)
       if (duplicate) {
         state.activeAccountId = duplicate.id
-        return duplicate.id
+        return duplicate
       }
-      const id = crypto.randomUUID()
-      state.accounts.push({
-        id,
+      const account = {
+        id: crypto.randomUUID(),
         label: String(request.label ?? '').trim() || `Account ${state.accounts.length + 1}`,
         token,
         prefix: token.slice(0, 4),
         suffix: token.slice(-4),
         length: token.length,
         active: true
-      })
-      state.activeAccountId = id
-      return id
+      }
+      state.accounts.push(account)
+      state.activeAccountId = account.id
+      return account
     })
     emit('nai:accountChanged', { accountId, reason: 'added' })
-    return { ...verification, accountId }
+    return { ...verification, accountId, label }
   }
   if (channel === 'nai:setActiveAccount') {
     const account = await mutateBrowserState((state) => {

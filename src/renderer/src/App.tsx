@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { HistoryPanel } from './components/history-panel'
 import { LoadingScreen } from './components/loading-screen'
 import { Toaster } from './components/toaster'
@@ -28,8 +28,14 @@ import { bindShortcuts, useShortcutsStore } from './stores/shortcuts-store'
 import { bindUpdateEvents } from './stores/update-store'
 import { bindNavMouse } from './lib/nav-history'
 import { useLanguageStore } from './lib/i18n'
+import { cn } from './lib/utils'
 import { useLayoutStore } from './stores/layout-store'
 import { useThemeStore } from './stores/theme-store'
+
+// 새 설치 첫 실행에만 뜨므로 평소 실행에선 읽지 않는다
+const Onboarding = lazy(() =>
+  import('./components/onboarding').then(({ Onboarding }) => ({ default: Onboarding }))
+)
 
 export default function App(): React.JSX.Element {
   const leftOpen = useLayoutStore((s) => s.leftOpen)
@@ -38,6 +44,7 @@ export default function App(): React.JSX.Element {
   const setSettingsOpen = useLayoutStore((s) => s.setSettingsOpen)
   const centerMode = useLayoutStore((s) => s.centerMode)
   const sidebarWidth = useLayoutStore((s) => s.sidebarWidth)
+  const onboardingOpen = useLayoutStore((s) => s.onboardingOpen)
   const [ready, setReady] = useState(false)
   const [resizing, setResizing] = useState(false)
 
@@ -103,59 +110,74 @@ export default function App(): React.JSX.Element {
     <TooltipProvider>
       <div className="flex h-screen flex-col bg-paper">
         <Titlebar />
-        <SidePageHost>
-          <AnimatePresence initial={false}>
-            {leftOpen && (
-              <motion.div
-                key="left"
-                className="relative h-full shrink-0 overflow-hidden"
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: sidebarWidth, opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                // 드래그 중엔 즉시 반영 (애니메이션이 따라오면 답답함)
-                transition={
-                  resizing ? { duration: 0 } : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
-                }
-              >
-                <div style={{ width: sidebarWidth }} className="h-full">
-                  <PromptPanel />
-                </div>
-                {/* 폭 조절 핸들 */}
-                <div
-                  className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-accent/30"
-                  onMouseDown={startResize}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <main className="flex min-h-0 min-w-0 flex-1">
-            {centerMode === 'scene' ? (
-              <SceneMode />
-            ) : centerMode === 'director' ? (
-              <DirectorMode />
-            ) : centerMode === 'library' ? (
-              <LibraryMode />
-            ) : centerMode === 'websearch' ? (
-              <WebSearchMode />
-            ) : (
-              <PreviewPane />
-            )}
-          </main>
-          <AnimatePresence initial={false}>
-            {rightOpen && (
-              <motion.div
-                key="right"
-                className="h-full shrink-0 overflow-hidden"
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 240, opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <HistoryPanel />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </SidePageHost>
+        {/* 새 설치 첫 실행 — 작업 영역 자리에 표시 (타이틀바의 창 컨트롤은 그대로).
+            스플래시가 걷힐 때 마운트해야 첫 등장 애니메이션이 가려지지 않는다 */}
+        {onboardingOpen && ready && (
+          <Suspense fallback={null}>
+            <Onboarding />
+          </Suspense>
+        )}
+        {/* 온보딩을 마치면 카드가 빠진 뒤 작업 화면이 페이드인 (평소 시작에는 애니메이션 없음) */}
+        <motion.div
+          className={cn('flex min-h-0 flex-1 flex-col', onboardingOpen && 'hidden')}
+          initial={false}
+          animate={{ opacity: onboardingOpen ? 0 : 1 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <SidePageHost>
+            <AnimatePresence initial={false}>
+              {leftOpen && (
+                <motion.div
+                  key="left"
+                  className="relative h-full shrink-0 overflow-hidden"
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: sidebarWidth, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  // 드래그 중엔 즉시 반영 (애니메이션이 따라오면 답답함)
+                  transition={
+                    resizing ? { duration: 0 } : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+                  }
+                >
+                  <div style={{ width: sidebarWidth }} className="h-full">
+                    <PromptPanel />
+                  </div>
+                  {/* 폭 조절 핸들 */}
+                  <div
+                    className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-accent/30"
+                    onMouseDown={startResize}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <main className="flex min-h-0 min-w-0 flex-1">
+              {centerMode === 'scene' ? (
+                <SceneMode />
+              ) : centerMode === 'director' ? (
+                <DirectorMode />
+              ) : centerMode === 'library' ? (
+                <LibraryMode />
+              ) : centerMode === 'websearch' ? (
+                <WebSearchMode />
+              ) : (
+                <PreviewPane />
+              )}
+            </main>
+            <AnimatePresence initial={false}>
+              {rightOpen && (
+                <motion.div
+                  key="right"
+                  className="h-full shrink-0 overflow-hidden"
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 240, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <HistoryPanel />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </SidePageHost>
+        </motion.div>
         <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
         <TextPromptHost />
         <FragmentEditorDialog />

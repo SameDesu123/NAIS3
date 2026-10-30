@@ -233,7 +233,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
       reason: 'added',
       label: account.label
     })
-    return { ...result, accountId: account.id }
+    return { ...result, accountId: account.id, label: account.label }
   })
   handle('nai:setActiveAccount', async ({ id }) => {
     const active = setActiveNaiAccount(id)

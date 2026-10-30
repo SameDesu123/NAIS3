@@ -16,6 +16,15 @@ export function setSetting(key: string, value: string): void {
     .run(key, value)
 }
 
+/** 새 설치 첫 실행에 온보딩을 띄운다. 부가 기능이라 저장 실패로 시작을 막지 않는다 */
+export function markOnboardingPending(): void {
+  try {
+    setSetting('onboarding_pending', '1')
+  } catch {
+    // 온보딩 없이 시작
+  }
+}
+
 const TOKEN_KEY = 'nai_token_encrypted'
 const ACCOUNTS_KEY = 'nai_accounts_encrypted'
 
