@@ -4,6 +4,7 @@ import {
   normalizePresetParts,
   partsForApply,
   pickPresetParams,
+  presetParamsForApply,
   shouldSyncPromptPreset,
   splitPromptForPreset,
   usePromptPresetsStore
@@ -32,6 +33,7 @@ export function PromptPresetBar(): React.JSX.Element {
   const remove = usePromptPresetsStore((s) => s.remove)
   const reorder = usePromptPresetsStore((s) => s.reorder)
   const request = useGenerationStore((s) => s.request)
+  const hydrated = useGenerationStore((s) => s.hydrated)
   const currentPrompt = request.prompt
   const currentNegative = request.negativePrompt
   const patch = useGenerationStore((s) => s.patchRequest)
@@ -45,7 +47,8 @@ export function PromptPresetBar(): React.JSX.Element {
   // 프리셋 적용 직후엔 같은 값이라 no-op
   const syncTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => {
-    if (!loaded || activeId == null) return
+    // 저장된 파라미터를 불러오기 전의 기본 요청을 활성 프리셋에 쓰지 않는다
+    if (!loaded || !hydrated || activeId == null) return
     clearTimeout(syncTimer.current)
     syncTimer.current = setTimeout(() => {
       const p = usePromptPresetsStore.getState().presets.find((x) => x.id === activeId)
@@ -73,7 +76,7 @@ export function PromptPresetBar(): React.JSX.Element {
       }
     }, 500)
     return () => clearTimeout(syncTimer.current)
-  }, [request, currentPrompt, currentNegative, activeId, loaded, update])
+  }, [request, currentPrompt, currentNegative, activeId, loaded, hydrated, update])
 
   const active = presets.find((p) => p.id === activeId)
 
@@ -83,13 +86,13 @@ export function PromptPresetBar(): React.JSX.Element {
     setOpen(false) // 먼저 닫기 (B9)
     // 활성 프리셋을 먼저 바꿔야 이전 프리셋이 적용값으로 자동 저장되는 레이스가 없다.
     setActive(id)
-    // 파라미터도 함께 복원. 구버전 프리셋(params=null)은 프롬프트만 적용.
+    // 파라미터도 함께 복원 — 저장되지 않은 필드는 직전 프리셋 값 대신 기본값으로.
     // 3분할 조각은 프리셋에 저장된 것을 복원 (없거나 낡았으면 prompt를 base로 재시드)
     patch({
       prompt: p.prompt,
       promptParts: partsForApply(p),
       negativePrompt: p.negativePrompt,
-      ...(p.params ?? {})
+      ...presetParamsForApply(p.params, request.model)
     })
   }
 

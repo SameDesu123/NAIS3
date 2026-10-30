@@ -7,7 +7,7 @@ import { t } from '../lib/i18n'
 import { useCharactersStore } from './characters-store'
 import { mergePromptParts, useGenerationStore } from './generation-store'
 import { useLayoutStore } from './layout-store'
-import { usePromptPresetsStore } from './prompt-presets-store'
+import { pickPresetParams, usePromptPresetsStore } from './prompt-presets-store'
 import { toast } from './toast-store'
 
 /** 실질적으로 3분할인지 — base만 있고 가변/디테일이 비었으면 단일 프롬프트로 취급 */
@@ -122,13 +122,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     if (sel.variety && m.variety != null) patch.variety = m.variety
     if (sel.characters && m.useCoords != null) patch.useCoords = m.useCoords
 
+    // 프롬프트를 적용하면 새 프리셋으로 담는다 — 활성 프리셋을 덮어쓰지 않게 (자동 저장 구조).
+    // 새 프리셋이 만들어지기 전에 자동 저장이 돌 수 있으니 활성 프리셋부터 해제한다
+    const asNewPreset = patch.prompt !== undefined || patch.negativePrompt !== undefined
+    if (asNewPreset) usePromptPresetsStore.getState().setActive(null)
     gen.patchRequest(patch)
-    // 프롬프트를 적용하면 새 프리셋으로 담는다 — 활성 프리셋을 덮어쓰지 않게 (자동 저장 구조)
-    if (patch.prompt !== undefined || patch.negativePrompt !== undefined) {
+    if (asNewPreset) {
       const req = useGenerationStore.getState().request
       void usePromptPresetsStore
         .getState()
-        .create(t('ui.importedPreset'), req.prompt, req.negativePrompt)
+        .create(t('ui.importedPreset'), req.prompt, req.negativePrompt, pickPresetParams(req))
         .then((id) => usePromptPresetsStore.getState().setActive(id))
     }
     if (sel.seed && m.seed != null) gen.setSeedLocked(true)

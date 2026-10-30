@@ -67,6 +67,47 @@ describe('prompt preset sync guards', () => {
   })
 })
 
+describe('preset params on apply', () => {
+  it('fills params a legacy preset never stored instead of keeping the previous preset values', async () => {
+    const { presetParamsForApply } = await helpers()
+    const applied = presetParamsForApply(null, 'nai-diffusion-4-5-full')
+    // 직전 프리셋 값(steps 40 등)이 끼어들 자리가 없다 — 모든 필드가 채워진다
+    expect(applied).toEqual({
+      model: 'nai-diffusion-4-5-full',
+      width: 832,
+      height: 1216,
+      steps: 28,
+      cfgScale: 5,
+      cfgRescale: 0,
+      sampler: 'k_euler_ancestral',
+      noiseSchedule: 'karras',
+      variety: false,
+      qualityToggle: true,
+      ucPreset: 0
+    })
+  })
+
+  it('keeps stored fields and defaults the rest for the stored model', async () => {
+    const { presetParamsForApply } = await helpers()
+    const applied = presetParamsForApply(
+      { model: 'nai-diffusion-5-curated', steps: 40, cfgScale: undefined },
+      'nai-diffusion-4-5-full'
+    )
+    expect(applied.model).toBe('nai-diffusion-5-curated')
+    expect(applied.steps).toBe(40)
+    expect(applied.cfgScale).toBe(7)
+    expect(applied.sampler).toBe('k_euler_ancestral')
+  })
+
+  it('gives the same params whichever model the previous preset used', async () => {
+    const { presetParamsForApply } = await helpers()
+    const partial = { model: 'nai-diffusion-4-5-full', steps: 28, cfgScale: 5 }
+    const afterV5 = presetParamsForApply(partial, 'nai-diffusion-5-curated')
+    expect(afterV5).toEqual(presetParamsForApply(partial, 'nai-diffusion-4-5-curated'))
+    expect(Object.values(afterV5)).not.toContain(undefined)
+  })
+})
+
 describe('prompt preset split parts (3분할 보존)', () => {
   const parts = { base: '1girl', additional: 'smile', detail: 'cafe' }
   const merged = '1girl, smile, cafe'

@@ -78,6 +78,8 @@ interface GenerationState {
   setBatchCount: (count: number) => void
   setPromptSplitEnabled: (enabled: boolean) => void
   patchPromptParts: (patch: Partial<PromptParts>) => void
+  /** main_params까지 불러왔는지 — 그 전의 request는 DEFAULT_REQUEST라 프리셋에 자동 저장하면 안 된다 */
+  hydrated: boolean
   hydrate: () => Promise<void>
   generate: () => Promise<void>
   cancelAll: () => Promise<void>
@@ -109,6 +111,7 @@ interface GenerationState {
 
 export const useGenerationStore = create<GenerationState>((set, get) => ({
   request: DEFAULT_REQUEST,
+  hydrated: false,
   seedLocked: localStorage.getItem('seed_locked') === '1',
   batchCount: Number(localStorage.getItem('batch_count')) || 1,
   promptSplitEnabled: false,
@@ -199,6 +202,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         // 손상된 저장값은 기본값으로
       }
     }
+    set({ hydrated: true })
     const queue = await window.nais.invoke('queue:status', undefined)
     set({ queue })
     await get().refreshHistory()
@@ -340,15 +344,24 @@ export function randomSeed(): number {
 
 /** 파라미터를 settings('main_params')에 디바운스 저장 (편집 중 매 키 입력마다 쓰지 않도록) */
 let persistTimer: ReturnType<typeof setTimeout> | undefined
+let pendingParams: GenerationRequest | null = null
 function persistParams(request: GenerationRequest): void {
+  pendingParams = request
   clearTimeout(persistTimer)
-  persistTimer = setTimeout(() => {
-    void window.nais.invoke('settings:set', {
-      key: 'main_params',
-      value: JSON.stringify(withoutTransientSource(request))
-    })
-  }, 400)
+  persistTimer = setTimeout(flushParams, 400)
 }
+function flushParams(): void {
+  clearTimeout(persistTimer)
+  if (!pendingParams) return
+  void window.nais.invoke('settings:set', {
+    key: 'main_params',
+    value: JSON.stringify(withoutTransientSource(pendingParams))
+  })
+  pendingParams = null
+}
+// 프리셋 전환 직후 종료·새로고침하면 활성 프리셋(localStorage, 즉시 저장)과 main_params가 어긋나
+// 다음 시작 때 직전 프리셋 값이 새 활성 프리셋에 자동 저장된다
+if (typeof window !== 'undefined') window.addEventListener('beforeunload', flushParams)
 
 /** 메인 프로세스 이벤트 구독 — 앱 시작 시 1회 */
 export function bindGenerationEvents(): () => void {
