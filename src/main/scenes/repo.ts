@@ -8,6 +8,7 @@ import type { IpcInvokeMap, Scene, SceneImage, ScenePreset } from '../../shared/
 import { getDb } from '../db'
 import { dropMemoryImage, isMemoryPath, libraryRoot, storedThumbnailUrl } from '../images/storage'
 import { t } from '../i18n'
+import { parseSceneImport } from './import-formats'
 
 interface Row {
   id: number
@@ -532,26 +533,18 @@ export async function exportScenesJson(presetId: number): Promise<boolean> {
   return true
 }
 
-export async function importScenesJson(presetId: number): Promise<number> {
+export async function importScenesJson(
+  presetId: number
+): Promise<IpcInvokeMap['scenes:importJson']['res']> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const result = await dialog.showOpenDialog(win, {
     title: t('ui.importScenes'),
     properties: ['openFile'],
     filters: [{ name: 'JSON', extensions: ['json'] }]
   })
-  if (result.canceled || result.filePaths.length === 0) return 0
-  const parsed = JSON.parse(readFileSync(result.filePaths[0], 'utf-8')) as {
-    scenes?: {
-      name?: string
-      prompt?: string
-      /** NAIS2 씬 내보내기(JSON) 포맷의 프롬프트 필드명 */
-      scenePrompt?: string
-      negativePrompt?: string
-      width?: number
-      height?: number
-    }[]
-  }
-  const scenes = parsed.scenes ?? []
+  if (result.canceled || result.filePaths.length === 0) return { count: 0, canceled: true }
+  const scenes = parseSceneImport(readFileSync(result.filePaths[0], 'utf-8'))
+  if (!scenes) return { count: 0, unrecognized: true }
   const db = getDb()
   const max = db
     .prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM gen_scenes WHERE preset_id = ?')
@@ -565,7 +558,7 @@ export async function importScenesJson(presetId: number): Promise<number> {
       stmt.run(
         presetId,
         s.name ?? t('ui.scene'),
-        s.prompt ?? s.scenePrompt ?? '', // NAIS2 파일은 scenePrompt
+        s.prompt,
         s.negativePrompt ?? '',
         s.width ?? 832,
         s.height ?? 1216,
@@ -573,7 +566,7 @@ export async function importScenesJson(presetId: number): Promise<number> {
       )
     }
   })()
-  return scenes.length
+  return { count: scenes.length }
 }
 
 type ZipEntry = { file_path: string; name: string }

@@ -101,6 +101,9 @@ export const EN = {
     'Deletes the "{0}" cast. Its remaining queued images will be excluded from runs.',
   'ui.manageCasts': 'Manage Casts…',
   'ui.importedValueScenes': 'Imported {0} {0|scene|scenes}',
+  'ui.unrecognizedSceneJson':
+    "Couldn't read this file as scenes. Supported: NAIS3/NAIS2 scene exports, scene_preset_export.json, interaction-share and SDImageGenEasy presets.",
+  'ui.sceneImportFailedValue': 'Scene import failed — {0}',
   'ui.noScenesToImport': 'No scenes to import',
   'ui.exportJson': 'Export JSON',
   'ui.importJson': 'Import JSON',

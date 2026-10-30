@@ -100,6 +100,9 @@ export const ZH_CN = {
     '将删除「{0}」角色组合。其剩余预约将不参与生成。',
   'ui.manageCasts': '管理角色组合…',
   'ui.importedValueScenes': '已导入 {0} 个场景',
+  'ui.unrecognizedSceneJson':
+    '无法将此文件读取为场景。支持 NAIS3/NAIS2 场景导出、scene_preset_export.json、互动分享和 SDImageGenEasy 预设。',
+  'ui.sceneImportFailedValue': '场景导入失败 — {0}',
   'ui.noScenesToImport': '没有可导入的场景',
   'ui.exportJson': '导出 JSON',
   'ui.importJson': '导入 JSON',

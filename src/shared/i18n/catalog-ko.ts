@@ -100,6 +100,9 @@ export const KO = {
     '"{0}" 출연을 삭제합니다. 남은 예약은 실행에서 제외됩니다.',
   'ui.manageCasts': '출연 관리…',
   'ui.importedValueScenes': '씬 {0}개 가져옴',
+  'ui.unrecognizedSceneJson':
+    '씬으로 읽을 수 없는 파일입니다. NAIS3·NAIS2 씬 내보내기, scene_preset_export.json, 상호작용 공유용, SDImageGenEasy 프리셋을 지원합니다.',
+  'ui.sceneImportFailedValue': '씬 가져오기 실패 — {0}',
   'ui.noScenesToImport': '가져올 씬이 없습니다',
   'ui.exportJson': 'JSON 내보내기',
   'ui.importJson': 'JSON 불러오기',

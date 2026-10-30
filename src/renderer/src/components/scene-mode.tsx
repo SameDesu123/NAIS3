@@ -390,13 +390,19 @@ function SceneGrid(): React.JSX.Element {
     await window.nais.invoke('scenes:exportJson', { presetId: activePresetId })
   }
   async function importJson(): Promise<void> {
-    const { count } = await window.nais.invoke('scenes:importJson', { presetId: activePresetId })
-    if (count > 0) {
-      toast(t('ui.importedValueScenes', count), 'success')
-      void useScenesStore.getState().load()
-    } else {
-      toast(t('ui.noScenesToImport'), 'info')
+    let result: { count: number; unrecognized?: boolean; canceled?: boolean }
+    try {
+      result = await window.nais.invoke('scenes:importJson', { presetId: activePresetId })
+    } catch (e) {
+      toast(t('ui.sceneImportFailedValue', e instanceof Error ? e.message : String(e)), 'error')
+      return
     }
+    if (result.canceled) return
+    if (result.unrecognized) toast(t('ui.unrecognizedSceneJson'), 'error')
+    else if (result.count > 0) {
+      toast(t('ui.importedValueScenes', result.count), 'success')
+      void useScenesStore.getState().load()
+    } else toast(t('ui.noScenesToImport'), 'info')
   }
   async function exportZip(): Promise<void> {
     await window.nais.invoke('scenes:exportZip', { presetId: activePresetId })

@@ -495,7 +495,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('library:exportStack', async ({ id }) => ({ count: await exportLibraryStack(id) }))
 
   handle('scenes:exportJson', async ({ presetId }) => ({ saved: await exportScenesJson(presetId) }))
-  handle('scenes:importJson', async ({ presetId }) => ({ count: await importScenesJson(presetId) }))
+  handle('scenes:importJson', ({ presetId }) => importScenesJson(presetId))
   handle('scenes:exportZip', async ({ presetId }) => ({ count: await exportZip(presetId) }))
 
   handle('settings:get', ({ key }) => ({ value: getSetting(key) }))

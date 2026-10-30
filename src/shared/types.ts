@@ -652,7 +652,11 @@ export interface IpcInvokeMap {
   'scenes:openFolder': { req: { sceneId: number }; res: { ok: boolean } }
   /** 씬 JSON 내보내기/불러오기 (파일 다이얼로그, 활성 프리셋 기준) */
   'scenes:exportJson': { req: { presetId: number }; res: { saved: boolean } }
-  'scenes:importJson': { req: { presetId: number }; res: { count: number } }
+  'scenes:importJson': {
+    req: { presetId: number }
+    /** unrecognized = 알 수 없는 JSON 형식, canceled = 파일을 고르지 않음 */
+    res: { count: number; unrecognized?: boolean; canceled?: boolean }
+  }
   /** 즐겨찾기 이미지 또는 각 씬 최상단 이미지를 ZIP으로 (파일 다이얼로그) */
   /** 활성 프리셋 ZIP 내보내기 (NAIS2 방식 — 씬별 즐겨찾기 전부, 없으면 최상단 1장) */
   'scenes:exportZip': { req: { presetId: number }; res: { count: number } }
