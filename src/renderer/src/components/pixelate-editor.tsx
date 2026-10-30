@@ -89,7 +89,7 @@ export function PixelateEditorPage({
     return { ramp, strength: toneStrength / 100 }
   }, [toneChoice, toneColor, toneStrength])
 
-  const { preview, fresh } = usePixelatePreview(imageBase64, width, height, ready, {
+  const { preview, fresh, failed } = usePixelatePreview(imageBase64, width, height, ready, {
     dot,
     colors,
     dither,
@@ -142,7 +142,15 @@ export function PixelateEditorPage({
             className="absolute left-0 top-0"
             style={{ ...covered, imageRendering: 'pixelated' }}
           />
-          {ready && !fresh && (
+          {ready && failed && (
+            <div
+              role="alert"
+              className="absolute left-1/2 top-1/2 max-w-[80%] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-black/60 px-4 py-2.5 text-center text-[15px] font-medium text-white shadow-lg"
+            >
+              {t('ui.pixelArtFailed')}
+            </div>
+          )}
+          {ready && !fresh && !failed && (
             <div
               role="status"
               aria-label={t('ui.pixelArtComputing')}

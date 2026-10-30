@@ -128,6 +128,50 @@ describe('pixel art preview', () => {
     expect(worker.runs).toHaveLength(0)
   })
 
+  it('reports a failed computation and keeps computing later options', async () => {
+    const workers: {
+      onmessage: ((e: { data: unknown }) => void) | null
+      runs: PixelateWorkerRequest[]
+    }[] = []
+    vi.stubGlobal(
+      'Worker',
+      class {
+        onmessage: ((e: { data: unknown }) => void) | null = null
+        onerror: (() => void) | null = null
+        runs: PixelateWorkerRequest[] = []
+        constructor() {
+          workers.push(this)
+        }
+        postMessage(msg: PixelateWorkerRequest): void {
+          if (msg.type === 'run') this.runs.push(msg)
+        }
+        terminate(): void {
+          this.onmessage = null
+        }
+      }
+    )
+    await render({ dot: 1, colors: 1024, dither: true })
+    const worker = workers.at(-1)!
+    // 계산 중에 바꾼 옵션은 실패 뒤에도 이어서 계산한다
+    await render({ dot: 4, colors: 8, dither: false })
+    const failedRun = worker.runs.shift()!
+    if (failedRun.type !== 'run') throw new Error('expected a run')
+    await act(async () => worker.onmessage?.({ data: { key: failedRun.key, error: 'RangeError' } }))
+    expect(decodedOnMainThread).not.toHaveBeenCalled()
+    expect(latest.failed).toBe(false)
+    expect(worker.runs).toHaveLength(1)
+
+    // 지금 옵션이 실패하면 failed — 계산 중 표시를 멈추고 다음 변경은 다시 보낸다
+    const second = worker.runs.shift()!
+    if (second.type !== 'run') throw new Error('expected a run')
+    await act(async () => worker.onmessage?.({ data: { key: second.key, error: 'RangeError' } }))
+    expect(latest.failed).toBe(true)
+    expect(latest.fresh).toBe(false)
+    await render({ dot: 8, colors: 8, dither: false })
+    expect(worker.runs).toHaveLength(1)
+    expect(latest.failed).toBe(false)
+  })
+
   it.each([
     ['fires onerror', (w: FakeFailingWorker) => w.onerror?.()],
     ['cannot decode the image', (w: FakeFailingWorker) => w.onmessage?.({ data: { error: 'x' } })]

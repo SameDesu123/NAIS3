@@ -504,6 +504,8 @@ export const EN = {
   'ui.pixelArtOutputSize': 'Output size',
   'ui.pixelArtKeepSize': 'Keep original size',
   'ui.pixelArtComputing': 'Computing',
+  'ui.pixelArtFailed':
+    "Couldn't compute with these settings. Try a larger dot size or fewer colors.",
   'ui.pixelArtPreview': 'Pixel art preview',
   'ui.pixelArtSaveToFile': 'Save the pixel art result to a file (page stays open)',
   'ui.mosaicInstructions':

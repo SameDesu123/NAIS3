@@ -23,6 +23,7 @@ const keyOf = (o: PixelatePreviewOptions): string =>
  * 계산 중에 옵션이 여러 번 바뀌면 마지막 값만 이어서 계산한다.
  * fresh는 결과가 지금 옵션과 일치하는지 — 아니면 이전 결과를 보여 주는 중이다.
  * 워커를 쓸 수 없는 환경(테스트 등)이나 워커가 실패하면 메인 스레드에서 계산한다.
+ * failed는 지금 옵션으로 계산하지 못했다는 뜻이다 (메모리 부족 등).
  */
 export function usePixelatePreview(
   base64: string,
@@ -30,8 +31,9 @@ export function usePixelatePreview(
   height: number,
   enabled: boolean,
   opts: PixelatePreviewOptions
-): { preview: PixelatePreview | null; fresh: boolean } {
+): { preview: PixelatePreview | null; fresh: boolean; failed: boolean } {
   const [preview, setPreview] = useState<PixelatePreview | null>(null)
+  const [failed, setFailed] = useState<{ base64: string; key: string } | null>(null)
   const [useWorker, setUseWorker] = useState(() => typeof Worker !== 'undefined')
   const send = useRef<((o: PixelatePreviewOptions) => void) | null>(null)
   const key = keyOf(opts)
@@ -58,13 +60,15 @@ export function usePixelatePreview(
       else post(o)
     }
     worker.onmessage = (e: MessageEvent<PixelateWorkerResponse>) => {
-      if ('error' in e.data) {
+      const done = e.data.key
+      if (done === undefined) {
         setUseWorker(false)
         return
       }
-      const o = requested.get(e.data.key)
-      requested.delete(e.data.key)
-      if (o) setPreview({ small: e.data.result, opts: o })
+      const o = requested.get(done)
+      requested.delete(done)
+      if ('error' in e.data) setFailed({ base64, key: done })
+      else if (o) setPreview({ small: e.data.result, opts: o })
       busy = false
       const next = pending
       pending = null
@@ -87,12 +91,18 @@ export function usePixelatePreview(
 
   // 워커 없이 계산하는 경우 — 원본을 이쪽에서 해독해 렌더 중에 바로 만든다
   const source = useImageData(base64, width, height, enabled && !useWorker)
-  const fallback = useMemo<PixelatePreview | null>(() => {
+  const fallback = useMemo<PixelatePreview | 'failed' | null>(() => {
     if (useWorker || !source) return null
     const o = { dot, colors, dither, tone }
-    return { small: pixelateSmall(source, o), opts: o }
+    try {
+      return { small: pixelateSmall(source, o), opts: o }
+    } catch {
+      return 'failed'
+    }
   }, [useWorker, source, dot, colors, dither, tone])
 
-  const shown = fallback ?? preview
-  return { preview: shown, fresh: shown != null && keyOf(shown.opts) === key }
+  const shown = fallback === 'failed' ? preview : (fallback ?? preview)
+  const fresh = shown != null && keyOf(shown.opts) === key
+  const workerFailed = useWorker && failed?.base64 === base64 && failed.key === key
+  return { preview: shown, fresh, failed: !fresh && (fallback === 'failed' || workerFailed) }
 }

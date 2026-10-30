@@ -493,6 +493,7 @@ export const ZH_CN = {
   'ui.pixelArtOutputSize': '输出尺寸',
   'ui.pixelArtKeepSize': '保持原始尺寸',
   'ui.pixelArtComputing': '计算中',
+  'ui.pixelArtFailed': '无法按此设置计算。请调大像素尺寸或减少颜色数。',
   'ui.pixelArtPreview': '像素画预览',
   'ui.pixelArtSaveToFile': '将像素画结果直接保存为文件（页面保持打开）',
   'ui.mosaicInstructions':

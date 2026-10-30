@@ -495,6 +495,8 @@ export const KO = {
   'ui.pixelArtOutputSize': '출력 크기',
   'ui.pixelArtKeepSize': '원본 크기 유지',
   'ui.pixelArtComputing': '계산 중',
+  'ui.pixelArtFailed':
+    '이 설정으로는 계산하지 못했습니다. 도트 크기를 키우거나 색 수를 줄여 보세요.',
   'ui.pixelArtPreview': '도트화 결과 미리보기',
   'ui.pixelArtSaveToFile': '도트화 결과를 파일로 바로 저장 (페이지는 그대로)',
   'ui.mosaicInstructions':

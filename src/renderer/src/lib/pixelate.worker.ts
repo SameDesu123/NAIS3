@@ -13,7 +13,9 @@ export type PixelateWorkerRequest =
   | { type: 'source'; base64: string; width: number; height: number }
   | { type: 'run'; key: string; opts: PixelatePreviewOptions }
 
-export type PixelateWorkerResponse = { key: string; result: PixelBuffer } | { error: string }
+/** key가 있는 error는 그 옵션의 계산 실패, 없으면 원본 해독 실패 */
+export type PixelateWorkerResponse =
+  { key: string; result: PixelBuffer } | { key?: string; error: string }
 
 const scope = self as unknown as {
   onmessage: ((e: MessageEvent<PixelateWorkerRequest>) => void) | null
@@ -31,7 +33,14 @@ scope.onmessage = (e) => {
   if (!source) return
   source.then(
     (src) => {
-      const result = pixelateSmall(src, msg.opts)
+      // 큰 원본에 작은 도트·많은 색이면 배열 할당이 실패할 수 있다 — 알리지 않으면 부모가 계속 기다린다
+      let result: PixelBuffer
+      try {
+        result = pixelateSmall(src, msg.opts)
+      } catch (err) {
+        scope.postMessage({ key: msg.key, error: String(err) })
+        return
+      }
       scope.postMessage({ key: msg.key, result }, [result.data.buffer])
     },
     (err: unknown) => scope.postMessage({ error: String(err) })
