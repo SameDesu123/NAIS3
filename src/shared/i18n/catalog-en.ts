@@ -796,7 +796,7 @@ export const EN = {
   'ui.onboardingTokenLabel': 'NovelAI API token',
   'ui.onboardingConnect': 'Connect',
   'ui.onboardingTokenPrivacy':
-    'The token is encrypted with your OS keychain on this device and is only sent to NovelAI.',
+    'The token is stored only on this device and used only for NovelAI requests. The desktop app encrypts it with your OS keychain when one is available.',
   'ui.onboardingAccountConnected': 'Connected — {0}',
   'ui.onboardingAccountConnectedNoLabel': 'Connected',
   'ui.onboardingAccountMore': 'Add or switch accounts any time in Settings → NAI Account.',

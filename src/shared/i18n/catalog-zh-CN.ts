@@ -770,7 +770,8 @@ export const ZH_CN = {
   'ui.onboardingTokenStep3': '复制以 pst- 开头的令牌并粘贴到下方。',
   'ui.onboardingTokenLabel': 'NovelAI API 令牌',
   'ui.onboardingConnect': '连接',
-  'ui.onboardingTokenPrivacy': '令牌通过本机操作系统钥匙串加密保存，只会发送给 NovelAI。',
+  'ui.onboardingTokenPrivacy':
+    '令牌仅保存在本机，只用于 NovelAI 请求。桌面版在系统钥匙串可用时会用它加密保存。',
   'ui.onboardingAccountConnected': '已连接 — {0}',
   'ui.onboardingAccountConnectedNoLabel': '已连接',
   'ui.onboardingAccountMore': '可随时在 设置 → NAI 账户 中添加或切换账户。',

@@ -778,7 +778,7 @@ export const KO = {
   'ui.onboardingTokenLabel': 'NovelAI API 토큰',
   'ui.onboardingConnect': '연결',
   'ui.onboardingTokenPrivacy':
-    '토큰은 이 기기의 OS 키체인으로 암호화되어 저장되며 NovelAI 외의 곳으로 전송되지 않습니다.',
+    '토큰은 이 기기에만 저장되며 NovelAI 요청에만 쓰입니다. 데스크톱 앱에서는 OS 키체인을 쓸 수 있으면 키체인으로 암호화합니다.',
   'ui.onboardingAccountConnected': '연결됨 — {0}',
   'ui.onboardingAccountConnectedNoLabel': '연결됨',
   'ui.onboardingAccountMore': '계정은 설정 → NAI 계정에서 더 추가하거나 바꿀 수 있습니다.',
