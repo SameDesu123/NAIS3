@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs'
+import { mkdirSync, readdirSync, writeFileSync } from 'fs'
 import { isAbsolute, join, relative } from 'path'
 import sharp from '../sharp'
 import { isThumbnailSource, thumbnailUrl, type ThumbnailSource } from '../../shared/thumbnail-url'
@@ -208,6 +208,10 @@ export async function saveGeneratedImage(input: {
   mkdirSync(monthDir, { recursive: true })
 
   const ext = input.format ?? 'png'
+  const fileBuffer =
+    ext === 'png' && input.localMetadata
+      ? injectNais3Params(input.png, input.localMetadata)
+      : input.png
   let filePath: string
   if (input.sceneName) {
     // 씬 이미지는 첫 장은 씬 이름 그대로, 중복부터 씬 이름_2, _3 ...
@@ -221,20 +225,12 @@ export async function saveGeneratedImage(input: {
       const m = numberedRe.exec(f)
       if (m) max = Math.max(max, Number(m[1]))
     }
-    filePath = join(monthDir, max === 0 ? `${safeName}.${ext}` : `${safeName}_${max + 1}.${ext}`)
-    while (existsSync(filePath)) {
-      max++
-      filePath = join(monthDir, `${safeName}_${max + 1}.${ext}`)
-    }
+    filePath = writeNewFile(monthDir, safeName, ext, fileBuffer, max + 1)
   } else {
+    // 시각은 초 단위이고 업스케일·디렉터·로컬 편집은 seed가 늘 0 → 같은 초 저장은 _2, _3 ...
     const stamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    filePath = join(monthDir, `NAIS3_${stamp}_${input.seed}.${ext}`)
+    filePath = writeNewFile(monthDir, `NAIS3_${stamp}_${input.seed}`, ext, fileBuffer)
   }
-  const fileBuffer =
-    ext === 'png' && input.localMetadata
-      ? injectNais3Params(input.png, input.localMetadata)
-      : input.png
-  writeFileSync(filePath, fileBuffer)
 
   // 썸네일: 카드가 커질 수 있어 640px로 (화질 열화 방지). webp q90
   const thumbnail = await sharp(input.png)
@@ -256,6 +252,22 @@ export async function saveGeneratedImage(input: {
     )
 
   return { id: Number(result.lastInsertRowid), filePath }
+}
+
+/**
+ * 새 파일로만 쓴다 — name.ext(start가 2 이상이면 name_start.ext)부터 시도하고,
+ * 이미 있으면 다음 번호로. 'wx'로 쓰므로 어떤 경우에도 기존 파일을 덮어쓰지 않는다.
+ */
+function writeNewFile(dir: string, name: string, ext: string, data: Buffer, start = 1): string {
+  for (let n = start; ; n++) {
+    const filePath = join(dir, n <= 1 ? `${name}.${ext}` : `${name}_${n}.${ext}`)
+    try {
+      writeFileSync(filePath, data, { flag: 'wx' })
+      return filePath
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e
+    }
+  }
 }
 
 function payloadWithLocalMetadata(
