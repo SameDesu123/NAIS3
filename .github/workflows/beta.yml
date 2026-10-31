@@ -1,0 +1,110 @@
+name: Beta
+
+# Publishes a beta prerelease of the default branch around 00:00 UTC on days it
+# has new commits, then deletes all but the newest betas. Stable users never see
+# prereleases: their updater reads /releases/latest and latest.yml only.
+on:
+  schedule:
+    # GitHub may start scheduled runs late; minute 7 avoids the top-of-hour rush.
+    - cron: '7 0 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Build even if nothing changed since the last beta
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beta
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.plan.outputs.build }}
+      version: ${{ steps.plan.outputs.version }}
+      previous: ${{ steps.plan.outputs.previous }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          previous="$(gh release list --limit 100 --json tagName,isPrerelease \
+            --jq '[.[] | select(.isPrerelease and (.tagName | test("-beta\\.")))][0].tagName // empty')"
+          if [ -n "$previous" ] && [ "$FORCE" != 'true' ] &&
+            [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$previous" --jq .sha)" = "$GITHUB_SHA" ]; then
+            echo "No commits since $previous; skipping."
+            echo 'build=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A beta precedes the next patch release: 1.0.29 on main builds 1.0.30-beta.<date>.<run>.
+          base="$(node -p "const [a, b, c] = require('./package.json').version.split('.').map(Number); [a, b, c + 1].join('.')")"
+          version="$base-beta.$(date -u +%Y%m%d).$GITHUB_RUN_NUMBER"
+          echo "Building $version"
+          {
+            echo 'build=true'
+            echo "version=$version"
+            echo "previous=$previous"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.build == 'true'
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PREVIOUS: ${{ needs.prepare.outputs.previous }}
+      KEEP: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: npm pkg set "version=$VERSION"
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - run: node scripts/verify-release.mjs assets all
+      - run: |
+          notes="$(mktemp)"
+          cat > "$notes" <<EOF
+          Automated beta build of \`$GITHUB_SHA\`. It may contain unfinished or broken features.
+
+          A beta shares the stable app's workspace, and a database migration it runs cannot be
+          undone by going back to a stable version. Back up your workspace before installing.
+          EOF
+          args=(--prerelease --latest=false --target "$GITHUB_SHA" --title "v$VERSION" --notes-file "$notes" --generate-notes)
+          if [ -n "$PREVIOUS" ]; then args+=(--notes-start-tag "$PREVIOUS"); fi
+          gh release create "v$VERSION" dist/* "${args[@]}"
+      # Only published betas with the exact generated tag shape are eligible, so a
+      # stable release or a draft can never be deleted here.
+      - run: |
+          gh release list --limit 200 --json tagName,isPrerelease,isDraft,createdAt \
+            --jq '[.[] | select(.isPrerelease and (.isDraft | not)
+                    and (.tagName | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-beta\\.[0-9]{8}\\.[0-9]+$")))]
+                  | sort_by(.createdAt) | reverse | .[(env.KEEP | tonumber):][] | .tagName' |
+          while read -r tag; do
+            echo "Deleting old beta $tag"
+            gh release delete "$tag" --cleanup-tag --yes
+          done
