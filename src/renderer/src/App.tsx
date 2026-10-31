@@ -32,6 +32,14 @@ import { cn } from './lib/utils'
 import { useLayoutStore } from './stores/layout-store'
 import { useThemeStore } from './stores/theme-store'
 
+// 좌우 패널 접기/펴기 — 패널은 제자리에서 뒤로 물러나며 흐려지고, 메인 영역이 넓어지며 그 위를 덮는다.
+// 바깥 칸은 차지하는 폭만 줄이고, 안의 패널은 바깥쪽 벽에 붙은 채 원래 폭 그대로 메인 아래로 들어간다.
+// 칸 사이 간격(SidePageHost의 gap-3)도 음수 여백으로 같이 접어야 마지막에 12px 툭 끊기지 않는다
+const PANEL_GAP = 12
+const PANEL_EASE = { duration: 0.22, ease: [0.22, 1, 0.36, 1] } as const
+const PANEL_BACK = { opacity: 0.3, scale: 0.94 }
+const PANEL_FRONT = { opacity: 1, scale: 1 }
+
 // 새 설치 첫 실행에만 뜨므로 평소 실행에선 읽지 않는다
 const Onboarding = lazy(() =>
   import('./components/onboarding').then(({ Onboarding }) => ({ default: Onboarding }))
@@ -129,27 +137,35 @@ export default function App(): React.JSX.Element {
               {leftOpen && (
                 <motion.div
                   key="left"
-                  className="relative h-full shrink-0 overflow-hidden"
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: sidebarWidth, opacity: 1 }}
-                  exit={{ width: 0, opacity: 0 }}
+                  className="relative h-full shrink-0"
+                  variants={{
+                    front: { width: sidebarWidth, marginRight: 0 },
+                    back: { width: 0, marginRight: -PANEL_GAP }
+                  }}
+                  initial="back"
+                  animate="front"
+                  exit="back"
                   // 드래그 중엔 즉시 반영 (애니메이션이 따라오면 답답함)
-                  transition={
-                    resizing ? { duration: 0 } : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
-                  }
+                  transition={resizing ? { duration: 0 } : PANEL_EASE}
                 >
-                  <div style={{ width: sidebarWidth }} className="h-full">
+                  <motion.div
+                    style={{ width: sidebarWidth }}
+                    className="absolute inset-y-0 left-0"
+                    variants={{ front: PANEL_FRONT, back: PANEL_BACK }}
+                    transition={PANEL_EASE}
+                  >
                     <PromptPanel />
-                  </div>
-                  {/* 폭 조절 핸들 */}
-                  <div
-                    className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-accent/30"
-                    onMouseDown={startResize}
-                  />
+                    {/* 폭 조절 핸들 */}
+                    <div
+                      className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-accent/30"
+                      onMouseDown={startResize}
+                    />
+                  </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
-            <main className="flex min-h-0 min-w-0 flex-1">
+            {/* 접히는 패널이 이 아래로 들어간다 — 바탕을 칠하고 위에 쌓아 패널을 가린다 */}
+            <main className="relative z-10 flex min-h-0 min-w-0 flex-1 bg-paper">
               {centerMode === 'scene' ? (
                 <SceneMode />
               ) : centerMode === 'director' ? (
@@ -166,13 +182,23 @@ export default function App(): React.JSX.Element {
               {rightOpen && (
                 <motion.div
                   key="right"
-                  className="h-full shrink-0 overflow-hidden"
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: 240, opacity: 1 }}
-                  exit={{ width: 0, opacity: 0 }}
-                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                  className="relative h-full shrink-0"
+                  variants={{
+                    front: { width: 240, marginLeft: 0 },
+                    back: { width: 0, marginLeft: -PANEL_GAP }
+                  }}
+                  initial="back"
+                  animate="front"
+                  exit="back"
+                  transition={PANEL_EASE}
                 >
-                  <HistoryPanel />
+                  <motion.div
+                    className="absolute inset-y-0 right-0 w-[240px]"
+                    variants={{ front: PANEL_FRONT, back: PANEL_BACK }}
+                    transition={PANEL_EASE}
+                  >
+                    <HistoryPanel />
+                  </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
