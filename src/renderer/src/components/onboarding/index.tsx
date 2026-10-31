@@ -82,7 +82,8 @@ function stepsForRuntime(): readonly Step[] {
  * 새 설치 첫 실행 온보딩. 소개 → 언어 → 모양(모드·팔레트) → 프롬프트 칸 → 저장 → NAI 토큰 → 기존 데이터
  * → 기본 사용법 순서.
  * macOS 설정 지원처럼 넓은 창 + 가운데 큰 아이콘·제목, 이동 버튼은 아래 양 끝.
- * 처음 뜰 때는 카드가 살짝 떠오르며 나타나고, 소개 화면의 로고·제목이 차례로 들어온다.
+ * 처음 뜰 때는 뒤로 누워 있던 카드가 일어서며 다가오고(배경은 반대로 살짝 물러난다), 빛이 표면을 한 번
+ * 훑은 뒤 소개 화면의 로고·제목과 머리·발 버튼이 차례로 들어온다.
  * 온보딩 전체는 위쪽 '온보딩 생략'으로 언제든 끝낼 수 있고, 계정 연결처럼 마쳐야 넘어가는
  * 단계만 '건너뛰기'를 따로 둔다. 같은 항목은 설정에서 다시 바꿀 수 있다.
  */
@@ -130,18 +131,30 @@ export function Onboarding(): React.JSX.Element {
             'px-3 pb-6 pt-2 sm:px-8 sm:pb-12 sm:pt-6 short:pb-4 short:pt-1',
             leaving && 'pointer-events-none'
           )}
-          initial={{ opacity: 0, y: 24, scale: 0.98 }}
+          // 카드 아래쪽을 축으로 일으켜 세운다 — 원근은 transform 안에 넣어 이 요소만 입체로 보이게
+          style={{ transformPerspective: 1400, originY: 1 }}
+          initial={{ opacity: 0, y: 64, scale: 0.9, rotateX: 22 }}
           animate={leaving ? LEAVE : APPEAR}
           onAnimationComplete={() => leaving && finish()}
         >
           <section
             aria-label={t('ui.onboardingWelcomeTitle')}
-            className="flex h-full max-h-[720px] w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-xl"
+            className="relative flex h-full max-h-[720px] w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-xl"
             style={{ zoom }}
           >
-            <header
+            {/* 카드가 일어설 때 표면을 비스듬히 한 번 훑는 빛 */}
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-10 mix-blend-soft-light"
+              style={{ background: SHEEN }}
+              initial={{ x: '-100%' }}
+              animate={{ x: '100%' }}
+              transition={{ duration: 1.2, delay: 0.3, ease: [0.4, 0, 0.2, 1] }}
+            />
+            <motion.header
               ref={headerRef}
               className="flex h-12 shrink-0 items-center justify-end px-3 pt-2 sm:px-5"
+              {...CHROME_IN}
             >
               {!last && (
                 <Button
@@ -154,7 +167,7 @@ export function Onboarding(): React.JSX.Element {
                   {t('ui.onboardingSkipAll')}
                 </Button>
               )}
-            </header>
+            </motion.header>
             <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
               <AnimatePresence mode="wait" initial={false} custom={direction}>
                 <motion.div
@@ -194,9 +207,10 @@ export function Onboarding(): React.JSX.Element {
               </AnimatePresence>
             </div>
 
-            <footer
+            <motion.footer
               ref={footerRef}
               className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-5 pb-5 pt-3 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:px-10 sm:pb-7"
+              {...CHROME_IN}
             >
               <div className="flex justify-start">
                 {index > 0 ? (
@@ -254,7 +268,7 @@ export function Onboarding(): React.JSX.Element {
                       : t('ui.onboardingNext')}
                 </Button>
               </div>
-            </footer>
+            </motion.footer>
           </section>
         </motion.div>
       </div>
@@ -305,20 +319,37 @@ function useHeightGap(
   return gap
 }
 
-// 첫 등장 — 스플래시가 걷히는 동안 카드가 천천히 떠오른다
+// 첫 등장 — 스플래시가 걷히는 동안 카드가 일어서며 다가온다. 움직임은 스프링이라 끝에서 살짝 넘어갔다
+// 돌아오며 자리 잡고, 투명도만 따로 짧게 채운다
 const APPEAR = {
   opacity: 1,
   y: 0,
   scale: 1,
-  transition: { duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }
+  rotateX: 0,
+  transition: {
+    default: { type: 'spring', duration: 1.1, bounce: 0.22, delay: 0.1 },
+    opacity: { duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }
+  }
 } as const
 // 마칠 때 — 빠르게 흐려지며 빠진다
 const LEAVE = {
   opacity: 0,
   y: 0,
   scale: 0.97,
+  rotateX: 0,
   transition: { duration: 0.28, ease: [0.4, 0, 1, 1] }
 } as const
+
+// 머리·발 — 카드가 거의 다 일어선 뒤에 들어온다 (단계를 옮겨도 다시 마운트되지 않아 처음 한 번뿐)
+const CHROME_IN = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.6, delay: 0.6, ease: [0.22, 1, 0.36, 1] }
+} as const
+
+// 훑는 빛 — soft-light로 섞어 다크 카드에선 은은히 밝히고 밝은 카드에선 거의 티 나지 않게
+const SHEEN =
+  'linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.5) 50%, transparent 70%)'
 
 // 단계 전환 슬라이드 — 방향은 AnimatePresence의 custom으로 받는다. 나가는 단계는 들어올 때의
 // props를 그대로 들고 있어서, 방향을 바꿔 이동하면 반대쪽으로 빠지기 때문
