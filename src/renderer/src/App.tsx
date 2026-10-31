@@ -36,9 +36,12 @@ import { useThemeStore } from './stores/theme-store'
 // 바깥 칸은 차지하는 폭만 줄이고, 안의 패널은 바깥쪽 벽에 붙은 채 원래 폭 그대로 메인 아래로 들어간다.
 // 칸 사이 간격(SidePageHost의 gap-3)도 음수 여백으로 같이 접어야 마지막에 12px 툭 끊기지 않는다
 const PANEL_GAP = 12
-const PANEL_EASE = { duration: 0.22, ease: [0.22, 1, 0.36, 1] } as const
-const PANEL_BACK = { opacity: 0.3, scale: 0.94 }
-const PANEL_FRONT = { opacity: 1, scale: 1 }
+// 페이지 넘김(SidePageHost)과 같은 속도
+const PANEL_EASE = { duration: 0.32, ease: [0.22, 1, 0.36, 1] } as const
+// scale이 아니라 transform 문자열로 — Motion이 브라우저(WAAPI) 애니메이션으로 컴포지터에서 돌린다.
+// scale로 주면 매 프레임 메인 스레드가 값을 쓰고 패널 전체를 다시 그려, 폭 줄이기(레이아웃)와 겹쳐 끊긴다
+const PANEL_BACK = { opacity: 0.3, transform: 'scale(0.94)' }
+const PANEL_FRONT = { opacity: 1, transform: 'scale(1)' }
 
 // 새 설치 첫 실행에만 뜨므로 평소 실행에선 읽지 않는다
 const Onboarding = lazy(() =>
