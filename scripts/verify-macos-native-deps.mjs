@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { extractAll } from '@electron/asar'
+import { releaseIdentity } from './verify-release.mjs'
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 function walk(dir) {
@@ -18,8 +19,11 @@ function walk(dir) {
 const appDir = resolve(
   process.argv[2] ?? (process.arch === 'arm64' ? 'dist/mac-arm64' : 'dist/mac')
 )
-const executable = join(appDir, 'NAIS3.app', 'Contents', 'MacOS', 'NAIS3')
-const asarPath = join(appDir, 'NAIS3.app', 'Contents', 'Resources', 'app.asar')
+const { macBundle, executable: executableName } = releaseIdentity(
+  JSON.parse(readFileSync('package.json', 'utf8')).version
+)
+const executable = join(appDir, macBundle, 'Contents', 'MacOS', executableName.darwin)
+const asarPath = join(appDir, macBundle, 'Contents', 'Resources', 'app.asar')
 const executableInfo = execFileSync('file', [executable], { encoding: 'utf8' })
 const expected = executableInfo.includes('arm64')
   ? { arch: 'arm64', fileToken: 'arm64' }

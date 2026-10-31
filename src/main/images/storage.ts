@@ -19,9 +19,12 @@ export interface SavedImage {
   filePath: string
 }
 
-/** 기본 저장 폴더 (설정 미지정 시) */
+/**
+ * 기본 저장 폴더 (설정 미지정 시). 앱 이름은 app-identity.ts가 정한다 —
+ * 베타는 Pictures/NAIS3 Beta라 안정판 이미지와 섞이지 않는다
+ */
 export function defaultImagesRoot(): string {
-  return join(app.getPath('pictures'), 'NAIS3')
+  return join(app.getPath('pictures'), app.getName())
 }
 
 /**

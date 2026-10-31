@@ -1,3 +1,4 @@
+import { APP_IDENTITY } from './app-identity'
 import { app, shell, BrowserWindow, dialog, net, protocol } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
@@ -32,9 +33,6 @@ import { localPromptMetadata } from './nai/payload'
 import { prepareCharRefs, prepareVibes } from './refs/prepare'
 import { GenerationQueue } from './queue/generation-queue'
 import { getPresetName, getScene } from './scenes/repo'
-
-// 앱 이름 (dev 메뉴바·dock에서 'Electron' 대신 표시). 패키징 앱은 productName 사용
-app.setName('NAIS3')
 
 // 중복 실행 방지 (특히 Windows) — 두 번째 실행은 기존 창을 앞으로
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
@@ -115,7 +113,7 @@ const startup = app.whenReady().then(async () => {
   // app.quit()은 비동기라 두 번째 실행도 ready까지 온다 — 여기서 멈추지 않으면 첫 실행이
   // 마이그레이션 중인 DB를 같이 열어 백업·마이그레이션을 중복 실행한다
   if (!hasSingleInstanceLock) return
-  electronApp.setAppUserModelId('com.sunanakgo.nais3')
+  electronApp.setAppUserModelId(APP_IDENTITY.id)
 
   protocol.handle('nais-image', (request) => {
     const url = new URL(request.url)

@@ -55,9 +55,27 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       # All package scripts include typecheck. pnpm forwards these flags without an extra --.
-      # A prerelease build checks this repository's releases for updates, so a fork can test its own betas.
-      # The quotes keep PowerShell from splitting the dotted flag on Windows.
-      - run: pnpm run ${{ matrix.script }} --publish never ${{ inputs.version != '' && format('"-c.publish.owner={0}"', github.repository_owner) || '' }}
+      # A prerelease build installs as NAIS3 Beta beside the stable app, with its own app ID,
+      # install folder, bundle and workspace, so its migrations cannot reach stable data. Keep
+      # these names equal to BETA_IDENTITY (src/shared/app-version.ts) and releaseIdentity()
+      # (scripts/verify-release.mjs). It checks this repository's releases for updates, so a
+      # fork can test its own betas. Bash keeps the quoting identical on every runner.
+      - shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          args=(--publish never)
+          if [ -n "$VERSION" ]; then
+            args+=(
+              "-c.publish.owner=$OWNER"
+              -c.appId=com.sunanakgo.nais3.beta
+              "-c.productName=NAIS3 Beta"
+              "-c.win.executableName=NAIS3 Beta"
+              -c.linux.executableName=nais3-beta
+            )
+          fi
+          pnpm run ${{ matrix.script }} "${args[@]}"
       - if: runner.os == 'macOS'
         run: node scripts/verify-macos-native-deps.mjs
       - run: node scripts/verify-packaged-app.mjs ${{ matrix.platform }} ${{ matrix.arch }}

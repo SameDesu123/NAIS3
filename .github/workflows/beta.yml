@@ -94,8 +94,10 @@ jobs:
           cat > "$notes" <<EOF
           Automated beta build of \`$GITHUB_SHA\`. It may contain unfinished or broken features.
 
-          A beta shares the stable app's workspace, and a database migration it runs cannot be
-          undone by going back to a stable version. Back up your workspace before installing.
+          It installs as **NAIS3 Beta** next to the stable app and keeps its own workspace
+          (database, settings and the default Pictures/NAIS3 Beta folder), so it starts empty
+          and never migrates your stable data. It updates to newer betas only. Choosing the
+          stable app's save folder in the beta mixes the two apps' image files.
           EOF
           args=(--prerelease --latest=false --target "$GITHUB_SHA" --title "v$VERSION" --notes-file "$notes" --generate-notes)
           if [ -n "$PREVIOUS" ]; then args+=(--notes-start-tag "$PREVIOUS"); fi

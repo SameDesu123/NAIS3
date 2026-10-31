@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { extractFile, listPackage } from '@electron/asar'
+import { releaseIdentity } from './verify-release.mjs'
 
 const [platform = process.platform, arch = process.arch, suppliedDirectory] = process.argv.slice(2)
 assert.equal(platform, process.platform, 'Run the packaged app on its target OS')
@@ -15,15 +16,13 @@ const defaultDirectory = {
 }[platform]
 assert.ok(suppliedDirectory ?? defaultDirectory, `Unsupported platform: ${platform}`)
 const directory = resolve(suppliedDirectory ?? defaultDirectory)
-const app = platform === 'darwin' ? join(directory, 'NAIS3.app', 'Contents') : directory
-const resources = join(app, platform === 'darwin' ? 'Resources' : 'resources')
-const executable = {
-  win32: join(app, 'NAIS3.exe'),
-  darwin: join(app, 'MacOS', 'NAIS3'),
-  linux: join(app, 'nais3')
-}[platform]
-const asar = join(resources, 'app.asar')
 const { version } = JSON.parse(readFileSync('package.json', 'utf8'))
+// A prerelease packages as NAIS3 Beta, so a missing override fails here.
+const identity = releaseIdentity(version)
+const app = platform === 'darwin' ? join(directory, identity.macBundle, 'Contents') : directory
+const resources = join(app, platform === 'darwin' ? 'Resources' : 'resources')
+const executable = join(app, platform === 'darwin' ? 'MacOS' : '', identity.executable[platform])
+const asar = join(resources, 'app.asar')
 const packaged = JSON.parse(extractFile(asar, 'package.json').toString('utf8'))
 assert.equal(packaged.version, version, 'Packaged app version mismatch')
 assert.equal(packaged.name, 'nais3', 'Packaged app name mismatch')
