@@ -1,20 +1,31 @@
 import electronUpdater from 'electron-updater'
 import { app, shell } from 'electron'
 import { execFile } from 'child_process'
-import { createWriteStream } from 'fs'
+import { createWriteStream, readFileSync } from 'fs'
 import { access, mkdtemp, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import { basename, join, resolve } from 'path'
 import { promisify } from 'util'
 import { broadcast } from './ipc'
 import { t } from './i18n'
+import {
+  isPrereleaseVersion,
+  pickMacUpdate,
+  repoFromUpdateConfig,
+  type GithubRelease,
+  type ReleaseAsset
+} from '../shared/app-version'
 
 // electron-updater는 CJS — ESM에서 named import가 깨질 수 있어 default에서 구조분해
 const { autoUpdater } = electronUpdater
 const execFileP = promisify(execFile)
 
-const REPO = 'sunanakgo/NAIS3'
-const RELEASE_PAGE = `https://github.com/${REPO}/releases/latest`
+const UPSTREAM_REPO = 'sunanakgo/NAIS3'
+const IS_BETA = isPrereleaseVersion(app.getVersion())
+// A beta build points app-update.yml at the repository that built it (build.yml), so a
+// fork can test its own betas. The stable app always checks upstream.
+const REPO = IS_BETA ? (configuredRepo() ?? UPSTREAM_REPO) : UPSTREAM_REPO
+const RELEASE_PAGE = `https://github.com/${REPO}/releases${IS_BETA ? '' : '/latest'}`
 
 /**
  * 자동 업데이트.
@@ -36,6 +47,12 @@ export function setupUpdater(): void {
   autoUpdater.autoInstallOnAppQuit = true
 
   autoUpdater.on('update-available', (info) => {
+    // A beta that finds a stable release as the newest one ignores it, as on macOS
+    // (pickMacUpdate): that installer carries the stable identity, and the next beta supersedes it.
+    if (IS_BETA && !isPrereleaseVersion(info.version)) {
+      broadcast('update:status', { state: 'none' })
+      return
+    }
     broadcast('update:status', { state: 'available', version: info.version })
   })
   autoUpdater.on('update-not-available', () => {
@@ -64,6 +81,14 @@ export function setupUpdater(): void {
   )
 }
 
+function configuredRepo(): string | null {
+  try {
+    return repoFromUpdateConfig(readFileSync(join(process.resourcesPath, 'app-update.yml'), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
 /** 다운로드 시작 (타이틀바/설정 버튼 클릭) */
 export function startUpdateDownload(): void {
   if (process.platform === 'darwin') {
@@ -77,41 +102,28 @@ export function startUpdateDownload(): void {
 
 // ─── macOS 커스텀 업데이터 ───────────────────────────────────────────
 
-interface GhAsset {
-  name: string
-  browser_download_url: string
-  size: number
-}
-
-let macAsset: GhAsset | null = null
-
-function isNewer(a: string, b: string): boolean {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] ?? 0) > (pb[i] ?? 0)) return true
-    if ((pa[i] ?? 0) < (pb[i] ?? 0)) return false
-  }
-  return false
-}
+let macAsset: ReleaseAsset | null = null
 
 async function checkMacUpdate(): Promise<void> {
   try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-      headers: { Accept: 'application/vnd.github+json' }
-    })
+    // /releases/latest never returns a prerelease; a beta reads the recent release list instead.
+    const res = await fetch(
+      `https://api.github.com/repos/${REPO}/releases${IS_BETA ? '?per_page=50' : '/latest'}`,
+      { headers: { Accept: 'application/vnd.github+json' } }
+    )
     if (!res.ok) return
-    const rel = (await res.json()) as { tag_name?: string; assets?: GhAsset[] }
-    const version = String(rel.tag_name ?? '').replace(/^v/, '')
-    if (!version || !isNewer(version, app.getVersion())) {
+    const body = (await res.json()) as GithubRelease | GithubRelease[]
+    const update = pickMacUpdate(
+      Array.isArray(body) ? body : [body],
+      app.getVersion(),
+      process.arch
+    )
+    if (!update) {
       broadcast('update:status', { state: 'none' })
       return
     }
-    // 아키텍처에 맞는 mac zip (예: nais3-1.0.1-arm64-mac.zip)
-    const asset = (rel.assets ?? []).find((a) => a.name.endsWith(`${process.arch}-mac.zip`))
-    if (!asset) return
-    macAsset = asset
-    broadcast('update:status', { state: 'available', version })
+    macAsset = update.asset
+    broadcast('update:status', { state: 'available', version: update.version })
   } catch {
     /* 조용히 무시 */
   }
@@ -150,7 +162,7 @@ async function downloadAndInstallMac(): Promise<void> {
     await execFileP('ditto', ['-xk', zipPath, extractDir])
 
     // 3. .app 교체: 현재 번들을 옆으로 치우고 새 번들을 제자리에 (mv는 볼륨 경계도 처리)
-    const appBundle = resolve(app.getPath('exe'), '../../..') // .../NAIS3.app
+    const appBundle = resolve(app.getPath('exe'), '../../..') // .../NAIS3.app 또는 NAIS3 Beta.app
     const newApp = join(extractDir, basename(appBundle))
     await access(join(newApp, 'Contents', 'Info.plist')) // 번들 검증
     const oldApp = `${appBundle}.old-${process.pid}`
