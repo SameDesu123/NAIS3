@@ -10,7 +10,7 @@ import { thumbnailUrl } from '../src/shared/thumbnail-url'
 
 const environment = vi.hoisted(() => ({ directory: '' }))
 vi.mock('electron', () => ({
-  app: { getPath: () => environment.directory, getLocale: () => 'en-US' },
+  app: { getPath: () => environment.directory, getName: () => 'NAIS3', getLocale: () => 'en-US' },
   BrowserWindow: {},
   dialog: {},
   safeStorage: { isEncryptionAvailable: () => false }

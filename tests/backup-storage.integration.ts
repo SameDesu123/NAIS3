@@ -9,7 +9,9 @@ vi.mock('../src/main/db/settings', () => ({
   getSetting: (key: string) => (key === 'save_dir' ? mocks.saveDir : null),
   setSetting: vi.fn()
 }))
-vi.mock('electron', () => ({ app: { getPath: (key: string) => join(mocks.root, key) } }))
+vi.mock('electron', () => ({
+  app: { getPath: (key: string) => join(mocks.root, key), getName: () => 'NAIS3' }
+}))
 import { restoreBackupDatabase } from '../src/main/backup/repo'
 import { isUnderImagesRoot, libraryRoot } from '../src/main/images/storage'
 it('restored curated images stay accessible after save directory changes', () => {
