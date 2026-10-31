@@ -40,8 +40,16 @@ const PANEL_GAP = 12
 const PANEL_EASE = { duration: 0.32, ease: [0.22, 1, 0.36, 1] } as const
 // scale이 아니라 transform 문자열로 — Motion이 브라우저(WAAPI) 애니메이션으로 컴포지터에서 돌린다.
 // scale로 주면 매 프레임 메인 스레드가 값을 쓰고 패널 전체를 다시 그려, 폭 줄이기(레이아웃)와 겹쳐 끊긴다
-const PANEL_BACK = { opacity: 0.3, transform: 'scale(0.94)' }
-const PANEL_FRONT = { opacity: 1, transform: 'scale(1)' }
+// 둘이 한꺼번에 움직이면 메인이 처음 닿는 순간 패널이 아직 거의 그대로라 둘이 붙어 보인다.
+// 그래서 순서를 엇갈린다 — 접을 땐 패널이 먼저 물러나고 메인이 조금 늦게 덮으며,
+// 펼 땐 메인이 먼저 비켜선 뒤 패널이 앞으로 나온다
+const PANEL_BACK = {
+  opacity: 0.3,
+  transform: 'scale(0.94)',
+  transition: { ...PANEL_EASE, duration: 0.18 }
+}
+const PANEL_FRONT = { opacity: 1, transform: 'scale(1)', transition: { ...PANEL_EASE, delay: 0.1 } }
+const SLOT_CLOSE = { ...PANEL_EASE, delay: 0.06 }
 
 // 새 설치 첫 실행에만 뜨므로 평소 실행에선 읽지 않는다
 const Onboarding = lazy(() =>
@@ -179,20 +187,22 @@ function LeftPanel(): React.JSX.Element {
           key="left"
           className="relative h-full shrink-0"
           variants={{
-            front: { width: sidebarWidth, marginRight: 0 },
-            back: { width: 0, marginRight: -PANEL_GAP }
+            front: {
+              width: sidebarWidth,
+              marginRight: 0,
+              // 드래그 중엔 즉시 반영 (애니메이션이 따라오면 답답함)
+              transition: resizing ? { duration: 0 } : PANEL_EASE
+            },
+            back: { width: 0, marginRight: -PANEL_GAP, transition: SLOT_CLOSE }
           }}
           initial="back"
           animate="front"
           exit="back"
-          // 드래그 중엔 즉시 반영 (애니메이션이 따라오면 답답함)
-          transition={resizing ? { duration: 0 } : PANEL_EASE}
         >
           <motion.div
             style={{ width: sidebarWidth }}
             className="absolute inset-y-0 left-0"
             variants={{ front: PANEL_FRONT, back: PANEL_BACK }}
-            transition={PANEL_EASE}
           >
             <PromptPanel />
             {/* 폭 조절 핸들 */}
@@ -217,18 +227,16 @@ function RightPanel(): React.JSX.Element {
           key="right"
           className="relative h-full shrink-0"
           variants={{
-            front: { width: 240, marginLeft: 0 },
-            back: { width: 0, marginLeft: -PANEL_GAP }
+            front: { width: 240, marginLeft: 0, transition: PANEL_EASE },
+            back: { width: 0, marginLeft: -PANEL_GAP, transition: SLOT_CLOSE }
           }}
           initial="back"
           animate="front"
           exit="back"
-          transition={PANEL_EASE}
         >
           <motion.div
             className="absolute inset-y-0 right-0 w-[240px]"
             variants={{ front: PANEL_FRONT, back: PANEL_BACK }}
-            transition={PANEL_EASE}
           >
             <HistoryPanel />
           </motion.div>
