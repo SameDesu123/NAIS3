@@ -4,7 +4,7 @@ import { motion } from 'motion/react'
  * 온보딩 카드 뒤 배경. 반짝임·원·십자·세모·물결 같은 작은 선 무늬가 카드 둘레에 흩어져 천천히 떠다니고,
  * 카드를 둘러싼 궤도 고리가 느리게 돈다. 단계를 넘길 때마다 무늬 밭이 조금씩 비껴 진행감을 준다.
  * 색은 모두 테마 토큰에서 나와 팔레트·다크 모드를 그대로 따르고, 크기는 vmin이라 큰 화면에서도 비율이
- * 같으며, 움직임은 transform만 쓴다
+ * 같으며, 움직임은 transform만 쓴다. 처음 뜰 때는 카드가 다가오는 동안 배경이 살짝 물러나 깊이감을 준다
  */
 export function OnboardingBackdrop({
   progress,
@@ -19,9 +19,13 @@ export function OnboardingBackdrop({
       aria-hidden
       // 창 전체를 덮어 투명한 타이틀바 아래까지 무늬가 이어진다
       className="pointer-events-none fixed inset-0 overflow-hidden"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: leaving ? 0 : 1 }}
-      transition={leaving ? { duration: 0.28, ease: [0.4, 0, 1, 1] } : { duration: 1.2 }}
+      initial={{ opacity: 0, scale: 1.08 }}
+      animate={{ opacity: leaving ? 0 : 1, scale: 1 }}
+      transition={
+        leaving
+          ? { duration: 0.28, ease: [0.4, 0, 1, 1] }
+          : { opacity: { duration: 1.2 }, scale: { duration: 1.8, ease: [0.22, 1, 0.36, 1] } }
+      }
     >
       {/* 무늬 밭 — 단계가 진행될수록 왼쪽 위로 살짝 비낀다 */}
       <motion.div
