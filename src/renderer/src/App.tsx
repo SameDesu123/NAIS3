@@ -43,11 +43,13 @@ const PANEL_EASE = { duration: 0.32, ease: [0.22, 1, 0.36, 1] } as const
 // 둘이 한꺼번에 움직이면 메인이 처음 닿는 순간 패널이 아직 거의 그대로라 둘이 붙어 보인다.
 // 그래서 순서를 엇갈린다 — 접을 땐 패널이 먼저 물러나고 메인이 조금 늦게 덮으며,
 // 펼 땐 메인이 먼저 비켜선 뒤 패널이 앞으로 나온다
+// 물러남은 폭과 같은 길이에 완만한 곡선으로 — 짧고 급하면 패널이 '탁' 하고 뒤로 붙는다.
+// 메인이 늦게 출발하는 동안 먼저 흐려지기 시작하므로 겹칠 즈음엔 충분히 어둡다
 const PANEL_BACK = {
   opacity: 0.3,
   transform: 'scale(0.94)',
-  transition: { ...PANEL_EASE, duration: 0.18 }
-}
+  transition: { duration: 0.32, ease: [0.33, 1, 0.68, 1] }
+} as const
 const PANEL_FRONT = { opacity: 1, transform: 'scale(1)', transition: { ...PANEL_EASE, delay: 0.1 } }
 const SLOT_CLOSE = { ...PANEL_EASE, delay: 0.06 }
 
