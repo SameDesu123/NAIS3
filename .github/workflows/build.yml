@@ -1,0 +1,87 @@
+name: Build
+
+# Builds, tests and validates every platform, then uploads the release files as
+# workflow artifacts. Called by the Release and Beta workflows.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Overrides the package.json version for a prerelease build
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: build:win
+            platform: win32
+            arch: x64
+          - os: macos-latest
+            script: build:mac
+            platform: darwin
+            arch: arm64
+          - os: macos-15-intel
+            script: build:mac
+            platform: darwin
+            arch: x64
+          - os: ubuntu-latest
+            script: build:linux
+            platform: linux
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: |
+          node -e "if (process.arch !== '${{ matrix.arch }}') throw new Error('Unexpected runner architecture: ' + process.arch)"
+      # The prerelease version exists only in this build; the tagged commit keeps its stable version.
+      - if: inputs.version != ''
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: npm pkg set "version=$VERSION"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      # All package scripts include typecheck. pnpm forwards these flags without an extra --.
+      # A prerelease build checks this repository's releases for updates, so a fork can test its own betas.
+      - run: pnpm run ${{ matrix.script }} --publish never ${{ inputs.version != '' && format('-c.publish.owner={0}', github.repository_owner) || '' }}
+      - if: runner.os == 'macOS'
+        run: node scripts/verify-macos-native-deps.mjs
+      - run: node scripts/verify-packaged-app.mjs ${{ matrix.platform }} ${{ matrix.arch }}
+      - run: node scripts/verify-release.mjs assets ${{ matrix.platform }}-${{ matrix.arch }}
+      # Repeat the smoke test inside the AppImage itself. Extraction needs no FUSE.
+      - if: runner.os == 'Linux'
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          appimage="$PWD/dist/nais3-$version-x86_64.AppImage"
+          extracted="$(mktemp -d)"
+          chmod +x "$appimage"
+          (cd "$extracted" && "$appimage" --appimage-extract > /dev/null)
+          node scripts/verify-packaged-app.mjs linux x64 "$extracted/squashfs-root"
+          cat "$extracted/squashfs-root/resources/app-update.yml"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
+            dist/beta.yml
+            dist/*.dmg
+            dist/*-mac.zip
+            dist/*.AppImage
+            dist/latest-linux.yml
+            dist/beta-linux.yml
+          if-no-files-found: error
