@@ -78,6 +78,14 @@ describe('release validation gates', () => {
     expect(() => verifyVersion('1.0.26-rc.1', 'v1.0.26-rc.1')).toThrow()
   })
 
+  it('expects beta update feeds for a beta version', () => {
+    const assets = expectedAssets('1.0.30-beta.20261101.3')
+    expect(assets).toContain('beta.yml')
+    expect(assets).toContain('beta-linux.yml')
+    expect(assets).not.toContain('latest.yml')
+    expect(assets).toHaveLength(9)
+  })
+
   it('accepts the complete nine-file release contract', async () => {
     expect(await verifyAssets(directory, version)).toHaveLength(9)
   })
