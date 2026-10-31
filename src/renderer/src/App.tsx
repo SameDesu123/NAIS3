@@ -49,32 +49,11 @@ const Onboarding = lazy(() =>
 )
 
 export default function App(): React.JSX.Element {
-  const leftOpen = useLayoutStore((s) => s.leftOpen)
-  const rightOpen = useLayoutStore((s) => s.rightOpen)
   const settingsOpen = useLayoutStore((s) => s.settingsOpen)
   const setSettingsOpen = useLayoutStore((s) => s.setSettingsOpen)
   const centerMode = useLayoutStore((s) => s.centerMode)
-  const sidebarWidth = useLayoutStore((s) => s.sidebarWidth)
   const onboardingOpen = useLayoutStore((s) => s.onboardingOpen)
   const [ready, setReady] = useState(false)
-  const [resizing, setResizing] = useState(false)
-
-  // 사이드바 폭 드래그 조절
-  const startResize = (e: React.MouseEvent): void => {
-    e.preventDefault()
-    setResizing(true)
-    const startX = e.clientX
-    const startW = useLayoutStore.getState().sidebarWidth
-    const onMove = (ev: MouseEvent): void =>
-      useLayoutStore.getState().setSidebarWidth(startW + (ev.clientX - startX))
-    const onUp = (): void => {
-      setResizing(false)
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }
 
   useEffect(() => {
     // 초기 하이드레이션 — 완료되면 로딩 스플래시 해제
@@ -136,37 +115,7 @@ export default function App(): React.JSX.Element {
           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
         >
           <SidePageHost>
-            <AnimatePresence initial={false}>
-              {leftOpen && (
-                <motion.div
-                  key="left"
-                  className="relative h-full shrink-0"
-                  variants={{
-                    front: { width: sidebarWidth, marginRight: 0 },
-                    back: { width: 0, marginRight: -PANEL_GAP }
-                  }}
-                  initial="back"
-                  animate="front"
-                  exit="back"
-                  // 드래그 중엔 즉시 반영 (애니메이션이 따라오면 답답함)
-                  transition={resizing ? { duration: 0 } : PANEL_EASE}
-                >
-                  <motion.div
-                    style={{ width: sidebarWidth }}
-                    className="absolute inset-y-0 left-0"
-                    variants={{ front: PANEL_FRONT, back: PANEL_BACK }}
-                    transition={PANEL_EASE}
-                  >
-                    <PromptPanel />
-                    {/* 폭 조절 핸들 */}
-                    <div
-                      className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-accent/30"
-                      onMouseDown={startResize}
-                    />
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <LeftPanel />
             {/* 접히는 패널이 이 아래로 들어간다 — 바탕을 칠하고 위에 쌓아 패널을 가린다 */}
             <main className="relative z-10 flex min-h-0 min-w-0 flex-1 bg-paper">
               {centerMode === 'scene' ? (
@@ -181,30 +130,7 @@ export default function App(): React.JSX.Element {
                 <PreviewPane />
               )}
             </main>
-            <AnimatePresence initial={false}>
-              {rightOpen && (
-                <motion.div
-                  key="right"
-                  className="relative h-full shrink-0"
-                  variants={{
-                    front: { width: 240, marginLeft: 0 },
-                    back: { width: 0, marginLeft: -PANEL_GAP }
-                  }}
-                  initial="back"
-                  animate="front"
-                  exit="back"
-                  transition={PANEL_EASE}
-                >
-                  <motion.div
-                    className="absolute inset-y-0 right-0 w-[240px]"
-                    variants={{ front: PANEL_FRONT, back: PANEL_BACK }}
-                    transition={PANEL_EASE}
-                  >
-                    <HistoryPanel />
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <RightPanel />
           </SidePageHost>
         </motion.div>
         <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
@@ -217,5 +143,97 @@ export default function App(): React.JSX.Element {
         <AnimatePresence>{!ready && <LoadingScreen key="loading" />}</AnimatePresence>
       </div>
     </TooltipProvider>
+  )
+}
+
+/**
+ * 프롬프트 패널 칸. 열림·폭 구독을 App이 아니라 여기서 해야 접고 펼 때(폭 드래그 중엔 매 이동마다)
+ * 메인 영역과 히스토리까지 다시 그려지지 않는다 — 접기 첫 프레임이 그 렌더 때문에 끊겼다
+ */
+function LeftPanel(): React.JSX.Element {
+  const leftOpen = useLayoutStore((s) => s.leftOpen)
+  const sidebarWidth = useLayoutStore((s) => s.sidebarWidth)
+  const [resizing, setResizing] = useState(false)
+
+  // 사이드바 폭 드래그 조절
+  const startResize = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    setResizing(true)
+    const startX = e.clientX
+    const startW = useLayoutStore.getState().sidebarWidth
+    const onMove = (ev: MouseEvent): void =>
+      useLayoutStore.getState().setSidebarWidth(startW + (ev.clientX - startX))
+    const onUp = (): void => {
+      setResizing(false)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  return (
+    <AnimatePresence initial={false}>
+      {leftOpen && (
+        <motion.div
+          key="left"
+          className="relative h-full shrink-0"
+          variants={{
+            front: { width: sidebarWidth, marginRight: 0 },
+            back: { width: 0, marginRight: -PANEL_GAP }
+          }}
+          initial="back"
+          animate="front"
+          exit="back"
+          // 드래그 중엔 즉시 반영 (애니메이션이 따라오면 답답함)
+          transition={resizing ? { duration: 0 } : PANEL_EASE}
+        >
+          <motion.div
+            style={{ width: sidebarWidth }}
+            className="absolute inset-y-0 left-0"
+            variants={{ front: PANEL_FRONT, back: PANEL_BACK }}
+            transition={PANEL_EASE}
+          >
+            <PromptPanel />
+            {/* 폭 조절 핸들 */}
+            <div
+              className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-accent/30"
+              onMouseDown={startResize}
+            />
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+/** 히스토리 패널 칸 — LeftPanel과 같은 이유로 열림 구독을 따로 둔다 */
+function RightPanel(): React.JSX.Element {
+  const rightOpen = useLayoutStore((s) => s.rightOpen)
+  return (
+    <AnimatePresence initial={false}>
+      {rightOpen && (
+        <motion.div
+          key="right"
+          className="relative h-full shrink-0"
+          variants={{
+            front: { width: 240, marginLeft: 0 },
+            back: { width: 0, marginLeft: -PANEL_GAP }
+          }}
+          initial="back"
+          animate="front"
+          exit="back"
+          transition={PANEL_EASE}
+        >
+          <motion.div
+            className="absolute inset-y-0 right-0 w-[240px]"
+            variants={{ front: PANEL_FRONT, back: PANEL_BACK }}
+            transition={PANEL_EASE}
+          >
+            <HistoryPanel />
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
