@@ -53,6 +53,10 @@ import { useThemeStore } from './stores/theme-store'
 // 바깥 칸은 차지하는 폭만 줄이고, 안의 패널은 바깥쪽 벽에 붙은 채 원래 폭 그대로 메인 아래로 들어간다.
 // 칸 사이 간격(SidePageHost의 gap-3)도 음수 여백으로 같이 접어야 마지막에 12px 툭 끊기지 않는다
 const PANEL_GAP = 12
+// 물러나는 패널은 칸의 바깥쪽 벽 너머 창 가장자리 여백(px-3)까지 밀려나는데, 메인은 그 여백을 덮지 않아
+// 접히는 동안 흐린 패널 조각이 창 끝에 비친다. 바깥쪽 벽에서만 잘라 내고 나머지 방향은 그대로 둔다
+const CLIP_OUTER_LEFT = { clipPath: 'inset(-100vh -100vw -100vh 0)' } as const
+const CLIP_OUTER_RIGHT = { clipPath: 'inset(-100vh 0 -100vh -100vw)' } as const
 
 // 새 설치 첫 실행에만 뜨므로 평소 실행에선 읽지 않는다
 const Onboarding = lazy(() =>
@@ -193,6 +197,7 @@ function LeftPanel(): React.JSX.Element {
         <motion.div
           key="left"
           className="relative h-full shrink-0"
+          style={CLIP_OUTER_LEFT}
           initial={{ width: 0, marginRight: -PANEL_GAP }}
           animate={{ width: sidebarWidth, marginRight: 0 }}
           exit={{ width: 0, marginRight: -PANEL_GAP }}
@@ -228,6 +233,7 @@ function RightPanel(): React.JSX.Element {
         <motion.div
           key="right"
           className="relative h-full shrink-0"
+          style={CLIP_OUTER_RIGHT}
           initial={{ width: 0, marginLeft: -PANEL_GAP }}
           animate={{ width: 240, marginLeft: 0 }}
           exit={{ width: 0, marginLeft: -PANEL_GAP }}
