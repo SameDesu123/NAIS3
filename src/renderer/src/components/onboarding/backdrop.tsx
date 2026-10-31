@@ -8,13 +8,10 @@ import { motion } from 'motion/react'
  */
 export function OnboardingBackdrop({
   progress,
-  revealed,
   leaving
 }: {
   /** 0(첫 단계) ~ 1(마지막 단계) */
   progress: number
-  /** 소개 로고가 제자리에 앉았는지 — 그 뒤에 무늬가 피어난다 */
-  revealed: boolean
   leaving: boolean
 }): React.JSX.Element {
   return (
@@ -23,7 +20,7 @@ export function OnboardingBackdrop({
       // 창 전체를 덮어 투명한 타이틀바 아래까지 무늬가 이어진다
       className="pointer-events-none fixed inset-0 overflow-hidden"
       initial={{ opacity: 0 }}
-      animate={{ opacity: revealed && !leaving ? 1 : 0 }}
+      animate={{ opacity: leaving ? 0 : 1 }}
       transition={leaving ? { duration: 0.28, ease: [0.4, 0, 1, 1] } : { duration: 1.2 }}
     >
       {/* 무늬 밭 — 단계가 진행될수록 왼쪽 위로 살짝 비낀다 */}
