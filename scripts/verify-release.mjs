@@ -13,6 +13,25 @@ export function verifyVersion(version, tag) {
   assert.equal(tag, `v${version}`, 'Release tag must match package.json version')
 }
 
+/**
+ * Names a packaged build must carry. A prerelease installs as NAIS3 Beta beside the stable
+ * app; build.yml passes the matching overrides and src/shared/app-version.ts the runtime ones.
+ */
+export function releaseIdentity(version) {
+  const beta = version.split('+')[0].includes('-')
+  const productName = beta ? 'NAIS3 Beta' : 'NAIS3'
+  return {
+    productName,
+    appId: beta ? 'com.sunanakgo.nais3.beta' : 'com.sunanakgo.nais3',
+    macBundle: `${productName}.app`,
+    executable: {
+      win32: `${productName}.exe`,
+      darwin: productName,
+      linux: beta ? 'nais3-beta' : 'nais3'
+    }
+  }
+}
+
 export function expectedAssets(version, target = 'all') {
   const platforms = {
     'win32-x64': [
@@ -89,18 +108,27 @@ export async function verifyAssets(directory, version, target = 'all') {
     )
   }
 
+  const identity = releaseIdentity(version)
+  const bundle = identity.macBundle
   for (const name of expected.filter((name) => name.endsWith('-mac.zip'))) {
     const zip = await JSZip.loadAsync(await readFile(join(directory, name)))
-    const plistFile = zip.file('NAIS3.app/Contents/Info.plist')
-    assert.ok(plistFile, `Missing NAIS3.app Info.plist: ${name}`)
-    assert.ok(zip.file('NAIS3.app/Contents/MacOS/NAIS3'), `Missing app executable: ${name}`)
-    assert.ok(zip.file('NAIS3.app/Contents/Resources/app.asar'), `Missing app code: ${name}`)
+    const plistFile = zip.file(`${bundle}/Contents/Info.plist`)
+    assert.ok(plistFile, `Missing ${bundle} Info.plist: ${name}`)
+    assert.ok(
+      zip.file(`${bundle}/Contents/MacOS/${identity.executable.darwin}`),
+      `Missing app executable: ${name}`
+    )
+    assert.ok(zip.file(`${bundle}/Contents/Resources/app.asar`), `Missing app code: ${name}`)
     const plist = await plistFile.async('string')
     const value = (key) =>
       plist.match(new RegExp(`<key>${key}</key>\\s*<string>([^<]*)</string>`))?.[1]
     assert.equal(value('CFBundleShortVersionString'), version, `Mac app version mismatch: ${name}`)
-    assert.equal(value('CFBundleIdentifier'), 'com.sunanakgo.nais3', `Mac app ID mismatch: ${name}`)
-    assert.equal(value('CFBundleExecutable'), 'NAIS3', `Mac executable mismatch: ${name}`)
+    assert.equal(value('CFBundleIdentifier'), identity.appId, `Mac app ID mismatch: ${name}`)
+    assert.equal(
+      value('CFBundleExecutable'),
+      identity.executable.darwin,
+      `Mac executable mismatch: ${name}`
+    )
   }
   return expected
 }

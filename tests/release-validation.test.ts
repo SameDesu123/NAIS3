@@ -7,6 +7,7 @@ import { parse, stringify } from 'yaml'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   expectedAssets,
+  releaseIdentity,
   verifyAssets,
   verifyDraftOnly,
   verifyVersion
@@ -15,20 +16,26 @@ import {
 const version = '1.0.26'
 let directory: string
 
-async function macZip(arch: string, bundleVersion = version): Promise<void> {
+async function macZip(
+  arch: string,
+  bundleVersion = version,
+  assetVersion = version,
+  identity = releaseIdentity(assetVersion)
+): Promise<void> {
   const zip = new JSZip()
+  const bundle = identity.macBundle
   zip.file(
-    'NAIS3.app/Contents/Info.plist',
+    `${bundle}/Contents/Info.plist`,
     `<plist><dict>
     <key>CFBundleShortVersionString</key><string>${bundleVersion}</string>
-    <key>CFBundleIdentifier</key><string>com.sunanakgo.nais3</string>
-    <key>CFBundleExecutable</key><string>NAIS3</string>
+    <key>CFBundleIdentifier</key><string>${identity.appId}</string>
+    <key>CFBundleExecutable</key><string>${identity.executable.darwin}</string>
   </dict></plist>`
   )
-  zip.file('NAIS3.app/Contents/MacOS/NAIS3', 'fixture executable')
-  zip.file('NAIS3.app/Contents/Resources/app.asar', 'fixture archive')
+  zip.file(`${bundle}/Contents/MacOS/${identity.executable.darwin}`, 'fixture executable')
+  zip.file(`${bundle}/Contents/Resources/app.asar`, 'fixture archive')
   await writeFile(
-    join(directory, `nais3-${version}-${arch}-mac.zip`),
+    join(directory, `nais3-${assetVersion}-${arch}-mac.zip`),
     await zip.generateAsync({ type: 'nodebuffer' })
   )
 }
@@ -127,6 +134,27 @@ describe('release validation gates', () => {
     await writeFile(join(directory, 'latest.yml'), stringify(metadata))
     await expect(verifyAssets(directory, version)).rejects.toThrow(
       'Windows update version mismatch'
+    )
+  })
+
+  it('requires the NAIS3 Beta bundle in prerelease Mac ZIPs', async () => {
+    const beta = '1.0.30-beta.20261031.2'
+    await rm(directory, { recursive: true, force: true })
+    directory = await mkdtemp(join(tmpdir(), 'nais3-release-test-'))
+    for (const name of expectedAssets(beta, 'darwin-arm64')) {
+      await writeFile(join(directory, name), 'fixture data')
+    }
+    await macZip('arm64', beta, beta)
+    expect(await verifyAssets(directory, beta, 'darwin-arm64')).toHaveLength(2)
+
+    // A beta packaged without the identity overrides would share the stable app's data.
+    await macZip('arm64', beta, beta, releaseIdentity(version))
+    await expect(verifyAssets(directory, beta, 'darwin-arm64')).rejects.toThrow(
+      'Missing NAIS3 Beta.app Info.plist'
+    )
+    await macZip('arm64', beta, beta, { ...releaseIdentity(beta), appId: 'com.sunanakgo.nais3' })
+    await expect(verifyAssets(directory, beta, 'darwin-arm64')).rejects.toThrow(
+      'Mac app ID mismatch'
     )
   })
 
