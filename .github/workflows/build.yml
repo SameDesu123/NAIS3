@@ -56,7 +56,8 @@ jobs:
       - run: pnpm test
       # All package scripts include typecheck. pnpm forwards these flags without an extra --.
       # A prerelease build checks this repository's releases for updates, so a fork can test its own betas.
-      - run: pnpm run ${{ matrix.script }} --publish never ${{ inputs.version != '' && format('-c.publish.owner={0}', github.repository_owner) || '' }}
+      # The quotes keep PowerShell from splitting the dotted flag on Windows.
+      - run: pnpm run ${{ matrix.script }} --publish never ${{ inputs.version != '' && format('"-c.publish.owner={0}"', github.repository_owner) || '' }}
       - if: runner.os == 'macOS'
         run: node scripts/verify-macos-native-deps.mjs
       - run: node scripts/verify-packaged-app.mjs ${{ matrix.platform }} ${{ matrix.arch }}
@@ -78,10 +79,8 @@ jobs:
             dist/*.exe
             dist/*.exe.blockmap
             dist/latest.yml
-            dist/beta.yml
             dist/*.dmg
             dist/*-mac.zip
             dist/*.AppImage
             dist/latest-linux.yml
-            dist/beta-linux.yml
           if-no-files-found: error
