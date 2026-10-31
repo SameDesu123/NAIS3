@@ -13,22 +13,16 @@ export function verifyVersion(version, tag) {
   assert.equal(tag, `v${version}`, 'Release tag must match package.json version')
 }
 
-/** electron-builder names update feeds after the prerelease channel: beta.yml for 1.0.30-beta.1. */
-export function updateChannel(version) {
-  return /^\d+\.\d+\.\d+-([0-9A-Za-z]+)/.exec(version)?.[1] ?? 'latest'
-}
-
 export function expectedAssets(version, target = 'all') {
-  const channel = updateChannel(version)
   const platforms = {
     'win32-x64': [
-      `${channel}.yml`,
+      'latest.yml',
       `nais3-${version}-setup.exe`,
       `nais3-${version}-setup.exe.blockmap`
     ],
     'darwin-arm64': [`nais3-${version}-arm64.dmg`, `nais3-${version}-arm64-mac.zip`],
     'darwin-x64': [`nais3-${version}-x64.dmg`, `nais3-${version}-x64-mac.zip`],
-    'linux-x64': [`${channel}-linux.yml`, `nais3-${version}-x86_64.AppImage`]
+    'linux-x64': ['latest-linux.yml', `nais3-${version}-x86_64.AppImage`]
   }
   assert.ok(target === 'all' || Object.hasOwn(platforms, target), `Unsupported target: ${target}`)
   return target === 'all' ? Object.values(platforms).flat() : platforms[target]
@@ -49,7 +43,7 @@ export async function verifyAssets(directory, version, target = 'all') {
       : names.filter(
           (name) =>
             /(?:\.exe(?:\.blockmap)?|\.dmg|-mac\.zip|\.AppImage)$/.test(name) ||
-            /^[a-z]+(?:-linux)?\.yml$/.test(name)
+            /^latest(?:-linux)?\.yml$/.test(name)
         )
   assert.deepEqual(publicNames.sort(), [...expected].sort(), 'Unexpected or missing release assets')
   for (const name of expected) {
@@ -57,10 +51,9 @@ export async function verifyAssets(directory, version, target = 'all') {
     assert.ok(file.isFile() && file.size > 0, `Empty or invalid asset: ${name}`)
   }
 
-  const channel = updateChannel(version)
   const feeds = [
-    [`${channel}.yml`, `nais3-${version}-setup.exe`, 'Windows'],
-    [`${channel}-linux.yml`, `nais3-${version}-x86_64.AppImage`, 'Linux']
+    ['latest.yml', `nais3-${version}-setup.exe`, 'Windows'],
+    ['latest-linux.yml', `nais3-${version}-x86_64.AppImage`, 'Linux']
   ]
   for (const [feed, installer, label] of feeds.filter(([feed]) => expected.includes(feed))) {
     const file = join(directory, installer)
