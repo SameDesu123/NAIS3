@@ -135,11 +135,10 @@ export function Onboarding(): React.JSX.Element {
     <MotionConfig reducedMotion="user">
       <IntroContext.Provider value={{ revealed, reveal }}>
         <div className="relative flex min-h-0 flex-1">
-          <OnboardingBackdrop
-            progress={index / (steps.length - 1)}
-            revealed={revealed}
-            leaving={leaving}
-          />
+          {/* 무늬 수십 개가 끝없이 움직이므로 로고가 앉은 뒤에 붙인다 — 조립 중엔 메인 스레드를 비워 둔다 */}
+          {revealed && (
+            <OnboardingBackdrop progress={index / (steps.length - 1)} leaving={leaving} />
+          )}
           <motion.div
             className={cn(
               'relative flex min-h-0 flex-1 items-center justify-center',
