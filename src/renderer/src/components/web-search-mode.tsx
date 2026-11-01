@@ -51,8 +51,6 @@ export function WebSearchMode(): React.JSX.Element {
   const [canForward, setCanForward] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editLinks, setEditLinks] = useState(false)
-  // src는 마운트 시 한 번만 — 이후 이동은 loadURL (src 갱신은 리로드를 유발)
-  const [initialSrc] = useState(() => useWebSearchStore.getState().url)
 
   useEffect(() => {
     if (!loaded) void useWebSearchStore.getState().hydrate()
@@ -84,7 +82,8 @@ export function WebSearchMode(): React.JSX.Element {
       wv.removeEventListener('did-stop-loading', onStop)
       wv.removeEventListener('dom-ready', onDomReady)
     }
-  }, [setUrl])
+    // webview는 저장된 설정을 읽은 뒤에 붙으므로 loaded가 바뀌면 다시 묶는다
+  }, [setUrl, loaded])
 
   function navigate(to: string): void {
     void webviewRef.current?.loadURL(toUrl(to))
@@ -189,17 +188,30 @@ export function WebSearchMode(): React.JSX.Element {
 
       {/* 브라우저 — <webview>는 그냥 DOM 요소라 레이아웃/모달과 충돌 없음 */}
       <div className="min-h-0 flex-1 bg-white">
-        <webview
-          ref={(el) => {
-            webviewRef.current = el as WebviewElement | null
-          }}
-          src={initialSrc}
-          // eslint-disable-next-line react/no-unknown-property -- Electron webview 전용 속성
-          partition="persist:websearch"
-          className="h-full w-full"
-        />
+        {/* 저장된 마지막 URL을 읽기 전에 붙이면 기본 홈으로 출발해 버린다 */}
+        {loaded && <Webview webviewRef={webviewRef} />}
       </div>
     </div>
+  )
+}
+
+/** src는 마운트 시 한 번만 — 이후 이동은 loadURL (src 갱신은 리로드를 유발) */
+function Webview({
+  webviewRef
+}: {
+  webviewRef: React.RefObject<WebviewElement | null>
+}): React.JSX.Element {
+  const [initialSrc] = useState(() => useWebSearchStore.getState().url)
+  return (
+    <webview
+      ref={(el) => {
+        webviewRef.current = el as WebviewElement | null
+      }}
+      src={initialSrc}
+      // eslint-disable-next-line react/no-unknown-property -- Electron webview 전용 속성
+      partition="persist:websearch"
+      className="h-full w-full"
+    />
   )
 }
 
