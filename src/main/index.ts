@@ -321,7 +321,8 @@ const startup = app.whenReady().then(async () => {
     // 생성 후 잔액 갱신 (실사용량 추적의 진실 공급원) — 실패해도 생성 흐름엔 영향 없음
     void fetchAnlasBalance(token).then(({ anlas, tier, usage }) => {
       if (anlas !== null) {
-        logBalance(anlas)
+        // 활성 계정이 아니라 이 요청에 실제로 쓴 계정으로 기록 (자동 전환·동시 전환 대비)
+        logBalance(anlas, selection.account.id)
         broadcast('anlas:balance', { anlas, tier, ...(usage ? { usage } : {}) })
       }
     })
