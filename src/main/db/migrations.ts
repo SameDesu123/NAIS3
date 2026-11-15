@@ -360,5 +360,25 @@ export const migrations: ((db: Database.Database) => void)[] = [
       CREATE INDEX idx_images_scene_favorite ON images(scene_id, favorite, id);
       CREATE INDEX idx_library_images_stack_order ON library_images(stack_id, sort_order, id);
     `)
+  },
+
+  // v21: unfinished generation queue on disk — the queue lives in memory, so a crash or forced
+  // quit used to drop pending items and the scene reservations already handed to them.
+  // Rows exist only while an item is pending or generating. i2i/inpaint sources are shared by a
+  // batch and stored once by content hash. Neither table is part of backups.
+  (db) => {
+    db.exec(`
+      CREATE TABLE queue_journal (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id TEXT NOT NULL UNIQUE,
+        request_json TEXT NOT NULL,
+        source_id TEXT,
+        reservation_json TEXT
+      );
+      CREATE TABLE queue_journal_sources (
+        id TEXT PRIMARY KEY,
+        source_json TEXT NOT NULL
+      );
+    `)
   }
 ]

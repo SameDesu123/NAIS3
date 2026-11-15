@@ -879,7 +879,16 @@ export const KO = {
   'ui.onboardingPromptSingleHint': '모든 태그를 한곳에 씁니다.',
   'ui.onboardingPromptSplit': '세 칸',
   'ui.onboardingPromptSplitHint': '자주 쓰는 태그는 고정해 두고 바꿀 부분만 고칩니다.',
-  'ui.onboardingStorageTitle': '이미지 저장'
+  'ui.onboardingStorageTitle': '이미지 저장',
+  'ui.quitWhileGeneratingTitle': '이미지를 생성하는 중입니다',
+  'ui.quitWhileGeneratingDetail': '아직 끝나지 않은 생성이 {0}장 있습니다. 지금 종료하면 진행 중인 이미지는 중단됩니다.\n\n다음 실행 때 이어서: 남은 생성을 보관했다가 다음에 시작할 때 이어갈지 묻습니다.\n모두 취소하고 종료: 남은 생성을 버리고 씬 예약은 원래대로 돌려놓습니다.',
+  'ui.quitWhileGeneratingKeepGenerating': '계속 생성',
+  'ui.quitWhileGeneratingResumeLater': '다음 실행 때 이어서',
+  'ui.quitWhileGeneratingCancelAll': '모두 취소하고 종료',
+  'ui.unfinishedGenerationsTitle': '지난번에 끝나지 않은 생성이 있습니다',
+  'ui.unfinishedGenerationsDetail': '남은 생성 {0}장을 이어서 할까요?\n\n종료 때 생성 중이던 이미지는 처음부터 다시 요청합니다. 버리면 씬 예약은 원래대로 돌려놓습니다.',
+  'ui.unfinishedGenerationsResume': '이어서 생성',
+  'ui.unfinishedGenerationsDiscard': '버리기'
 } as const
 
 export type MessageId = keyof typeof KO

@@ -869,5 +869,14 @@ export const ZH_CN = {
   'ui.onboardingPromptSingleHint': '所有标签写在一处。',
   'ui.onboardingPromptSplit': '三个框',
   'ui.onboardingPromptSplitHint': '常用标签固定下来，只改需要变化的部分。',
-  'ui.onboardingStorageTitle': '保存图片'
+  'ui.onboardingStorageTitle': '保存图片',
+  'ui.quitWhileGeneratingTitle': '正在生成图片',
+  'ui.quitWhileGeneratingDetail': '还有 {0} 张生成尚未完成。现在退出会中断正在生成的图片。\n\n下次启动时继续：保留剩余的生成，下次启动时询问是否继续。\n全部取消并退出：丢弃剩余的生成，并归还场景预约。',
+  'ui.quitWhileGeneratingKeepGenerating': '继续生成',
+  'ui.quitWhileGeneratingResumeLater': '下次启动时继续',
+  'ui.quitWhileGeneratingCancelAll': '全部取消并退出',
+  'ui.unfinishedGenerationsTitle': '上次有未完成的生成',
+  'ui.unfinishedGenerationsDetail': '要继续剩余的 {0} 张生成吗？\n\n关闭时正在生成的图片会从头重新请求。丢弃则归还场景预约。',
+  'ui.unfinishedGenerationsResume': '继续生成',
+  'ui.unfinishedGenerationsDiscard': '丢弃'
 } satisfies MessageCatalog

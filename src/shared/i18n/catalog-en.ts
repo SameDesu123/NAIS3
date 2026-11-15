@@ -896,5 +896,14 @@ export const EN = {
   'ui.onboardingPromptSingleHint': 'All tags in one place.',
   'ui.onboardingPromptSplit': 'Three boxes',
   'ui.onboardingPromptSplitHint': 'Keep your usual tags fixed and edit only what changes.',
-  'ui.onboardingStorageTitle': 'Saving Images'
+  'ui.onboardingStorageTitle': 'Saving Images',
+  'ui.quitWhileGeneratingTitle': 'Images are still being generated',
+  'ui.quitWhileGeneratingDetail': '{0} generations have not finished. Quitting now stops the image in progress.\n\nResume Next Time: keeps the remaining generations and asks whether to continue them on the next start.\nCancel All and Quit: discards the remaining generations and returns scene reservations.',
+  'ui.quitWhileGeneratingKeepGenerating': 'Keep Generating',
+  'ui.quitWhileGeneratingResumeLater': 'Resume Next Time',
+  'ui.quitWhileGeneratingCancelAll': 'Cancel All and Quit',
+  'ui.unfinishedGenerationsTitle': 'Some generations did not finish last time',
+  'ui.unfinishedGenerationsDetail': 'Continue the {0} remaining generations?\n\nAn image that was in progress when NAIS3 closed is requested again from the start. Discarding them returns scene reservations.',
+  'ui.unfinishedGenerationsResume': 'Continue',
+  'ui.unfinishedGenerationsDiscard': 'Discard'
 } as const satisfies MessageCatalog

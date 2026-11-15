@@ -4,7 +4,7 @@ import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import sharp from './sharp'
 import icon from '../../resources/icon.png?asset'
-import { closeDb, initDb, migrateInWorker } from './db'
+import { closeDb, getDb, initDb, migrateInWorker } from './db'
 import migrationWorkerPath from './db/migrate.worker?modulePath'
 import { getSetting, markOnboardingPending } from './db/settings'
 import { preprocessRequest } from './fragments/request'
@@ -37,6 +37,8 @@ import { enforceGenerationGuard } from './nai/anlas-guard'
 import { localPromptMetadata } from './nai/payload'
 import { prepareCharRefs, prepareVibes } from './refs/prepare'
 import { GenerationQueue } from './queue/generation-queue'
+import { sqliteQueueJournal } from './queue/queue-journal'
+import { createQuitGuard, offerUnfinishedGenerations } from './queue/quit-guard'
 import { getPresetName, getScene } from './scenes/repo'
 
 // 앱 이름 (dev 메뉴바·dock에서 'Electron' 대신 표시). 패키징 앱은 productName 사용
@@ -61,7 +63,10 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'nais-image', privileges: { secure: true, supportFetchAPI: true, stream: true } }
 ])
 
-function createWindow(): void {
+// 생성이 남아 있을 때 창 닫기·Cmd+Q·업데이트 재시작을 확인한다 (큐는 DB가 열린 뒤 연결)
+const quitGuard = createQuitGuard()
+
+function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1600,
     height: 900,
@@ -87,6 +92,11 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
   })
+
+  // macOS는 창을 닫아도 앱과 큐가 계속 돈다 — 종료(Cmd+Q)만 before-quit에서 확인한다
+  if (process.platform !== 'darwin') {
+    mainWindow.on('close', (event) => quitGuard.guard(event, mainWindow))
+  }
 
   watchZoomShortcuts(mainWindow.webContents, (factor) =>
     broadcast('window:zoomChanged', { factor })
@@ -116,6 +126,7 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+  return mainWindow
 }
 
 // 업그레이드 중 띄우는 진행 창
@@ -191,6 +202,15 @@ const startup = app.whenReady().then(async () => {
     migrationProgress?.close()
     app.quit()
     return
+  }
+
+  // 큐 저널 — 강제 종료돼도 끝나지 않은 생성과 그 씬 예약을 다음 실행에 돌려줄 수 있게
+  const journal = sqliteQueueJournal(getDb)
+  let unfinished: ReturnType<typeof journal.load> = []
+  try {
+    unfinished = journal.load()
+  } catch (error) {
+    console.error('Failed to read unfinished generations:', error)
   }
 
   // 생성 파이프라인: 큐 → 조각/와일드카드 치환 → 바이브/캐릭레퍼 준비 → 스트리밍 생성 → 저장
@@ -343,6 +363,8 @@ const startup = app.whenReady().then(async () => {
 
     return saved.filePath
   })
+  queue.setJournal(journal)
+  quitGuard.setQueue(queue)
 
   // 저장해둔 생성 지연 시간 적용 (기본 600ms)
   const savedDelay = Number(getSetting('gen_delay_ms'))
@@ -364,7 +386,13 @@ const startup = app.whenReady().then(async () => {
   // mac dock 아이콘 (dev 미리보기용 — 패키징 앱은 icns 사용)
   if (process.platform === 'darwin' && app.dock) app.dock.setIcon(icon)
 
-  createWindow()
+  const mainWindow = createWindow()
+  // 씬 예약 복구(bindSceneReservationRecovery)가 registerIpcHandlers에서 묶인 뒤라 버리기도 안전하다
+  if (unfinished.length > 0) {
+    mainWindow.once('ready-to-show', () => {
+      void offerUnfinishedGenerations(queue, unfinished, mainWindow)
+    })
+  }
   setupUpdater() // GitHub release 자동 업데이트 확인 (패키징된 앱에서만 실제 동작)
 
   app.on('activate', function () {
@@ -373,6 +401,10 @@ const startup = app.whenReady().then(async () => {
 })
 // 메인 창을 만든 뒤에 닫는다 — 시작 도중 예외가 나도 닫을 수 없는 진행 창이 남지 않게
 void startup.finally(() => migrationProgress?.close())
+
+app.on('before-quit', (event) => {
+  quitGuard.guard(event, BrowserWindow.getAllWindows()[0])
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

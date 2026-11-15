@@ -16,6 +16,7 @@ import type {
   QueueStatus,
   SceneReservation
 } from '../../shared/types'
+import type { QueueJournal } from './queue-journal'
 
 /**
  * 생성 큐. 메인 프로세스 상주 — 렌더러가 리로드/크래시해도 큐는 살아있다.
@@ -55,6 +56,14 @@ export class GenerationQueue extends EventEmitter {
     super()
   }
 
+  /** Keeps unfinished items on disk so a crash or forced quit can offer them back on next start */
+  private journal?: QueueJournal
+
+  /** Attach before anything is queued — items queued earlier would not be journaled */
+  setJournal(journal: QueueJournal): void {
+    this.journal = journal
+  }
+
   enqueue(
     request: GenerationRequest,
     count: number,
@@ -70,6 +79,12 @@ export class GenerationQueue extends EventEmitter {
       // Each item owns its request object so detachDeletedScenes can edit one item in place.
       this.items.set(id, { id, state: 'pending', request: { ...req } })
       ids.push(id)
+    }
+    // Recovery is best effort: a journal failure must not block generation itself.
+    try {
+      this.journal?.add(ids.map((id) => this.items.get(id)!))
+    } catch (error) {
+      console.error('Failed to journal queued generations:', error)
     }
     this.emitChanged()
     void this.run()
@@ -93,7 +108,10 @@ export class GenerationQueue extends EventEmitter {
     }))
     try {
       for (const item of entries) this.items.set(item.id, item)
-      commit()
+      // The reservation handoff and its journal rows commit together, so a crash cannot
+      // take reservations off the scenes without leaving the items to give them back.
+      if (this.journal) this.journal.add(entries, commit)
+      else commit()
     } catch (error) {
       for (const item of entries) this.items.delete(item.id)
       throw error
@@ -133,6 +151,57 @@ export class GenerationQueue extends EventEmitter {
     return cancelled
   }
 
+  /** Pending or generating work that quitting now would interrupt */
+  unfinishedCount(): number {
+    let count = 0
+    for (const item of this.items.values()) {
+      if (item.state === 'pending' || item.state === 'generating') count++
+    }
+    return count
+  }
+
+  /**
+   * Takes back items a previous run left unfinished (already in the journal, so not re-added).
+   * `resume` queues them again; otherwise they are cancelled through the normal path, which
+   * gives scene reservations back and removes them from the journal.
+   */
+  restore(items: readonly QueueItem[], resume: boolean): void {
+    const restored = items.filter((item) => !this.items.has(item.id))
+    if (restored.length === 0) return
+    for (const item of restored) {
+      this.items.set(item.id, {
+        id: item.id,
+        state: 'pending',
+        request: { ...item.request },
+        ...(item.reservation ? { reservation: item.reservation } : {})
+      })
+    }
+    if (!resume) {
+      this.cancel(restored.map((item) => item.id))
+      return
+    }
+    this.emitChanged()
+    void this.run()
+  }
+
+  /** Cancels everything, including the request in flight, and waits (bounded) for the loop to stop */
+  async cancelAll(timeoutMs: number): Promise<void> {
+    this.cancel([...this.items.keys()])
+    if (!this.running) return
+    await new Promise<void>((resolve) => {
+      const finish = (): void => {
+        clearTimeout(timer)
+        this.off('changed', onChanged)
+        resolve()
+      }
+      const onChanged = (status: QueueStatus): void => {
+        if (!status.running) finish()
+      }
+      const timer = setTimeout(finish, timeoutMs)
+      this.on('changed', onChanged)
+    })
+  }
+
   /**
    * Called after scenes are deleted or replaced (single/bulk/preset delete, backup restore).
    * SQLite may reuse the numeric IDs, so nothing in the queue may keep pointing at them:
@@ -146,15 +215,30 @@ export class GenerationQueue extends EventEmitter {
     if (sceneIds.length === 0) return
     const deleted = new Set(sceneIds)
     const pending: string[] = []
+    const changed: QueueItem[] = []
     let detached = false
     for (const item of this.items.values()) {
-      if (item.reservation && deleted.has(item.reservation.sceneId)) delete item.reservation
+      const droppedReservation = !!item.reservation && deleted.has(item.reservation.sceneId)
+      if (droppedReservation) delete item.reservation
       const sceneId = item.request.sceneId
-      if (sceneId === undefined || !deleted.has(sceneId)) continue
-      if (item.state === 'pending') pending.push(item.id)
-      else if (item.state === 'generating') {
-        delete item.request.sceneId
-        detached = true
+      const sceneDeleted = sceneId !== undefined && deleted.has(sceneId)
+      if (item.state === 'pending') {
+        if (sceneDeleted) pending.push(item.id)
+        else if (droppedReservation) changed.push(item)
+      } else if (item.state === 'generating') {
+        if (sceneDeleted) {
+          delete item.request.sceneId
+          detached = true
+        }
+        if (sceneDeleted || droppedReservation) changed.push(item)
+      }
+    }
+    // A resumed item must not save into a scene that later reuses the deleted ID.
+    if (changed.length > 0) {
+      try {
+        this.journal?.update(changed)
+      } catch (error) {
+        console.error('Failed to update journaled generations:', error)
       }
     }
     if (pending.length > 0) this.cancel(pending)
@@ -248,6 +332,11 @@ export class GenerationQueue extends EventEmitter {
 
   /** Records a finished item and drops old finished items past the limit (no unbounded growth per session) */
   private markFinished(item: QueueItem): void {
+    try {
+      this.journal?.remove([item.id])
+    } catch (error) {
+      console.error('Failed to remove a finished generation from the journal:', error)
+    }
     for (const id of this.finished.record(item.id)) this.items.delete(id)
   }
 
