@@ -40,7 +40,11 @@ function paramRows(meta: ImageMetadata, t: ReturnType<typeof useT>): ParamRow[] 
     { k: 'cfgRescale', label: 'CFG Rescale', value: meta.cfgRescale },
     { k: 'sampler', label: t('ui.sampler'), value: meta.sampler },
     { k: 'noiseSchedule', label: t('ui.schedule'), value: meta.noiseSchedule },
-    { k: 'variety', label: 'Variety+', value: meta.variety ? 'ON' : undefined },
+    {
+      k: 'variety',
+      label: 'Variety+',
+      value: meta.variety ? 'ON' : meta.variety === false ? 'OFF' : undefined
+    },
     {
       k: 'quality',
       label: t('ui.qualityTags'),
@@ -102,6 +106,8 @@ export function MetadataDialog(): React.JSX.Element {
   const allSelected = available.length > 0 && selectedCount === available.length
   const setAll = (value: boolean): void =>
     setSel((s) => ({ ...s, ...Object.fromEntries(available.map((k) => [k, value])) }))
+  // 화면에 없는 항목은 적용하지 않음 — 숨은 기본값(캐릭터·Variety+ 등)이 몰래 반영되는 것 방지
+  const visibleSelection = (): Selection => Object.fromEntries(available.map((k) => [k, !!sel[k]]))
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
@@ -214,7 +220,7 @@ export function MetadataDialog(): React.JSX.Element {
             <Button
               variant="accent"
               disabled={!meta || selectedCount === 0}
-              onClick={() => applyToMain(sel)}
+              onClick={() => applyToMain(visibleSelection())}
             >
               {t('ui.applyToMain')}
             </Button>
