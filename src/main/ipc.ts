@@ -35,7 +35,7 @@ import {
 } from './characters/repo'
 import { getDbPath, getDb } from './db'
 import { analyzeArtists } from './images/artists'
-import { metadataFromPng, metadataFromPayloadJson } from './images/metadata'
+import { readImageMetadata } from './images/metadata'
 import {
   createFragment,
   createFragmentFolder,
@@ -171,6 +171,7 @@ import {
   scenesRoot
 } from './images/storage'
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'fs'
+import { readFile } from 'fs/promises'
 import { basename } from 'path'
 import sharp from './sharp'
 import { verifyToken } from './nai/client'
@@ -748,8 +749,7 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('images:readMetadata', async ({ filePath, base64 }) => {
     try {
       if (base64) {
-        const buf = Buffer.from(base64.replace(/^data:[^,]+,/, ''), 'base64')
-        const meta = await metadataFromPng(buf)
+        const meta = await readImageMetadata({ image: base64 })
         return meta ? { meta } : { error: t('ui.noNaiMetadataFoundInThisImage') }
       }
       if (filePath) {
@@ -758,26 +758,18 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
         const row = getDb()
           .prepare('SELECT payload_json FROM images WHERE file_path = ?')
           .get(filePath) as { payload_json: string } | undefined
-        const fromDb = row?.payload_json ? metadataFromPayloadJson(row.payload_json) : null
         // 1) PNG tEXt 우선. 단, 예전 저장본/포맷 변환본처럼 nais3-params 청크가 빠진 경우
         // DB payload_json의 NAIS3 로컬 메타데이터(promptParts)를 합쳐서 3분할을 복원한다.
         // 자동저장 꺼짐 생성분(memory://)은 메모리 원본에서 읽고, 만료됐으면 DB payload로 폴백.
-        const buf = isMemoryPath(filePath) ? getMemoryImage(filePath) : readFileSync(filePath)
+        const buf = isMemoryPath(filePath) ? getMemoryImage(filePath) : await readFile(filePath)
         if (!buf) {
+          const fromDb = await readImageMetadata({ payloadJson: row?.payload_json })
           if (fromDb) return { meta: fromDb }
           return { error: t('ui.originalExpiredImageGeneratedWithAutoSaveOff') }
         }
-        const fromPng = await metadataFromPng(buf)
-        if (fromPng) {
-          return {
-            meta:
-              !fromPng.promptParts && fromDb?.promptParts
-                ? { ...fromPng, promptParts: fromDb.promptParts }
-                : fromPng
-          }
-        }
-        // 2) 폴백: DB payload_json (우리 스트리밍 이미지는 tEXt가 없을 수 있음)
-        if (fromDb) return { meta: fromDb }
+        // 워커에서 PNG 우선 + DB 로컬 메타데이터 병합/폴백까지 처리한다.
+        const meta = await readImageMetadata({ image: buf, payloadJson: row?.payload_json })
+        if (meta) return { meta }
         return { error: t('ui.metadataNotFound') }
       }
       return { error: t('ui.noInputProvided') }
