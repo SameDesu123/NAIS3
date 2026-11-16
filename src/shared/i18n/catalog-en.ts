@@ -1,6 +1,23 @@
 import type { MessageCatalog } from './catalog-ko'
 
 export const EN = {
+  'ui.notifications': 'Notifications',
+  'ui.notificationGeneration': 'Generation queue finished or stopped',
+  'ui.notificationErrors': 'Errors',
+  'ui.notificationInfo': 'Information, retries and account changes',
+  'ui.notificationSuccess': 'Successful actions, saves and copies',
+  'ui.notificationUpdates': 'Updates',
+  'ui.notificationToast': 'In app',
+  'ui.notificationSound': 'Sound',
+  'ui.notificationNative': 'System',
+  'ui.notificationChannelLabel': '{0} — {1}',
+  'ui.notificationDeliveryHint':
+    'Choose delivery for each notification type. System notifications appear when another window is focused; enable In app to also see them while using NAIS3.',
+  'ui.notificationNativeDesktopOnly': 'System notifications are available in the desktop app.',
+  'ui.notificationPreviewSound': 'Preview sound',
+  'ui.notificationSettingsError': 'Could not load or save notification settings. Please try again.',
+  'ui.notificationUpdateFailed': 'Update failed: {0}',
+
   'ui.paintMaskInCanvas': 'Paint a mask in the canvas to regenerate an area',
   'ui.maskBrushShortcut': 'Paint (B)',
   'ui.maskEraseShortcut': 'Erase (E)',

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { DirectorMethod, LocalEditKind } from '@shared/types'
 import { useGenerationStore } from './generation-store'
 import { useLayoutStore } from './layout-store'
-import { toast } from './toast-store'
+import { notify } from '../lib/notifications'
 
 interface DirectorState {
   /** 이미지 스택(base64) — 마지막이 현재. 툴 적용 시 결과가 자동으로 push되어 이어서 처리 */
@@ -50,7 +50,7 @@ export const useDirectorStore = create<DirectorState>((set, get) => ({
     })
     if ('error' in res) {
       set({ loading: false, error: null })
-      toast(res.error, 'error')
+      notify(res.error, 'error')
       return
     }
     // 결과를 스택에 push → 자동으로 다음 입력이 됨 (이어서 처리)
@@ -65,7 +65,7 @@ export const useDirectorStore = create<DirectorState>((set, get) => ({
     const res = await window.nais.invoke('images:upscale', { imageBase64: cur })
     if ('error' in res) {
       set({ loading: false, error: null })
-      toast(res.error, 'error')
+      notify(res.error, 'error')
       return
     }
     set({ loading: false, stack: [...get().stack, res.base64] })
@@ -77,7 +77,7 @@ export const useDirectorStore = create<DirectorState>((set, get) => ({
     set({ stack: [...get().stack, base64], error: null })
     const res = await window.nais.invoke('images:saveLocal', { base64, kind })
     if ('error' in res) {
-      toast(res.error, 'error')
+      notify(res.error, 'error')
       return
     }
     void useGenerationStore.getState().refreshHistory()
@@ -114,7 +114,7 @@ export const useDirectorStore = create<DirectorState>((set, get) => ({
 export async function openInDirector(filePath: string): Promise<void> {
   const res = await window.nais.invoke('images:readForSource', { filePath })
   if ('error' in res) {
-    toast(res.error, 'error')
+    notify(res.error, 'error')
     return
   }
   useDirectorStore.getState().setSource(res.base64)

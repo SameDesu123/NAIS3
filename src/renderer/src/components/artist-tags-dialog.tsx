@@ -1,7 +1,7 @@
 import { Copy, ImageOff, Loader2, Palette } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useArtistTagsStore } from '../stores/artist-tags-store'
-import { toast } from '../stores/toast-store'
+import { notify } from '../lib/notifications'
 import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { Button } from './ui/button'
@@ -135,7 +135,7 @@ export function ArtistTagsDialog(): React.JSX.Element {
             disabled={!selectedText}
             onClick={() => {
               void navigator.clipboard.writeText(selectedText)
-              toast(t('ui.artistTagsCopied'), 'success')
+              notify(t('ui.artistTagsCopied'), 'success')
             }}
           >
             <Copy size={13} /> {t('ui.copy')}

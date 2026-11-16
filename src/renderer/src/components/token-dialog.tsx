@@ -1,5 +1,6 @@
 import {
   BatteryCharging,
+  Bell,
   Coins,
   Download,
   Eye,
@@ -30,7 +31,6 @@ import discordSvg from '../assets/discord.svg'
 import nais3Logo from '../assets/nais3-logo.svg'
 import { importBackup } from '../lib/backup-import'
 import { useBoolSetting, useSaveDir, useSetting } from '../lib/setting-hooks'
-import { playChime } from '../lib/completion-alert'
 import { useLanguageStore, useT } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { THEME_PRESETS } from '../lib/theme-presets'
@@ -40,7 +40,7 @@ import { useLayoutStore, type CenterMode } from '../stores/layout-store'
 import { useThemeStore } from '../stores/theme-store'
 import { useUpdateStore } from '../stores/update-store'
 import { askConfirm } from '../stores/dialog-store'
-import { toast } from '../stores/toast-store'
+import { notify } from '../lib/notifications'
 import {
   SHORTCUT_LABELS,
   comboFromEvent,
@@ -48,6 +48,7 @@ import {
   useShortcutsStore,
   type ShortcutAction
 } from '../stores/shortcuts-store'
+import { NotificationSettings } from './notification-settings'
 import { NaiTokenStoreLockNotice } from './nai-token-store-lock-notice'
 import { ThemeToggle } from './theme-toggle'
 import { Button } from './ui/button'
@@ -58,11 +59,13 @@ import { Slider } from './ui/slider'
 import { Switch } from './ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 
-type SectionId = 'appearance' | 'generation' | 'storage' | 'shortcuts' | 'account' | 'about'
+type SectionId =
+  'appearance' | 'generation' | 'notifications' | 'storage' | 'shortcuts' | 'account' | 'about'
 
 const NAV: { id: SectionId; label: MessageId; icon: typeof Info }[] = [
   { id: 'appearance', label: 'ui.appearance', icon: Palette },
   { id: 'generation', label: 'ui.generate', icon: ImageIcon },
+  { id: 'notifications', label: 'ui.notifications', icon: Bell },
   { id: 'storage', label: 'ui.storage', icon: FolderOpen },
   { id: 'shortcuts', label: 'ui.shortcuts', icon: Keyboard },
   { id: 'account', label: 'ui.naiAccount', icon: KeyRound },
@@ -282,8 +285,6 @@ function GenerationSection(): React.JSX.Element {
   const [randomizeDelay, setRandomizeDelay] = useState(false)
   const [delayMinus, setDelayMinus] = useState(0)
   const [delayPlus, setDelayPlus] = useState(0)
-  const [alertSound, setAlertSound] = useState(false)
-  const [alertNative, setAlertNative] = useState(false)
   const promptSplitEnabled = useGenerationStore((s) => s.promptSplitEnabled)
   const setPromptSplitEnabled = useGenerationStore((s) => s.setPromptSplitEnabled)
   const quickGenerationControlsEnabled = useLayoutStore((s) => s.quickGenerationControlsEnabled)
@@ -308,12 +309,6 @@ function GenerationSection(): React.JSX.Element {
     })
     void window.nais.invoke('settings:get', { key: 'gen_delay_plus_ms' }).then(({ value }) => {
       if (value != null && value !== '') setDelayPlus(Number(value))
-    })
-    void window.nais.invoke('settings:get', { key: 'alert_sound' }).then(({ value }) => {
-      setAlertSound(value === '1')
-    })
-    void window.nais.invoke('settings:get', { key: 'alert_native' }).then(({ value }) => {
-      setAlertNative(value === '1')
     })
   }, [])
 
@@ -420,30 +415,6 @@ function GenerationSection(): React.JSX.Element {
           />
         </div>
       )}
-      <Row label={t('ui.completionSound')} hint={t('ui.playAChimeWhenTheQueueFinishes')}>
-        <Switch
-          aria-label={t('ui.completionSound')}
-          checked={alertSound}
-          onCheckedChange={(v) => {
-            setAlertSound(v)
-            void window.nais.invoke('settings:set', { key: 'alert_sound', value: v ? '1' : '0' })
-            if (v) playChime() // 미리 듣기
-          }}
-        />
-      </Row>
-      <Row
-        label={t('ui.completionNotificationSystem')}
-        hint={t('ui.showAMacosWindowsNotificationWhenAnotherWindowIsFocused')}
-      >
-        <Switch
-          aria-label={t('ui.completionNotificationSystem')}
-          checked={alertNative}
-          onCheckedChange={(v) => {
-            setAlertNative(v)
-            void window.nais.invoke('settings:set', { key: 'alert_native', value: v ? '1' : '0' })
-          }}
-        />
-      </Row>
     </div>
   )
 }
@@ -679,14 +650,14 @@ function BackupButtons(): React.JSX.Element {
   async function exportArchive(): Promise<void> {
     const result = await window.nais.invoke('backup:export', undefined)
     if (result.error) {
-      toast(t('ui.backupExportError', result.error), 'error')
+      notify(t('ui.backupExportError', result.error), 'error')
       return
     }
     if (!result.saved) return
     const skipped = result.skippedFiles
       ? t('ui.backupMissingSourcesSkipped', result.skippedFiles)
       : ''
-    toast(
+    notify(
       browser ? t('ui.exportComplete') : t('ui.naisArchiveExported', skipped),
       result.skippedFiles ? 'info' : 'success'
     )
@@ -695,10 +666,10 @@ function BackupButtons(): React.JSX.Element {
   async function exportLegacy(): Promise<void> {
     const result = await window.nais.invoke('backup:exportLegacy', undefined)
     if (result.error) {
-      toast(t('ui.backupExportError', result.error), 'error')
+      notify(t('ui.backupExportError', result.error), 'error')
       return
     }
-    if (result.saved) toast(t('ui.legacyJsonExported'), 'success')
+    if (result.saved) notify(t('ui.legacyJsonExported'), 'success')
   }
 
   return (
@@ -1156,6 +1127,7 @@ function AboutSection(): React.JSX.Element {
   const [version, setVersion] = useState('')
   const updateStatus = useUpdateStore((s) => s.status)
   const updateVersion = useUpdateStore((s) => s.version)
+  const updateMessage = useUpdateStore((s) => s.message)
   const updatePercent = useUpdateStore((s) => s.percent)
   const startUpdate = useUpdateStore((s) => s.start)
 
@@ -1183,6 +1155,10 @@ function AboutSection(): React.JSX.Element {
         ) : updateStatus === 'downloaded' ? (
           <span className="text-[12px] text-accent-ink">
             {t('ui.installingUpdateRestartingSoon')}
+          </span>
+        ) : updateStatus === 'error' ? (
+          <span role="status" className="text-[12px] text-danger-ink">
+            {t('ui.notificationUpdateFailed', updateMessage ?? '')}
           </span>
         ) : (
           <span className="text-[12px] text-faint">{t('ui.youReOnTheLatestVersion')}</span>
@@ -1275,6 +1251,9 @@ export function SettingsDialog({
                 </TabsContent>
                 <TabsContent value="generation" className="m-0 min-w-0">
                   <GenerationSection />
+                </TabsContent>
+                <TabsContent value="notifications" className="m-0 min-w-0">
+                  <NotificationSettings />
                 </TabsContent>
                 <TabsContent value="storage" className="m-0 min-w-0">
                   <StorageSection />

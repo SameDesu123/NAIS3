@@ -6,7 +6,7 @@ import { KindBadge } from '../lib/kind-icon'
 import { useGenerationStore } from '../stores/generation-store'
 import { useLayoutStore } from '../stores/layout-store'
 import { askConfirm } from '../stores/dialog-store'
-import { toast } from '../stores/toast-store'
+import { notify } from '../lib/notifications'
 import { ImageContextMenu } from './image-context-menu'
 
 export function HistoryPanel(): React.JSX.Element {
@@ -37,7 +37,7 @@ export function HistoryPanel(): React.JSX.Element {
     const { count } = await window.nais.invoke('images:clearAll', undefined)
     view(null)
     void refreshHistory()
-    toast(t('ui.clearedValueRecordsFilesPreserved', count.toLocaleString()), 'success')
+    notify(t('ui.clearedValueRecordsFilesPreserved', count.toLocaleString()), 'success')
   }
 
   return (

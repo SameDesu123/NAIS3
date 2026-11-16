@@ -19,7 +19,7 @@ import { cn } from '../lib/utils'
 import { useT } from '../lib/i18n'
 import { buildDisplayRows } from '../lib/folder-list'
 import { useFragmentsStore } from '../stores/fragments-store'
-import { toast } from '../stores/toast-store'
+import { notify } from '../lib/notifications'
 import { FragmentNameInput } from './fragment-name-input'
 import { FolderListView } from './folder-list-view'
 import { Button } from './ui/button'
@@ -190,7 +190,7 @@ export function FragmentOverlay(): React.JSX.Element {
           title={t('ui.resetSequentialCountersNameStartsFromTheFirstLineAgain')}
           onClick={async () => {
             await resetSequential()
-            toast(t('ui.sequentialCountersReset'), 'success')
+            notify(t('ui.sequentialCountersReset'), 'success')
           }}
         >
           <RotateCcw size={14} />
@@ -212,7 +212,7 @@ export function FragmentOverlay(): React.JSX.Element {
           title={t('ui.exportAllFragmentsZipShareBackup')}
           onClick={async () => {
             const n = await exportAll()
-            if (n > 0) toast(t('ui.exportedValueFragments', n), 'success')
+            if (n > 0) notify(t('ui.exportedValueFragments', n), 'success')
           }}
         >
           <FileDown size={13} /> {t('ui.export')}

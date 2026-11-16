@@ -40,7 +40,7 @@ import { useGenerationStore } from '../stores/generation-store'
 import { loadCasts, useScenesStore } from '../stores/scenes-store'
 import { useResolutionsStore } from '../stores/resolutions-store'
 import { askConfirm, askText } from '../stores/dialog-store'
-import { toast } from '../stores/toast-store'
+import { notify } from '../lib/notifications'
 import { cn } from '../lib/utils'
 import { ReserveCount } from './reserve-count'
 import { SceneCastDialog } from './scene-cast-dialog'
@@ -394,15 +394,15 @@ function SceneGrid(): React.JSX.Element {
     try {
       result = await window.nais.invoke('scenes:importJson', { presetId: activePresetId })
     } catch (e) {
-      toast(t('ui.sceneImportFailedValue', e instanceof Error ? e.message : String(e)), 'error')
+      notify(t('ui.sceneImportFailedValue', e instanceof Error ? e.message : String(e)), 'error')
       return
     }
     if (result.canceled) return
-    if (result.unrecognized) toast(t('ui.unrecognizedSceneJson'), 'error')
+    if (result.unrecognized) notify(t('ui.unrecognizedSceneJson'), 'error')
     else if (result.count > 0) {
-      toast(t('ui.importedValueScenes', result.count), 'success')
+      notify(t('ui.importedValueScenes', result.count), 'success')
       void useScenesStore.getState().load()
-    } else toast(t('ui.noScenesToImport'), 'info')
+    } else notify(t('ui.noScenesToImport'), 'info')
   }
   async function exportZip(): Promise<void> {
     await window.nais.invoke('scenes:exportZip', { presetId: activePresetId })
@@ -843,7 +843,7 @@ const SceneCard = memo(function SceneCard({
   }
   const openFolder = async (): Promise<void> => {
     const { ok } = await window.nais.invoke('scenes:openFolder', { sceneId: scene.id })
-    if (!ok) toast(t('ui.noGeneratedImageFolderYet'), 'info')
+    if (!ok) notify(t('ui.noGeneratedImageFolderYet'), 'info')
   }
   const removeScene = async (): Promise<void> => {
     if (

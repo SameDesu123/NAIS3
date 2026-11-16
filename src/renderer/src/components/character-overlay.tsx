@@ -36,7 +36,7 @@ import {
 } from '../lib/character-position'
 import { useCharactersStore } from '../stores/characters-store'
 import { useGenerationStore } from '../stores/generation-store'
-import { toast } from '../stores/toast-store'
+import { notify } from '../lib/notifications'
 import { askConfirm, askText } from '../stores/dialog-store'
 import { FolderListView } from './folder-list-view'
 import { CharacterPositionEditor, CharacterPositionPanel } from './character-position-editor'
@@ -171,7 +171,7 @@ export function CharacterOverlay(): React.JSX.Element {
     updateCard(id, { center })
   const setPositioning = (enabled: boolean): void => {
     if (!canPositionCharacters) {
-      toast(t('ui.positioningNeedsTwoPromptedCharactersValue', positionableCharacters.length))
+      notify(t('ui.positioningNeedsTwoPromptedCharactersValue', positionableCharacters.length))
       return
     }
     patch({ useCoords: enabled })
@@ -197,7 +197,7 @@ export function CharacterOverlay(): React.JSX.Element {
     const picked = activateRandom(selected)
     if (!picked) return
     const label = picked.name.trim() || picked.prompt.trim().slice(0, 40)
-    toast(t('ui.randomlyActivatedValue', label), 'success')
+    notify(t('ui.randomlyActivatedValue', label), 'success')
   }
 
   const bulkDelete = async (): Promise<void> => {

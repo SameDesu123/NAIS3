@@ -1,13 +1,4 @@
-import {
-  app,
-  BrowserWindow,
-  clipboard,
-  ClipboardItem,
-  ipcMain,
-  nativeImage,
-  Notification,
-  shell
-} from 'electron'
+import { app, BrowserWindow, clipboard, ClipboardItem, ipcMain, nativeImage, shell } from 'electron'
 import type { NativeImage } from 'electron'
 import { showOpenDialog, showSaveDialog } from './dialogs'
 import { applyZoom } from './zoom'
@@ -175,6 +166,7 @@ import { basename } from 'path'
 import sharp from './sharp'
 import { verifyToken } from './nai/client'
 import { t } from './i18n'
+import { showNativeNotification } from './notifications'
 import {
   catchTokenStoreLock,
   lockedTokenStoreResult,
@@ -726,24 +718,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     }
   })
 
-  handle('notify:done', ({ done, failed, stopped }) => {
-    const win = BrowserWindow.getAllWindows()[0]
-    if (!win || win.isFocused()) return // 보고 있는 중엔 토스트 불필요
-    if (!Notification.isSupported()) return
-    const counts =
-      failed > 0 ? t('ui.valueImagesDoneValueFailed', done, failed) : t('ui.valueImagesDone', done)
-    // Anlas 가드로 멈췄으면 제목을 바꾸고 이유를 붙인다
-    const body = stopped ? `${counts}\n${stopped}` : counts
-    const title = stopped ? t('ui.nais3GenerationStopped') : t('ui.nais3GenerationComplete')
-    // silent — 소리는 앱의 알림음 설정이 따로 담당 (이중 재생 방지)
-    const n = new Notification({ title, body, silent: true })
-    n.on('click', () => {
-      if (win.isMinimized()) win.restore()
-      win.show()
-      win.focus()
-    })
-    n.show()
-  })
+  handle('notifications:show', ({ title, body }) => ({
+    shown: showNativeNotification(title, body)
+  }))
 
   handle('images:readMetadata', async ({ filePath, base64 }) => {
     try {

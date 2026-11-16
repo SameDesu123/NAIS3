@@ -8,7 +8,7 @@ import { useGenerationStore } from '../stores/generation-store'
 import { useScenesStore, appendPrompt } from '../stores/scenes-store'
 import { useCharactersStore } from '../stores/characters-store'
 import { askConfirm } from '../stores/dialog-store'
-import { toast } from '../stores/toast-store'
+import { notify } from '../lib/notifications'
 import { cn } from '../lib/utils'
 import { ImageContextMenu } from './image-context-menu'
 import { Lightbox } from './lightbox'
@@ -275,7 +275,7 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
               })
               if (!ok) return
               const n = await deleteNonFavorites(scene.id)
-              toast(
+              notify(
                 n > 0 ? t('ui.valueImagesDeleted', n.toLocaleString()) : t('ui.noImagesToDelete'),
                 n > 0 ? 'success' : 'info'
               )

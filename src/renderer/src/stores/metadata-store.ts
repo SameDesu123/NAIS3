@@ -8,7 +8,7 @@ import { useCharactersStore } from './characters-store'
 import { mergePromptParts, useGenerationStore } from './generation-store'
 import { useLayoutStore } from './layout-store'
 import { pickPresetParams, usePromptPresetsStore } from './prompt-presets-store'
-import { toast } from './toast-store'
+import { notify } from '../lib/notifications'
 
 /** 실질적으로 3분할인지 — base만 있고 가변/디테일이 비었으면 단일 프롬프트로 취급 */
 export function isSplitMeta(meta: ImageMetadata): boolean {
@@ -62,7 +62,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     const res = await window.nais.invoke('images:readMetadata', src)
     if ('error' in res) {
       set({ open: false, loading: false })
-      toast(res.error, 'error')
+      notify(res.error, 'error')
     } else set({ loading: false, meta: res.meta })
   },
   close: () => set({ open: false }),

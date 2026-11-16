@@ -31,6 +31,7 @@ NAIS3 is the successor to NAIS2, a desktop application built to make NovelAI ima
 - **Prompt presets** — Save and load frequently used prompt and negative prompt pairs
 - **Backups** — Export and import workspace data and library assets as `.nais` files (also supports importing legacy NAIS3 and NAIS2 JSON backups)
 - **Automatic updates** — Based on GitHub Releases
+- **Notifications** — Choose in-app, sound, and system delivery per event category under Settings → Notifications. Existing completion preferences are preserved
 - **More** — Light and dark themes, estimated Anlas usage, tag autocomplete (including artist tags), and keyboard shortcuts
 
 ## Download

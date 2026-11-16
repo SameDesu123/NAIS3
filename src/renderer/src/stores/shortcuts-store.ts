@@ -7,7 +7,7 @@ import { useGenerationStore } from './generation-store'
 import { useLayoutStore } from './layout-store'
 import { useCharRefsStore, useVibesStore } from './refs-store'
 import { useScenesStore } from './scenes-store'
-import { toast } from './toast-store'
+import { notify } from '../lib/notifications'
 
 export type ShortcutAction =
   | 'generate'
@@ -140,7 +140,7 @@ function runAction(action: ShortcutAction): void {
       void useFragmentsStore
         .getState()
         .resetSequential()
-        .then(() => toast(t('ui.sequentialFragmentCountersReset'), 'success'))
+        .then(() => notify(t('ui.sequentialFragmentCountersReset'), 'success'))
       break
   }
 }

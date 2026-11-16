@@ -33,6 +33,7 @@ import { bindGenerationEvents, useGenerationStore } from './stores/generation-st
 import { bindSceneEvents } from './stores/scenes-store'
 import { bindShortcuts, useShortcutsStore } from './stores/shortcuts-store'
 import { bindUpdateEvents } from './stores/update-store'
+import { useNotificationSettingsStore } from './stores/notification-settings-store'
 import { bindNavMouse } from './lib/nav-history'
 import { useLanguageStore } from './lib/i18n'
 import {
@@ -91,6 +92,7 @@ export default function App(): React.JSX.Element {
     void (async () => {
       await Promise.allSettled([
         useLanguageStore.getState().hydrate(),
+        useNotificationSettingsStore.getState().hydrate(),
         useThemeStore.getState().hydrate(),
         // 온보딩 화면은 스플래시 뒤에서 미리 불러 둔다 — 스플래시가 걷힌 뒤에야 읽기 시작하면
         // (새 설치는 코드 캐시도 없다) 빈 화면이 잠깐 비치고 카드의 첫 등장 애니메이션이 끊긴다

@@ -9,7 +9,7 @@ import {
   Trash2,
   Wand2
 } from 'lucide-react'
-import { toast } from '../stores/toast-store'
+import { notify } from '../lib/notifications'
 import { useT } from '../lib/i18n'
 import { openInDirector } from '../stores/director-store'
 import { setI2iSource, useGenerationStore } from '../stores/generation-store'
@@ -66,7 +66,7 @@ export function ImageContextMenu({
         <ContextMenuItem
           onSelect={async () => {
             const { copied } = await window.nais.invoke('images:copy', { filePath })
-            if (copied) toast(t('ui.copiedToClipboard'), 'success')
+            if (copied) notify(t('ui.copiedToClipboard'), 'success')
           }}
         >
           <Copy size={13} className="text-hue-teal" /> {t('ui.copyImage')}

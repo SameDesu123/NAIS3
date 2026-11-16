@@ -591,11 +591,10 @@ export interface IpcInvokeMap {
   'settings:resetSaveDir': { req: { target?: 'main' | 'scene' } | void; res: { dir: string } }
   /** 생성 지연 시간(ms)과 랜덤 범위 설정 — 큐에 즉시 반영 + 영속 */
   'gen:setDelay': { req: { ms: number; randomization?: GenerationDelayRandomization }; res: void }
-  /** 큐 완료 네이티브 알림 (창이 포커스 없을 때만 표시) */
-  'notify:done': {
-    /** stopped: 큐가 Anlas 가드로 멈춘 이유 */
-    req: { done: number; failed: number; stopped?: string }
-    res: void
+  /** Generic native notification. Main suppresses delivery while the app window is focused. */
+  'notifications:show': {
+    req: { title: string; body: string }
+    res: { shown: boolean }
   }
   /** 디렉터 툴 실행 — 결과를 히스토리에 저장하고 파일 경로 + 결과 base64 반환 */
   'director:run': {

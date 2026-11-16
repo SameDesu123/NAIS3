@@ -1,7 +1,7 @@
 import { ArrowLeft, Download, type LucideIcon } from 'lucide-react'
 import { useEffect } from 'react'
 import { useT } from '../lib/i18n'
-import { toast } from '../stores/toast-store'
+import { notify } from '../lib/notifications'
 import { Button } from './ui/button'
 import { Switch } from './ui/switch'
 
@@ -243,7 +243,7 @@ export function ToolPageActions({
             if (!base64) return
             void window.nais
               .invoke('images:saveBase64As', { base64, defaultName: fileName })
-              .then(({ saved }) => saved && toast(t('ui.saved'), 'success'))
+              .then(({ saved }) => saved && notify(t('ui.saved'), 'success'))
           }}
         >
           <Download size={13} /> {t('ui.download')}

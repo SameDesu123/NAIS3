@@ -4,7 +4,7 @@ import { fitNaiGenerationResolution, type ResolutionDimension } from '@shared/na
 import { RESOLUTIONS } from '../lib/constants'
 import { useT } from '../lib/i18n'
 import { useResolutionsStore } from '../stores/resolutions-store'
-import { toast } from '../stores/toast-store'
+import { notify } from '../lib/notifications'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { cn } from '../lib/utils'
 
@@ -57,12 +57,12 @@ export function ResolutionPicker({
       setW('')
       setH('')
       if (item.width !== nw || item.height !== nh)
-        toast(
+        notify(
           t('ui.adjustedToAMultipleOf64WithinThe3MiPixelLimitValueValue', item.width, item.height),
           'info'
         )
     } else {
-      toast(t('ui.thisResolutionAlreadyExists'), 'info')
+      notify(t('ui.thisResolutionAlreadyExists'), 'info')
     }
   }
 

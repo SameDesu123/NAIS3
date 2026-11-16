@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { applySceneRequest } from '@shared/scene-request'
-import { toast } from './toast-store'
+import { notify } from '../lib/notifications'
 import { recordNav } from '../lib/nav-history'
 import type { GenerationRequest, Scene, SceneCast, SceneImage, ScenePreset } from '@shared/types'
 import { enabledCharacters, useCharactersStore } from './characters-store'
@@ -479,14 +479,14 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
         seedLocked: useGenerationStore.getState().seedLocked
       })) as { blocked?: string } | undefined
       // 무료 범위 지킴이가 예약 전에 막음 — 예약은 그대로 남는다
-      if (result?.blocked) toast(result.blocked, 'error')
+      if (result?.blocked) notify(result.blocked, 'error')
     } catch (error) {
-      toast(error instanceof Error ? error.message : String(error), 'error')
+      notify(error instanceof Error ? error.message : String(error), 'error')
     } finally {
       try {
         await Promise.all([get().load(), get().refreshReservedTotal()])
       } catch (error) {
-        toast(error instanceof Error ? error.message : String(error), 'error')
+        notify(error instanceof Error ? error.message : String(error), 'error')
       } finally {
         reserving = false
       }
@@ -503,7 +503,7 @@ export const useScenesStore = create<ScenesState>((set, get) => ({
       request: { ...applySceneRequest(buildCastRequest(cast), scene), seed: sceneSeed(0) },
       count: 1
     })
-    if (blocked) toast(blocked, 'error')
+    if (blocked) notify(blocked, 'error')
   },
 
   // ── 출연(Cast) ──────────────────────────────────────────

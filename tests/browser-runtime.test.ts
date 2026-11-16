@@ -324,3 +324,9 @@ describe('browser runtime regressions', () => {
     }
   )
 })
+
+it('reports native notifications unavailable in browser mode', async () => {
+  await expect(api.invoke('notifications:show', { title: 'NAIS3', body: 'Done' })).resolves.toEqual(
+    { shown: false }
+  )
+})

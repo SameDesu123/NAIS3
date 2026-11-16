@@ -1,6 +1,23 @@
 import type { MessageCatalog } from './catalog-ko'
 
 export const ZH_CN = {
+  'ui.notifications': '通知',
+  'ui.notificationGeneration': '生成队列完成或停止',
+  'ui.notificationErrors': '错误',
+  'ui.notificationInfo': '提示、重试和账号切换',
+  'ui.notificationSuccess': '操作成功、保存和复制',
+  'ui.notificationUpdates': '更新',
+  'ui.notificationToast': '应用内',
+  'ui.notificationSound': '声音',
+  'ui.notificationNative': '系统通知',
+  'ui.notificationChannelLabel': '{0} — {1}',
+  'ui.notificationDeliveryHint':
+    '为每种通知选择提醒方式。查看其他窗口时显示系统通知；启用应用内通知后，使用 NAIS3 时也会在应用内显示。',
+  'ui.notificationNativeDesktopOnly': '系统通知仅适用于桌面应用。',
+  'ui.notificationPreviewSound': '试听提示音',
+  'ui.notificationSettingsError': '无法读取或保存通知设置，请重试。',
+  'ui.notificationUpdateFailed': '更新失败：{0}',
+
   'ui.paintMaskInCanvas': '在画布中绘制蒙版以重新生成局部区域',
   'ui.maskBrushShortcut': '绘制 (B)',
   'ui.maskEraseShortcut': '擦除 (E)',

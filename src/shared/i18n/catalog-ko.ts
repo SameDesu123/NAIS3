@@ -1,4 +1,21 @@
 export const KO = {
+  'ui.notifications': '알림',
+  'ui.notificationGeneration': '생성 큐 완료·중단',
+  'ui.notificationErrors': '오류',
+  'ui.notificationInfo': '안내 · 재시도 · 계정 전환',
+  'ui.notificationSuccess': '작업 성공 · 저장 · 복사',
+  'ui.notificationUpdates': '업데이트',
+  'ui.notificationToast': '화면 표시',
+  'ui.notificationSound': '소리',
+  'ui.notificationNative': '시스템 알림',
+  'ui.notificationChannelLabel': '{0} — {1}',
+  'ui.notificationDeliveryHint':
+    '알림 종류별로 표시 방법을 선택하세요. 시스템 알림은 다른 창을 보고 있을 때 표시하고, 화면 표시도 켜져 있으면 앱을 보고 있을 때 앱 안에 표시합니다.',
+  'ui.notificationNativeDesktopOnly': '시스템 알림은 데스크톱 앱에서 사용할 수 있습니다.',
+  'ui.notificationPreviewSound': '알림음 미리 듣기',
+  'ui.notificationSettingsError': '알림 설정을 읽거나 저장하지 못했습니다. 다시 시도해 주세요.',
+  'ui.notificationUpdateFailed': '업데이트 실패: {0}',
+
   'ui.paintMaskInCanvas': '캔버스에서 마스크를 칠해 부분 재생성',
   'ui.maskBrushShortcut': '칠하기 (B)',
   'ui.maskEraseShortcut': '지우기 (E)',

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { LibraryImage, LibraryStack } from '@shared/types'
 import { t } from '../lib/i18n'
-import { toast } from './toast-store'
+import { notify } from '../lib/notifications'
 
 const PAGE = 80 // 페이지 크기 (수만 장 대비: 한 번에 전부 로드 금지 — 씬 상세와 동일)
 let loadSeq = 0 // load() 비동기 응답 순서 보장용
@@ -138,7 +138,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       stackId: get().currentStack?.id ?? null
     })
     if (count > 0) {
-      toast(t('ui.valueImagesAdded', count), 'success')
+      notify(t('ui.valueImagesAdded', count), 'success')
       await get().load(true)
     }
   },
@@ -148,7 +148,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       stackId: get().currentStack?.id ?? null
     })
     if (count > 0) {
-      toast(t('ui.valueImagesAdded', count), 'success')
+      notify(t('ui.valueImagesAdded', count), 'success')
       await get().load(true)
     }
   },
@@ -159,7 +159,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       stackId: get().currentStack?.id ?? null
     })
     if (count > 0) {
-      toast(t('ui.valueImagesAdded', count), 'success')
+      notify(t('ui.valueImagesAdded', count), 'success')
       await get().load(true)
     }
   },
@@ -204,17 +204,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       ids,
       prefix: get().currentStack?.name
     })
-    if (count > 0) toast(t('ui.valueImagesExported', count), 'success')
+    if (count > 0) notify(t('ui.valueImagesExported', count), 'success')
   },
   exportStack: async (stack) => {
     const { count } = await window.nais.invoke('library:exportStack', { id: stack.id })
-    if (count > 0) toast(t('ui.exportedValueImagesFromValue', stack.name, count), 'success')
+    if (count > 0) notify(t('ui.exportedValueImagesFromValue', stack.name, count), 'success')
   },
   moveToStack: async (imageIds, stackId) => {
     if (imageIds.length === 0) return
     await window.nais.invoke('library:stackSet', { imageIds, stackId })
     set({ selection: new Set() })
-    toast(
+    notify(
       stackId != null ? t('ui.valueImagesAddedToStack', imageIds.length) : t('ui.removedFromStack'),
       'success'
     )
@@ -223,13 +223,13 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   createStackWith: async (name, imageIds) => {
     await window.nais.invoke('library:stackCreate', { name, imageIds })
     set({ selection: new Set() })
-    toast(t('ui.stackValueCreated', name), 'success')
+    notify(t('ui.stackValueCreated', name), 'success')
     await get().load(true)
   },
   importToStack: async (stackId, filePaths) => {
     const { count } = await window.nais.invoke('library:importPaths', { filePaths, stackId })
     if (count > 0) {
-      toast(t('ui.valueImagesAddedToStack', count), 'success')
+      notify(t('ui.valueImagesAddedToStack', count), 'success')
       await get().load(true)
     }
   }
@@ -242,7 +242,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 export async function addToLibrary(filePaths: string[]): Promise<void> {
   const { count } = await window.nais.invoke('library:importPaths', { filePaths, stackId: null })
   if (count > 0) {
-    toast(t('ui.valueImagesAddedToLibrary', count), 'success')
+    notify(t('ui.valueImagesAddedToLibrary', count), 'success')
     // 라이브러리 루트가 열려 있으면 즉시 갱신 (스택 안이면 루트로 나올 때 어차피 재로드)
     const st = useLibraryStore.getState()
     if (st.loaded && !st.currentStack) void st.load(true)

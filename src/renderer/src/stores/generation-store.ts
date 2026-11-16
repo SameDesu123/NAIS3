@@ -12,11 +12,10 @@ import {
   readAnlasGuardSettings,
   type AnlasGuardSettings
 } from '@shared/anlas-guard'
-import { queueDoneAlert } from '../lib/completion-alert'
 import { t } from '../lib/i18n'
 import { enabledCharacters, randomCharacterCandidates } from './characters-store'
 import { useVibesStore } from './refs-store'
-import { toast } from './toast-store'
+import { notify, notifyQueueDone } from '../lib/notifications'
 
 /**
  * UI 상태 전용 스토어 — persist 금지 (NAIS3 원칙).
@@ -282,7 +281,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     })
     // 무료 범위 지킴이가 예약 전에 막았으면 이유를 알리고 보던 이미지를 되돌린다
     if (res?.blocked) {
-      toast(res.blocked, 'error')
+      notify(res.blocked, 'error')
       if (get().viewingFilePath === null) set({ viewingFilePath: viewing })
     }
   },
@@ -318,7 +317,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   startInpaintFromPath: async (filePath) => {
     const res = await window.nais.invoke('images:readForSource', { filePath })
     if ('error' in res) {
-      toast(res.error, 'error')
+      notify(res.error, 'error')
       return
     }
     set({ inpaintTarget: { base64: res.base64, width: res.width, height: res.height } })
@@ -357,7 +356,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 export async function setI2iSource(filePath: string): Promise<void> {
   const res = await window.nais.invoke('images:readForSource', { filePath })
   if ('error' in res) {
-    toast(res.error, 'error')
+    notify(res.error, 'error')
     return
   }
   useGenerationStore.getState().setSource({
@@ -410,9 +409,10 @@ export function bindGenerationEvents(): () => void {
     const errs = failBuffer.splice(0)
     if (errs.length === 0) return
     const uniq = [...new Set(errs)]
-    if (errs.length === 1) toast(errs[0], 'error')
-    else if (uniq.length === 1) toast(t('ui.valueImagesFailedValue', errs.length, uniq[0]), 'error')
-    else toast(t('ui.valueImagesFailedValueDistinctErrors', errs.length, uniq.length), 'error')
+    if (errs.length === 1) notify(errs[0], 'error')
+    else if (uniq.length === 1)
+      notify(t('ui.valueImagesFailedValue', errs.length, uniq[0]), 'error')
+    else notify(t('ui.valueImagesFailedValueDistinctErrors', errs.length, uniq.length), 'error')
   }
   const reportFailure = (msg: string): void => {
     failBuffer.push(msg)
@@ -467,7 +467,7 @@ export function bindGenerationEvents(): () => void {
     // 전이성 오류로 자동 재시도 중이면 배치당 한 번만 안내 (에러 토스트 대신)
     if (queue.items.some((i) => i.retrying) && !retryNoticeShown) {
       retryNoticeShown = true
-      toast(t('ui.tooManyRequestsRetryingAutomaticallyInAMoment'), 'info')
+      notify(t('ui.tooManyRequestsRetryingAutomaticallyInAMoment'), 'info')
     }
     // 방금 완료된 항목이 있으면 히스토리 갱신 + 중앙에 표시 (고정 보기 중엔 보기 유지)
     const prevDone = new Set(prev?.items.filter((i) => i.state === 'done').map((i) => i.id))
@@ -500,16 +500,15 @@ export function bindGenerationEvents(): () => void {
       batchFailed += failedNow
       if (prevActive && !stillActive && (batchDone + batchFailed > 0 || haltReason)) {
         // 멈춘 이유는 가드가 큐를 세웠을 때만 넘긴다
-        if (haltReason) void queueDoneAlert(batchDone, batchFailed, haltReason)
-        else void queueDoneAlert(batchDone, batchFailed)
+        if (haltReason) notifyQueueDone(batchDone, batchFailed, haltReason)
+        else notifyQueueDone(batchDone, batchFailed)
         haltReason = undefined
       }
     }
   })
   // 무료 범위 지킴이가 생성 직전에 막아 큐를 멈춤 — 이유와 함께 멈춘 예약 수를 알린다
   const offHalted = window.nais.on('queue:halted', ({ reason, stopped }) => {
-    haltReason = reason
-    toast(stopped > 0 ? `${reason} ${t('ui.anlasGuardQueueStopped', stopped)}` : reason, 'error')
+    haltReason = stopped > 0 ? `${reason} ${t('ui.anlasGuardQueueStopped', stopped)}` : reason
   })
   const offProgress = window.nais.on('generation:progress', (e) => {
     useGenerationStore.setState({
@@ -527,7 +526,7 @@ export function bindGenerationEvents(): () => void {
   })
   const offAccount = window.nais.on('nai:accountChanged', ({ reason, label }) => {
     if (reason === 'rotation') {
-      toast(t('ui.v5GaugeDepletedSwitchedToValue', label ?? t('ui.nextAccount')), 'info')
+      notify(t('ui.v5GaugeDepletedSwitchedToValue', label ?? t('ui.nextAccount')), 'info')
     }
   })
   // The server's usage percentage recharges while idle. Refresh periodically so an

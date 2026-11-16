@@ -885,6 +885,7 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
   if (channel.startsWith('promptPresets:')) return promptPresetsDispatch(channel, request)
   if (channel.startsWith('library:')) return libraryDispatch(channel, request)
 
+  if (channel === 'notifications:show') return { shown: false }
   if (channel === 'settings:getSaveDir') return { dir: 'Browser downloads', isDefault: true }
   if (channel === 'settings:pickSaveDir') return { dir: null }
   if (channel === 'settings:resetSaveDir') return { dir: 'Browser downloads' }
@@ -893,7 +894,6 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
   if (
     channel === 'window:control' ||
     channel === 'window:setBackground' ||
-    channel === 'notify:done' ||
     channel === 'update:start'
   )
     return undefined
