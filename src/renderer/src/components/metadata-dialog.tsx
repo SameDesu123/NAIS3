@@ -125,7 +125,7 @@ export function MetadataDialog(): React.JSX.Element {
             <p className="text-[13px]">{error}</p>
           </div>
         ) : meta ? (
-          <div className="flex min-h-0 flex-1 gap-5 overflow-y-auto p-5">
+          <BottomFadeScroll className="flex gap-5 p-5">
             {/* 좌: 이미지(상) + 파라미터(하) */}
             <div className="flex w-[296px] shrink-0 flex-col gap-4">
               <Preview src={imageSrc} model={meta.model} />
@@ -191,7 +191,7 @@ export function MetadataDialog(): React.JSX.Element {
                 </section>
               )}
             </div>
-          </div>
+          </BottomFadeScroll>
         ) : null}
 
         <div className="flex items-center gap-2 border-t border-line px-5 py-3">
@@ -220,6 +220,48 @@ export function MetadataDialog(): React.JSX.Element {
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** 본문 스크롤 영역 — 아래로 더 내용이 있으면 하단 가장자리를 페이드로 덮어 잘림을 알린다 */
+function BottomFadeScroll({
+  className,
+  children
+}: {
+  className?: string
+  children: React.ReactNode
+}): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  const [more, setMore] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const update = (): void => setMore(el.scrollTop + el.clientHeight < el.scrollHeight - 1)
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    // 창 크기·내용(체크 토글, 언어 변경 등) 변화에도 다시 판정
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    for (const child of el.children) ro.observe(child)
+    return () => {
+      el.removeEventListener('scroll', update)
+      ro.disconnect()
+    }
+  }, [])
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {/* 패딩은 안쪽 래퍼에 — flex 스크롤러에 직접 주면 맨 아래 padding-bottom이 스크롤 범위에서 빠진다 */}
+      <div ref={ref} className="min-h-0 flex-1 overflow-y-auto">
+        <div className={className}>{children}</div>
+      </div>
+      <div
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface to-transparent transition-opacity motion-reduce:transition-none',
+          more ? 'opacity-100' : 'opacity-0'
+        )}
+      />
+    </div>
   )
 }
 
