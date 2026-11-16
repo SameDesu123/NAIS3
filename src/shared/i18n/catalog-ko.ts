@@ -1,6 +1,6 @@
 export const KO = {
   'ui.notifications': '알림',
-  'ui.notificationGeneration': '생성 큐 완료·중단',
+  'ui.notificationGeneration': '생성 큐 완료',
   'ui.notificationErrors': '오류',
   'ui.notificationInfo': '안내 · 재시도 · 계정 전환',
   'ui.notificationSuccess': '작업 성공 · 저장 · 복사',
@@ -202,11 +202,6 @@ export const KO = {
   'ui.randomizeGenerationIntervalHint': '기준 지연에서 감소·증가할 범위를 각각 설정',
   'ui.generationDelayMinusValueS': '감소 범위 — −{0}초',
   'ui.generationDelayPlusValueS': '증가 범위 — +{0}초',
-  'ui.completionSound': '완료 알림음',
-  'ui.playAChimeWhenTheQueueFinishes': '큐가 다 끝나면 알림음 재생',
-  'ui.completionNotificationSystem': '완료 알림 (시스템)',
-  'ui.showAMacosWindowsNotificationWhenAnotherWindowIsFocused':
-    '다른 창을 보고 있을 때 macOS/Windows 알림 표시',
   'ui.change': '변경',
   'ui.resetToDefaultFolder': '기본 폴더로',
   'ui.autoSave': '자동 저장',

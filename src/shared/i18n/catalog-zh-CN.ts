@@ -2,7 +2,7 @@ import type { MessageCatalog } from './catalog-ko'
 
 export const ZH_CN = {
   'ui.notifications': '通知',
-  'ui.notificationGeneration': '生成队列完成或停止',
+  'ui.notificationGeneration': '生成队列完成',
   'ui.notificationErrors': '错误',
   'ui.notificationInfo': '提示、重试和账号切换',
   'ui.notificationSuccess': '操作成功、保存和复制',
@@ -202,11 +202,6 @@ export const ZH_CN = {
   'ui.randomizeGenerationIntervalHint': '分别设置基准延迟的减少和增加范围',
   'ui.generationDelayMinusValueS': '减少范围 — −{0}秒',
   'ui.generationDelayPlusValueS': '增加范围 — +{0}秒',
-  'ui.completionSound': '完成提示音',
-  'ui.playAChimeWhenTheQueueFinishes': '全部生成结束后播放提示音',
-  'ui.completionNotificationSystem': '完成通知（系统）',
-  'ui.showAMacosWindowsNotificationWhenAnotherWindowIsFocused':
-    '正在查看其他窗口时显示 macOS/Windows 通知',
   'ui.change': '更改',
   'ui.resetToDefaultFolder': '恢复默认文件夹',
   'ui.autoSave': '自动保存',

@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { HistoryPanel } from './components/history-panel'
 import { LoadingScreen } from './components/loading-screen'
 import { Toaster } from './components/toaster'
+import { QueueHaltNotice } from './components/queue-halt-notice'
 import { PreviewPane } from './components/preview-pane'
 import { DirectorMode } from './components/director-mode'
 import { InpaintHost } from './components/inpaint-host'
@@ -142,6 +143,7 @@ export default function App(): React.JSX.Element {
     <TooltipProvider>
       <div className="flex h-screen flex-col bg-paper">
         <Titlebar />
+        <QueueHaltNotice />
         {/* 새 설치 첫 실행 — 작업 영역 자리에 표시 (타이틀바의 창 컨트롤은 그대로).
             스플래시가 걷힐 때 마운트해야 첫 등장 애니메이션이 가려지지 않는다 */}
         {onboardingOpen && ready && OnboardingView && <OnboardingView />}

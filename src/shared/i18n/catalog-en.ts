@@ -2,7 +2,7 @@ import type { MessageCatalog } from './catalog-ko'
 
 export const EN = {
   'ui.notifications': 'Notifications',
-  'ui.notificationGeneration': 'Generation queue finished or stopped',
+  'ui.notificationGeneration': 'Generation queue finished',
   'ui.notificationErrors': 'Errors',
   'ui.notificationInfo': 'Information, retries and account changes',
   'ui.notificationSuccess': 'Successful actions, saves and copies',
@@ -204,11 +204,6 @@ export const EN = {
   'ui.randomizeGenerationIntervalHint': 'Set separate ranges below and above the base delay',
   'ui.generationDelayMinusValueS': 'Decrease Range — −{0}s',
   'ui.generationDelayPlusValueS': 'Increase Range — +{0}s',
-  'ui.completionSound': 'Completion Sound',
-  'ui.playAChimeWhenTheQueueFinishes': 'Play a chime when the queue finishes',
-  'ui.completionNotificationSystem': 'Completion Notification (System)',
-  'ui.showAMacosWindowsNotificationWhenAnotherWindowIsFocused':
-    'Show a macOS/Windows notification when another window is focused',
   'ui.change': 'Change',
   'ui.resetToDefaultFolder': 'Reset to default folder',
   'ui.autoSave': 'Auto Save',

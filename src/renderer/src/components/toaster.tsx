@@ -1,7 +1,8 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useToastStore, type ToastType } from '../stores/toast-store'
+import { createPortal } from 'react-dom'
+import { useToastStore, type Toast, type ToastType } from '../stores/toast-store'
 import { useT } from '../lib/i18n'
 import { cn } from '../lib/utils'
 
@@ -26,31 +27,77 @@ export function Toaster(): React.JSX.Element {
   const reducedMotion = useReducedMotion()
   const region = useRef<HTMLDivElement>(null)
   const priorFocus = useRef<HTMLElement | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
+  const [host, setHost] = useState<HTMLElement>(() => document.body)
+  const [announcements, setAnnouncements] = useState<Toast[]>([])
 
   useEffect(() => {
-    const checkModal = (): void => {
-      setModalOpen(Boolean(document.querySelector('[role="dialog"][data-state="open"]')))
+    const findHost = (): void => {
+      const dialogs = document.querySelectorAll<HTMLElement>(
+        '[data-notification-dialog][data-state="open"]'
+      )
+      setHost(dialogs[dialogs.length - 1] ?? document.body)
     }
-    checkModal()
-    // Radix portals mount directly under body. Watching just those children avoids
-    // scanning the document on every prompt edit or generation preview update.
-    const observer = new MutationObserver(checkModal)
+    findHost()
+    // Application dialog portals mount directly under body. Popovers never become hosts.
+    const observer = new MutationObserver(findHost)
     observer.observe(document.body, { childList: true })
     return () => observer.disconnect()
   }, [])
 
   useEffect(() => {
     const element = region.current
-    // Progressive enhancement: older browser runtimes retain the existing fixed-position surface.
-    if (element && typeof element.togglePopover === 'function') element.togglePopover(!modalOpen)
+    if (element && typeof element.togglePopover === 'function') element.togglePopover(true)
+  }, [host])
+
+  useEffect(() => {
     for (const toast of toasts) {
-      const item = element?.querySelector(`[data-toast-id="${toast.id}"]`)
-      if (modalOpen || item?.contains(document.activeElement) || item?.matches(':hover'))
-        pause(toast.id)
+      const item = region.current?.querySelector(`[data-toast-id="${toast.id}"]`)
+      if (item?.contains(document.activeElement) || item?.matches(':hover')) pause(toast.id)
       else resume(toast.id)
     }
-  }, [modalOpen, toasts, pause, resume])
+  }, [toasts, host, pause, resume])
+
+  useEffect(() => {
+    let active = true
+    let pending: Toast[] = []
+    let scheduled = false
+    const announce = (current: Toast[], previous: Toast[]): void => {
+      const previousIds = new Set(previous.map((toast) => toast.id))
+      const fresh = current.filter((toast) => !previousIds.has(toast.id))
+      if (!fresh.length) return
+      const announcer = document as Document & {
+        ariaNotify?: (message: string, options: { priority: 'high' | 'normal' }) => void
+      }
+      if (typeof announcer.ariaNotify === 'function') {
+        for (const toast of fresh) {
+          announcer.ariaNotify(toast.message, {
+            priority: toast.type === 'error' ? 'high' : 'normal'
+          })
+        }
+      } else {
+        // Only new arrivals enter the live regions; dismissing a toast is not an announcement.
+        // Collect same-turn arrivals so React batching cannot discard all but the last message.
+        pending.push(...fresh)
+        if (!scheduled) {
+          scheduled = true
+          queueMicrotask(() => {
+            if (!active) return
+            setAnnouncements(pending)
+            pending = []
+            scheduled = false
+          })
+        }
+      }
+    }
+    announce(useToastStore.getState().toasts, [])
+    const unsubscribe = useToastStore.subscribe((state, previous) =>
+      announce(state.toasts, previous.toasts)
+    )
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
 
   useEffect(() => {
     if (toasts.length && !region.current?.contains(document.activeElement)) {
@@ -75,28 +122,32 @@ export function Toaster(): React.JSX.Element {
     dismiss(id)
   }
 
-  return (
+  return createPortal(
     <div
       ref={region}
       popover="manual"
       role="region"
       aria-label={t('ui.notifications')}
-      aria-hidden={modalOpen || undefined}
-      style={{ visibility: modalOpen ? 'hidden' : undefined }}
       className="pointer-events-none fixed inset-x-0 top-auto bottom-5 z-[200] m-0 flex w-full max-w-none flex-col items-center gap-2 overflow-visible border-0 bg-transparent px-3 text-inherit"
     >
-      {/* Mounted before messages arrive, including runtimes without ariaNotify support. */}
+      {/* Fallback for runtimes without ariaNotify. Keys also reannounce identical new messages. */}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {toasts
+        {announcements
           .filter((toast) => toast.type !== 'error')
-          .map((toast) => toast.message)
-          .join('\n')}
+          .map((toast) => (
+            <span key={toast.id} className="block">
+              {toast.message}
+            </span>
+          ))}
       </div>
       <div className="sr-only" role="alert" aria-live="assertive" aria-atomic="true">
-        {toasts
+        {announcements
           .filter((toast) => toast.type === 'error')
-          .map((toast) => toast.message)
-          .join('\n')}
+          .map((toast) => (
+            <span key={toast.id} className="block">
+              {toast.message}
+            </span>
+          ))}
       </div>
       <AnimatePresence initial={true}>
         {toasts.map((toast) => {
@@ -150,6 +201,7 @@ export function Toaster(): React.JSX.Element {
           )
         })}
       </AnimatePresence>
-    </div>
+    </div>,
+    host
   )
 }

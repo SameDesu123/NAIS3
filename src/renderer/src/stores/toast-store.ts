@@ -19,10 +19,19 @@ interface ToastState {
 let seq = 0
 const timers = new Map<number, ReturnType<typeof setTimeout>>()
 const paused = new Set<number>()
+const deadlines = new Map<number, number>()
+const remaining = new Map<number, number>()
 
 function clearTimer(id: number): void {
   clearTimeout(timers.get(id))
   timers.delete(id)
+}
+
+function forgetTimer(id: number): void {
+  clearTimer(id)
+  paused.delete(id)
+  deadlines.delete(id)
+  remaining.delete(id)
 }
 
 export const useToastStore = create<ToastState>((set, get) => ({
@@ -39,7 +48,7 @@ export const useToastStore = create<ToastState>((set, get) => ({
     if (toasts.length > 5) {
       const removable = toasts.findIndex((toast) => timers.has(toast.id))
       if (removable >= 0) {
-        clearTimer(toasts[removable].id)
+        forgetTimer(toasts[removable].id)
         toasts.splice(removable, 1)
       }
     }
@@ -47,22 +56,27 @@ export const useToastStore = create<ToastState>((set, get) => ({
     get().resume(id)
   },
   dismiss: (id) => {
-    clearTimer(id)
-    paused.delete(id)
+    forgetTimer(id)
     set({ toasts: get().toasts.filter((t) => t.id !== id) })
   },
   pause: (id) => {
+    if (!get().toasts.some((toast) => toast.id === id)) return
+    if (timers.has(id)) remaining.set(id, Math.max(0, deadlines.get(id)! - Date.now()))
     clearTimer(id)
     paused.add(id)
   },
   resume: (id) => {
-    clearTimer(id)
-    paused.delete(id)
+    // Rendering a sibling or receiving a duplicate must not restart a running timer.
+    if (timers.has(id)) return
     const toast = get().toasts.find((toast) => toast.id === id)
     if (!toast) return
+    paused.delete(id)
+    const duration = remaining.get(id) ?? (toast.type === 'error' ? 5000 : 3000)
+    deadlines.set(id, Date.now() + duration)
+    remaining.delete(id)
     timers.set(
       id,
-      setTimeout(() => get().dismiss(id), toast.type === 'error' ? 5000 : 3000)
+      setTimeout(() => get().dismiss(id), duration)
     )
   }
 }))

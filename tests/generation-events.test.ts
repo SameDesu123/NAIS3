@@ -41,7 +41,7 @@ describe('bindGenerationEvents batch completion alert', () => {
         })
       }
     })
-    useGenerationStore.setState({ queue: status([item('old', 'done')]) })
+    useGenerationStore.setState({ queue: status([item('old', 'done')]), queueHaltReason: null })
     unbind = bindGenerationEvents()
   })
 
@@ -80,6 +80,17 @@ describe('bindGenerationEvents batch completion alert', () => {
     expect(notifyQueueDone).toHaveBeenCalledOnce()
     expect(notifyQueueDone).toHaveBeenCalledWith(0, 0, expect.stringContaining('Daily cap'))
     expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('retains the stop reason through later queue snapshots until dismissed or a new batch starts', () => {
+    emitQueue(status([item('a', 'pending')]))
+    handlers.get('queue:halted')!({ reason: 'Daily cap', stopped: 1 })
+    expect(useGenerationStore.getState().queueHaltReason).toContain('Daily cap')
+    emitQueue(status([item('a', 'cancelled')]))
+    emitQueue(status([item('a', 'cancelled')]))
+    expect(useGenerationStore.getState().queueHaltReason).toContain('Daily cap')
+    emitQueue(status([item('b', 'pending')]))
+    expect(useGenerationStore.getState().queueHaltReason).toBeNull()
   })
 
   it('does not report manual cancellation as successful completion', () => {

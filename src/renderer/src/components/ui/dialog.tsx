@@ -30,7 +30,7 @@ export function DialogContent({
   className,
   children,
   ...props
-}: ComponentProps<typeof DialogPrimitive.Content>) {
+}: ComponentProps<typeof DialogPrimitive.Content>): React.JSX.Element {
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
@@ -40,6 +40,9 @@ export function DialogContent({
           className
         )}
         {...props}
+        // Identifies actual application dialogs, including alertdialog overrides.
+        // Radix popovers also use role="dialog", so that role alone is ambiguous.
+        data-notification-dialog=""
         // Let nested popups such as Select close themselves before the dialog
         // sees the same outside interaction as a dismiss request.
         onPointerDownOutside={(e) => {
@@ -79,7 +82,10 @@ export function DialogContent({
   )
 }
 
-export function DialogTitle({ className, ...props }: ComponentProps<typeof DialogPrimitive.Title>) {
+export function DialogTitle({
+  className,
+  ...props
+}: ComponentProps<typeof DialogPrimitive.Title>): React.JSX.Element {
   return (
     <DialogPrimitive.Title
       className={cn('text-[15px] font-semibold text-ink', className)}
@@ -91,7 +97,7 @@ export function DialogTitle({ className, ...props }: ComponentProps<typeof Dialo
 export function DialogDescription({
   className,
   ...props
-}: ComponentProps<typeof DialogPrimitive.Description>) {
+}: ComponentProps<typeof DialogPrimitive.Description>): React.JSX.Element {
   return (
     <DialogPrimitive.Description className={cn('text-[12px] text-muted', className)} {...props} />
   )

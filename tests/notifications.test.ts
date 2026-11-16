@@ -36,7 +36,7 @@ const flush = (): Promise<void> => vi.advanceTimersByTimeAsync(0)
 describe('notification preferences', () => {
   it('inherits existing completion preferences and validates new stored values', () => {
     expect(readNotificationPreferences(null, true, true).generation).toEqual({
-      toast: true,
+      toast: false,
       sound: true,
       native: true
     })
@@ -45,9 +45,14 @@ describe('notification preferences', () => {
       true,
       true
     )
-    expect(preferences.generation).toEqual({ toast: true, sound: false, native: true })
+    expect(preferences.generation).toEqual({ toast: false, sound: false, native: true })
     expect(preferences.error).toEqual({ toast: true, sound: false, native: true })
     expect(readNotificationPreferences('broken', true).generation.sound).toBe(true)
+  })
+
+  it('keeps completion toasts opt-in while preserving explicitly saved choices', () => {
+    expect(readNotificationPreferences(null).generation.toast).toBe(false)
+    expect(readNotificationPreferences('{"generation":{"toast":true}}').generation.toast).toBe(true)
   })
 
   it('loads legacy values once even for concurrent notifications', async () => {
@@ -111,14 +116,23 @@ describe('central delivery', () => {
     const preferences = readNotificationPreferences(null, true, true)
     useNotificationSettingsStore.setState({ preferences })
     invoke.mockResolvedValue({ shown: true })
-    notifyQueueDone(4, 1, 'Daily cap')
+    notifyQueueDone(4, 0)
     await flush()
     expect(useToastStore.getState().toasts).toHaveLength(0)
     expect(invoke).toHaveBeenCalledWith(
       'notifications:show',
-      expect.objectContaining({ body: expect.stringContaining('Daily cap') })
+      expect.objectContaining({ body: expect.stringContaining('4') })
     )
     expect(playChime).toHaveBeenCalledOnce()
+  })
+
+  it('routes queue stops through error preferences even when completion channels are disabled', async () => {
+    const preferences = readNotificationPreferences(null)
+    preferences.generation = { toast: false, sound: false, native: false }
+    useNotificationSettingsStore.setState({ preferences })
+    notifyQueueDone(0, 0, 'Stopped by Anlas guard')
+    await flush()
+    expect(useToastStore.getState().toasts[0]?.message).toContain('Stopped by Anlas guard')
   })
 
   it('deduplicates repeated events across all channels but keeps separate batch completions', async () => {

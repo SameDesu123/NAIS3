@@ -67,6 +67,9 @@ interface GenerationState {
   opusUsage: OpusUsageStatus | null
   refreshAnlas: () => Promise<void>
   queue: QueueStatus | null
+  /** Visible independently of transient notification preferences until dismissed or restarted. */
+  queueHaltReason: string | null
+  dismissQueueHalt: () => void
   /** 진행 중 미리보기 (data URL 아님, base64) */
   previewPng: string | null
   progress: { stepIx: number; totalSteps: number } | null
@@ -151,6 +154,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     }
   },
   queue: null,
+  queueHaltReason: null,
+  dismissQueueHalt: () => set({ queueHaltReason: null }),
   previewPng: null,
   progress: null,
   genStartAt: null,
@@ -281,6 +286,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     })
     // 무료 범위 지킴이가 예약 전에 막았으면 이유를 알리고 보던 이미지를 되돌린다
     if (res?.blocked) {
+      set({ queueHaltReason: res.blocked })
       notify(res.blocked, 'error')
       if (get().viewingFilePath === null) set({ viewingFilePath: viewing })
     }
@@ -491,6 +497,7 @@ export function bindGenerationEvents(): () => void {
     const prevActive =
       prev?.items.some((i) => i.state === 'pending' || i.state === 'generating') ?? false
     if (!prevActive && stillActive) {
+      useGenerationStore.setState({ queueHaltReason: null })
       batchDone = 0
       batchFailed = 0
       haltReason = undefined
@@ -509,6 +516,7 @@ export function bindGenerationEvents(): () => void {
   // 무료 범위 지킴이가 생성 직전에 막아 큐를 멈춤 — 이유와 함께 멈춘 예약 수를 알린다
   const offHalted = window.nais.on('queue:halted', ({ reason, stopped }) => {
     haltReason = stopped > 0 ? `${reason} ${t('ui.anlasGuardQueueStopped', stopped)}` : reason
+    useGenerationStore.setState({ queueHaltReason: haltReason })
   })
   const offProgress = window.nais.on('generation:progress', (e) => {
     useGenerationStore.setState({

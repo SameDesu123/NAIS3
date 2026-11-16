@@ -64,7 +64,7 @@ export function notifyQueueDone(done: number, failed: number, stopped?: string):
   const counts =
     failed > 0 ? t('ui.valueImagesDoneValueFailed', done, failed) : t('ui.valueImagesDone', done)
   notify(stopped ? `${counts}\n${stopped}` : counts, stopped || failed > 0 ? 'error' : 'success', {
-    category: 'generation',
+    category: stopped ? 'error' : 'generation',
     title: stopped ? t('ui.nais3GenerationStopped') : t('ui.nais3GenerationComplete'),
     dedupe: false
   })

@@ -13,7 +13,7 @@ export function readNotificationPreferences(
   legacyNative = false
 ): NotificationPreferences {
   const preferences: NotificationPreferences = {
-    generation: { toast: true, sound: legacySound, native: legacyNative },
+    generation: { toast: false, sound: legacySound, native: legacyNative },
     error: { toast: true, sound: false, native: false },
     info: { toast: true, sound: false, native: false },
     success: { toast: true, sound: false, native: false },
