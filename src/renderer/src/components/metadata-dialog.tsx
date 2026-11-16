@@ -194,7 +194,9 @@ export function MetadataDialog(): React.JSX.Element {
           </BottomFadeScroll>
         ) : null}
 
-        <div className="flex items-center gap-2 border-t border-line px-5 py-3">
+        {/* 스크롤 본문은 별도 합성 레이어라 클립 경계가 반올림되면 1px이 푸터 구분선 위로 그려진다 —
+            푸터를 불투명 배경의 위 레이어로 올려 덮는다 */}
+        <div className="relative z-10 flex items-center gap-2 border-t border-line bg-surface px-5 py-3">
           {meta && (
             <>
               <Button size="sm" variant="ghost" onClick={() => setAll(!allSelected)}>
