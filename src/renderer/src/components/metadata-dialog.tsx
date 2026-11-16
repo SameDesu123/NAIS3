@@ -1,5 +1,5 @@
-import { Check, Copy, ImageOff, Loader2 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronRight, Copy, ImageOff, Loader2 } from 'lucide-react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { ImageMetadata } from '@shared/types'
 import { isSplitMeta, useMetadataStore } from '../stores/metadata-store'
 import { cn } from '../lib/utils'
@@ -71,6 +71,7 @@ export function MetadataDialog(): React.JSX.Element {
 
   // 기본 전부 체크, 시드만 해제
   const [sel, setSel] = useState<Selection>({})
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set([0]))
   useEffect(() => {
     if (!meta) return
     const timer = setTimeout(() => {
@@ -89,10 +90,19 @@ export function MetadataDialog(): React.JSX.Element {
         resolution: true,
         variety: true
       })
+      // 캐릭터는 첫 번째만 펼친 채 시작
+      setExpanded(new Set([0]))
     })
     return () => clearTimeout(timer)
   }, [meta])
   const toggle = (k: string): void => setSel((s) => ({ ...s, [k]: !s[k] }))
+  const toggleExpanded = (i: number): void =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
 
   const params = meta ? paramRows(meta, t) : []
   const hasCharacters = !!meta?.characterPrompts?.length
@@ -111,8 +121,13 @@ export function MetadataDialog(): React.JSX.Element {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      {/* max-h + 내부 스크롤 — 작은 창에서 다이얼로그가 화면을 넘어 버튼이 가려지는 것 방지 */}
-      <DialogContent className="flex max-h-[88vh] max-w-[900px] flex-col p-0">
+      {/* 메타가 있으면 화면에 맞춘 고정 높이 — 바깥 스크롤 없이 각 영역이 높이를 나눠 쓴다 */}
+      <DialogContent
+        className={cn(
+          'flex max-w-[900px] flex-col p-0',
+          meta ? 'h-[min(calc(100vh-3rem),920px)]' : 'max-h-[88vh]'
+        )}
+      >
         <div className="border-b border-line px-5 pb-3 pt-4 pr-12">
           <DialogTitle className="text-[15px] font-semibold">{t('ui.imageMetadata')}</DialogTitle>
           <DialogDescription className="mt-0.5 text-[12px] text-faint">
@@ -131,73 +146,15 @@ export function MetadataDialog(): React.JSX.Element {
             <p className="text-[13px]">{error}</p>
           </div>
         ) : meta ? (
-          <BottomFadeScroll className="flex gap-5 p-5">
-            {/* 좌: 이미지(상) + 파라미터(하) */}
-            <div className="flex w-[296px] shrink-0 flex-col gap-4">
-              <Preview src={imageSrc} model={meta.model} />
-
-              {params.length > 0 && (
-                <section className="shrink-0">
-                  <SectionTitle>{t('ui.parameters')}</SectionTitle>
-                  <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface-2/30">
-                    {params.map((p) => (
-                      <ParamToggle
-                        key={p.k}
-                        label={p.label}
-                        value={p.value!}
-                        checked={!!sel[p.k]}
-                        onToggle={() => toggle(p.k)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-            </div>
-
-            {/* 우: 프롬프트 */}
-            <div className="flex min-w-0 flex-1 flex-col gap-4">
-              {isSplitMeta(meta) ? (
-                <SplitPreview meta={meta} sel={sel} toggle={toggle} />
-              ) : (
-                <PromptSection
-                  label={t('ui.prompt')}
-                  value={meta.prompt}
-                  checked={!!sel.prompt}
-                  onToggle={() => toggle('prompt')}
-                  minHeight="min-h-28"
-                />
-              )}
-              <PromptSection
-                label={t('ui.negative')}
-                value={meta.negativePrompt}
-                checked={!!sel.negativePrompt}
-                onToggle={() => toggle('negativePrompt')}
-                minHeight="min-h-16"
-              />
-              {hasCharacters && (
-                <section>
-                  <SectionHeader
-                    label={t('ui.characterPrompts')}
-                    count={meta.characterPrompts!.length}
-                    checked={!!sel.characters}
-                    onToggle={() => toggle('characters')}
-                  />
-                  <div
-                    className={cn('grid gap-2 transition-opacity', !sel.characters && 'opacity-45')}
-                  >
-                    {meta.characterPrompts!.map((c, i) => (
-                      <CharacterCard
-                        key={i}
-                        index={i}
-                        prompt={c.prompt}
-                        negativePrompt={c.negativePrompt}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-            </div>
-          </BottomFadeScroll>
+          <MetadataBody
+            meta={meta}
+            imageSrc={imageSrc}
+            params={params}
+            sel={sel}
+            toggle={toggle}
+            expanded={expanded}
+            toggleExpanded={toggleExpanded}
+          />
         ) : null}
 
         {/* 스크롤 본문은 별도 합성 레이어라 클립 경계가 반올림되면 1px이 푸터 구분선 위로 그려진다 —
@@ -231,15 +188,148 @@ export function MetadataDialog(): React.JSX.Element {
   )
 }
 
-/** 본문 스크롤 영역 — 아래로 더 내용이 있으면 하단 가장자리를 페이드로 덮어 잘림을 알린다 */
-function BottomFadeScroll({
-  className,
-  children
+/** 본문 바깥 여백(p-5)과 좌측 열 간격(gap-4) */
+const BODY_PADDING = 20
+const COLUMN_GAP = 16
+/** 미리보기를 온전히 보여 줄 최소 높이 — 이보다 좁으면 한 줄짜리 명찰로 접는다 */
+const PREVIEW_MIN = 140
+/** 명찰(56px 썸네일 + 안쪽 여백 + 테두리) 높이 */
+const STRIP_HEIGHT = 70
+
+/**
+ * 좌: 미리보기(남는 높이) + 파라미터 / 우: 프롬프트·네거티브·캐릭터가 높이를 나눠 쓴다.
+ * 미리보기 자리가 좁으면 명찰로 접고, 그래도 모자라면 본문 전체 스크롤로 물러선다.
+ */
+function MetadataBody({
+  meta,
+  imageSrc,
+  params,
+  sel,
+  toggle,
+  expanded,
+  toggleExpanded
 }: {
-  className?: string
-  children: React.ReactNode
+  meta: ImageMetadata
+  imageSrc: string | null
+  params: ParamRow[]
+  sel: Selection
+  toggle: (k: string) => void
+  expanded: Set<number>
+  toggleExpanded: (i: number) => void
 }): React.JSX.Element {
-  const ref = useRef<HTMLDivElement>(null)
+  const t = useT()
+  const hasCharacters = !!meta.characterPrompts?.length
+
+  // 좌측 열 높이와 파라미터 높이를 재서 미리보기에 남는 자리를 판정 — 파라미터 개수·언어에 따라 달라진다
+  const columnRef = useRef<HTMLDivElement>(null)
+  const paramsRef = useRef<HTMLElement>(null)
+  const [layout, setLayout] = useState({ compact: false, paramsHeight: 0 })
+  useEffect(() => {
+    const column = columnRef.current
+    if (!column) return
+    const update = (): void => {
+      const paramsHeight = paramsRef.current?.offsetHeight ?? 0
+      const gap = paramsHeight ? COLUMN_GAP : 0
+      const compact = column.clientHeight - paramsHeight - gap < PREVIEW_MIN
+      setLayout((prev) =>
+        prev.compact === compact && prev.paramsHeight === paramsHeight
+          ? prev
+          : { compact, paramsHeight }
+      )
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(column)
+    if (paramsRef.current) ro.observe(paramsRef.current)
+    return () => ro.disconnect()
+  }, [])
+  // 명찰로 접어도 모자라는 높이 — 이 아래로는 본문을 줄이지 않고 바깥 스크롤에 맡긴다
+  const minHeight =
+    STRIP_HEIGHT + (layout.paramsHeight ? COLUMN_GAP + layout.paramsHeight : 0) + BODY_PADDING * 2
+
+  return (
+    <BottomFadeScroll className="flex h-full gap-5 p-5" style={{ minHeight }}>
+      <div ref={columnRef} className="flex w-[296px] shrink-0 flex-col gap-4">
+        {layout.compact ? (
+          <PreviewStrip src={imageSrc} model={meta.model} />
+        ) : (
+          <Preview src={imageSrc} model={meta.model} />
+        )}
+
+        {params.length > 0 && (
+          <section ref={paramsRef} className="shrink-0">
+            <SectionTitle>{t('ui.parameters')}</SectionTitle>
+            <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface-2/30">
+              {params.map((p) => (
+                <ParamToggle
+                  key={p.k}
+                  label={p.label}
+                  value={p.value!}
+                  checked={!!sel[p.k]}
+                  onToggle={() => toggle(p.k)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* 우: 세 영역이 높이를 똑같이 나누고, 내용이 짧은 영역은 남는 높이를 양보한다 */}
+      <div className="flex min-w-0 flex-1 flex-col gap-4">
+        {isSplitMeta(meta) ? (
+          <SplitPreview meta={meta} sel={sel} toggle={toggle} />
+        ) : (
+          <PromptSection
+            label={t('ui.prompt')}
+            value={meta.prompt}
+            checked={!!sel.prompt}
+            onToggle={() => toggle('prompt')}
+          />
+        )}
+        <PromptSection
+          label={t('ui.negative')}
+          value={meta.negativePrompt}
+          checked={!!sel.negativePrompt}
+          onToggle={() => toggle('negativePrompt')}
+        />
+        {hasCharacters && (
+          <section className={PANE}>
+            <SectionHeader
+              label={t('ui.characterPrompts')}
+              count={meta.characterPrompts!.length}
+              checked={!!sel.characters}
+              onToggle={() => toggle('characters')}
+            />
+            <CharacterList
+              characters={meta.characterPrompts!}
+              dimmed={!sel.characters}
+              expanded={expanded}
+              toggleExpanded={toggleExpanded}
+            />
+          </section>
+        )}
+      </div>
+    </BottomFadeScroll>
+  )
+}
+
+/**
+ * 우측 영역 하나 — basis 0으로 높이를 똑같이 나누되 max-height:max-content라
+ * 내용이 짧으면 거기서 멈추고 남는 높이는 다른 영역이 가져간다
+ */
+const PANE = 'flex min-h-20 flex-1 basis-0 flex-col max-h-max'
+
+/** 안쪽 스크롤 영역의 아래쪽 가장자리를 흐리게 — 배경색과 무관하게 마스크로 처리한다 */
+const FADE_BOTTOM = '[mask-image:linear-gradient(to_bottom,#000_calc(100%-1.75rem),transparent)]'
+
+/**
+ * 요소 아래로 아직 스크롤할 내용이 남았는지. 크기·스크롤 변화를 따라가고,
+ * 크기가 그대로인 채 내용만 바뀌는 경우(textarea 값 등)는 contentKey로 다시 판정한다
+ */
+function useMoreBelow<T extends HTMLElement>(
+  contentKey?: unknown
+): [React.RefObject<T | null>, boolean] {
+  const ref = useRef<T>(null)
   const [more, setMore] = useState(false)
   useEffect(() => {
     const el = ref.current
@@ -247,7 +337,6 @@ function BottomFadeScroll({
     const update = (): void => setMore(el.scrollTop + el.clientHeight < el.scrollHeight - 1)
     update()
     el.addEventListener('scroll', update, { passive: true })
-    // 창 크기·내용(체크 토글, 언어 변경 등) 변화에도 다시 판정
     const ro = new ResizeObserver(update)
     ro.observe(el)
     for (const child of el.children) ro.observe(child)
@@ -255,12 +344,29 @@ function BottomFadeScroll({
       el.removeEventListener('scroll', update)
       ro.disconnect()
     }
-  }, [])
+  }, [contentKey])
+  return [ref, more]
+}
+
+/** 본문 스크롤 영역 — 아래로 더 내용이 있으면 하단 가장자리를 페이드로 덮어 잘림을 알린다 */
+function BottomFadeScroll({
+  className,
+  style,
+  children
+}: {
+  className?: string
+  style?: React.CSSProperties
+  children: React.ReactNode
+}): React.JSX.Element {
+  // 창 크기·내용(체크 토글, 언어 변경 등) 변화에도 다시 판정
+  const [ref, more] = useMoreBelow<HTMLDivElement>()
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {/* 패딩은 안쪽 래퍼에 — flex 스크롤러에 직접 주면 맨 아래 padding-bottom이 스크롤 범위에서 빠진다 */}
       <div ref={ref} className="min-h-0 flex-1 overflow-y-auto">
-        <div className={className}>{children}</div>
+        <div className={className} style={style}>
+          {children}
+        </div>
       </div>
       <div
         aria-hidden
@@ -276,7 +382,7 @@ function BottomFadeScroll({
 /** 이미지 미리보기 — 비율이 달라 남는 여백은 같은 이미지를 흐리게 깔아 채운다 */
 function Preview({ src, model }: { src: string | null; model?: string }): React.JSX.Element {
   return (
-    <div className="relative isolate flex h-[min(300px,36vh)] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-2">
+    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-2">
       {src ? (
         <>
           <img
@@ -296,6 +402,34 @@ function Preview({ src, model }: { src: string | null; model?: string }): React.
           title={model}
           className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] truncate rounded-md bg-black/60 px-2 py-0.5 font-mono text-[11px] text-white backdrop-blur-sm"
         >
+          {model}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** 미리보기 자리가 좁을 때의 명찰 — 작은 썸네일 + 모델명으로 어떤 이미지인지만 알린다 */
+function PreviewStrip({ src, model }: { src: string | null; model?: string }): React.JSX.Element {
+  return (
+    <div className="flex shrink-0 items-center gap-3 rounded-xl border border-line bg-surface-2/30 p-1.5">
+      <div className="relative isolate grid size-14 shrink-0 place-items-center overflow-hidden rounded-lg bg-surface-2">
+        {src ? (
+          <>
+            <img
+              src={src}
+              alt=""
+              aria-hidden
+              className="absolute inset-0 -z-10 size-full scale-125 object-cover opacity-60 blur-md"
+            />
+            <img src={src} alt="" className="max-h-full max-w-full object-contain" />
+          </>
+        ) : (
+          <ImageOff size={18} strokeWidth={1.3} className="text-faint" />
+        )}
+      </div>
+      {model && (
+        <span title={model} className="min-w-0 truncate font-mono text-[11.5px] text-muted">
           {model}
         </span>
       )}
@@ -343,7 +477,7 @@ function ParamToggle({
       role="checkbox"
       aria-checked={checked}
       onClick={onToggle}
-      className="group flex w-full items-center gap-2.5 px-3 py-2 text-left outline-none transition-colors hover:bg-surface-2/70 focus-visible:bg-surface-2/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40"
+      className="group flex h-[30px] w-full items-center gap-2.5 px-3 text-left outline-none transition-colors hover:bg-surface-2/70 focus-visible:bg-surface-2/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40"
     >
       <CheckMark checked={checked} />
       <span
@@ -408,25 +542,23 @@ function PromptSection({
   label,
   value,
   checked,
-  onToggle,
-  minHeight
+  onToggle
 }: {
   label: string
   value: string
   checked: boolean
   onToggle: () => void
-  minHeight: string
 }): React.JSX.Element {
   return (
-    <section>
+    <section className={PANE}>
       <SectionHeader label={label} checked={checked} onToggle={onToggle} copyValue={value} />
       <div
         className={cn(
-          'rounded-xl border border-line bg-surface-2/30 px-3 py-2.5 transition-opacity',
+          'flex min-h-0 flex-1 flex-col rounded-xl border border-line bg-surface-2/30 py-2.5 pl-3 pr-1.5 transition-opacity',
           !checked && 'opacity-45'
         )}
       >
-        <ReadonlyPrompt value={value} label={label} className={cn(minHeight, 'max-h-64')} />
+        <ReadonlyPrompt value={value} label={label} className="min-h-0 flex-1 pr-1.5" fade />
       </div>
     </section>
   )
@@ -443,77 +575,151 @@ function SplitPreview({
 }): React.JSX.Element {
   const t = useT()
   const parts = meta.promptParts
+  const [ref, more] = useMoreBelow<HTMLDivElement>(parts)
   const rows = [
     { label: t('ui.fixed'), value: parts?.base ?? '' },
     { label: t('ui.variable'), value: parts?.additional ?? '' },
     { label: t('ui.detail'), value: parts?.detail ?? '' }
   ]
   return (
-    <section>
+    <section className={PANE}>
       <SectionHeader
         label={t('ui.value3PartPromptSplit')}
         checked={!!sel.prompt}
         onToggle={() => toggle('prompt')}
       />
+      {/* 테두리 상자와 스크롤 층을 나눠 — 마스크 페이드가 상자 아래 테두리까지 지우지 않게 */}
       <div
         className={cn(
-          'divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface-2/30 transition-opacity',
+          'flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface-2/30 transition-opacity',
           !sel.prompt && 'opacity-45'
         )}
       >
-        {rows.map((row) => (
-          <div key={row.label} className="px-3 pb-2.5 pt-2">
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-faint">{row.label}</span>
-              <CopyButton value={row.value} label={t('ui.copyValue', row.label)} />
+        <div
+          ref={ref}
+          className={cn('min-h-0 flex-1 divide-y divide-line overflow-y-auto', more && FADE_BOTTOM)}
+        >
+          {rows.map((row) => (
+            <div key={row.label} className="px-3 pb-2.5 pt-2">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-faint">{row.label}</span>
+                <CopyButton value={row.value} label={t('ui.copyValue', row.label)} />
+              </div>
+              <ReadonlyPrompt value={row.value} label={row.label} className="min-h-6" />
             </div>
-            <ReadonlyPrompt value={row.value} label={row.label} className="min-h-6 max-h-48" />
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   )
 }
 
+/** 캐릭터 카드 목록 — 영역 안에서 스크롤하고, 아래에 더 있으면 가장자리를 흐린다 */
+function CharacterList({
+  characters,
+  dimmed,
+  expanded,
+  toggleExpanded
+}: {
+  characters: NonNullable<ImageMetadata['characterPrompts']>
+  dimmed: boolean
+  expanded: Set<number>
+  toggleExpanded: (i: number) => void
+}): React.JSX.Element {
+  const [ref, more] = useMoreBelow<HTMLDivElement>(characters)
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        'flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto transition-opacity',
+        dimmed && 'opacity-45',
+        more && FADE_BOTTOM
+      )}
+    >
+      {characters.map((c, i) => (
+        <CharacterCard
+          key={i}
+          index={i}
+          prompt={c.prompt}
+          negativePrompt={c.negativePrompt}
+          open={expanded.has(i)}
+          onToggle={() => toggleExpanded(i)}
+        />
+      ))}
+    </div>
+  )
+}
+
+/** 캐릭터 한 명 — 머리줄을 눌러 접고 펼친다. 접혀 있으면 프롬프트 첫머리를 한 줄로 보여 준다 */
 function CharacterCard({
   index,
   prompt,
-  negativePrompt
+  negativePrompt,
+  open,
+  onToggle
 }: {
   index: number
   prompt: string
   negativePrompt: string
+  open: boolean
+  onToggle: () => void
 }): React.JSX.Element {
   const t = useT()
   const name = t('ui.characterValue', index + 1)
+  const bodyId = useId()
   return (
-    <div className="rounded-xl border border-line bg-surface-2/30 px-3 pb-2.5 pt-2">
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <span
-          className={cn(
-            'rounded-md px-1.5 py-px text-[11px] font-semibold',
-            CHARACTER_TINTS[index % CHARACTER_TINTS.length]
-          )}
+    <div className="rounded-xl border border-line bg-surface-2/30">
+      <div className="flex items-center gap-1 py-1.5 pl-1.5 pr-3">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-0.5 text-left outline-none transition-colors hover:bg-surface-2/70 focus-visible:ring-2 focus-visible:ring-accent/40"
         >
-          {name}
-        </span>
+          <ChevronRight
+            size={14}
+            aria-hidden
+            className={cn(
+              'shrink-0 text-faint transition-transform motion-reduce:transition-none',
+              open && 'rotate-90'
+            )}
+          />
+          <span
+            className={cn(
+              'shrink-0 rounded-md px-1.5 py-px text-[11px] font-semibold',
+              CHARACTER_TINTS[index % CHARACTER_TINTS.length]
+            )}
+          >
+            {name}
+          </span>
+          {!open && (
+            <span className="min-w-0 truncate font-mono text-[11.5px] text-muted">
+              {prompt || t('ui.none')}
+            </span>
+          )}
+        </button>
         <CopyButton value={prompt} label={t('ui.copyCharacterValuePrompt', index + 1)} />
       </div>
-      <ReadonlyPrompt value={prompt} label={name} className="min-h-6 max-h-32 text-[12px]" />
-      {negativePrompt && (
-        <div className="mt-2 border-t border-dashed border-line pt-1.5">
-          <div className="mb-0.5 flex items-center justify-between gap-2">
-            <span className="font-mono text-[10.5px] font-medium uppercase text-faint">uc</span>
-            <CopyButton
-              value={negativePrompt}
-              label={t('ui.copyCharacterValueNegative', index + 1)}
-            />
-          </div>
-          <ReadonlyPrompt
-            value={negativePrompt}
-            label={`${name} uc`}
-            className="min-h-5 max-h-24 text-[11.5px] text-muted"
-          />
+      {open && (
+        <div id={bodyId} className="px-3 pb-2.5">
+          <ReadonlyPrompt value={prompt} label={name} className="min-h-6 text-[12px]" />
+          {negativePrompt && (
+            <div className="mt-2 border-t border-dashed border-line pt-1.5">
+              <div className="mb-0.5 flex items-center justify-between gap-2">
+                <span className="font-mono text-[10.5px] font-medium uppercase text-faint">uc</span>
+                <CopyButton
+                  value={negativePrompt}
+                  label={t('ui.copyCharacterValueNegative', index + 1)}
+                />
+              </div>
+              <ReadonlyPrompt
+                value={negativePrompt}
+                label={`${name} uc`}
+                className="min-h-5 text-[11.5px] text-muted"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -525,15 +731,20 @@ function CharacterCard({
 function ReadonlyPrompt({
   value,
   label,
-  className
+  className,
+  fade
 }: {
   value: string
   label: string
   className?: string
+  /** 안에서 스크롤할 만큼 길면 아래 가장자리를 흐린다 */
+  fade?: boolean
 }): React.JSX.Element {
   const t = useT()
+  const [ref, more] = useMoreBelow<HTMLTextAreaElement>(value)
   return (
     <textarea
+      ref={ref}
       readOnly
       value={value}
       aria-label={label}
@@ -541,6 +752,7 @@ function ReadonlyPrompt({
       className={cn(
         'block w-full resize-none overflow-y-auto whitespace-pre-wrap break-words bg-transparent font-mono text-[12.5px] leading-relaxed text-ink outline-none [field-sizing:content] placeholder:font-sans placeholder:text-faint',
         'cursor-text select-text',
+        fade && more && FADE_BOTTOM,
         className
       )}
     />
