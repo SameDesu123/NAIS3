@@ -744,19 +744,26 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
     const scan = new AbortController()
     saveFolderScan = scan
     const mainDir = imagesRoot()
-    const sceneDirRoot = scenesRoot()
+    const sceneDir = scenesRoot()
     try {
-      const main = await measurePath(mainDir, scan.signal)
       // 같은 폴더면 한 번만 센다
-      const scene = samePath(mainDir, sceneDirRoot)
-        ? main
-        : await measurePath(sceneDirRoot, scan.signal)
+      if (samePath(mainDir, sceneDir)) {
+        const both = await measurePath(mainDir, scan.signal)
+        return {
+          folders: [{ targets: ['main', 'scene'], path: mainDir, ...both }],
+          overlap: false
+        }
+      }
+      // 한쪽이 다른 쪽 안에 있으면 바깥 폴더에서 안쪽 폴더를 빼고 세어 두 크기가 겹치지 않게 한다
+      const nested = pathsOverlap(mainDir, sceneDir)
+      const main = await measurePath(mainDir, scan.signal, nested ? [sceneDir] : [])
+      const scene = await measurePath(sceneDir, scan.signal, nested ? [mainDir] : [])
       return {
         folders: [
-          { target: 'main', path: mainDir, ...main },
-          { target: 'scene', path: sceneDirRoot, ...scene }
+          { targets: ['main'], path: mainDir, ...main },
+          { targets: ['scene'], path: sceneDir, ...scene }
         ],
-        overlap: pathsOverlap(mainDir, sceneDirRoot)
+        overlap: nested
       }
     } catch (error) {
       if (scan.signal.aborted) return { canceled: true }

@@ -54,6 +54,20 @@ describe('measurePath', () => {
     expect(usage.files).toBe(1)
   })
 
+  it('skips excluded folders so nested save folders are not counted twice', async () => {
+    const main = join(root, 'out')
+    const scene = join(main, 'scene')
+    mkdirSync(scene, { recursive: true })
+    writeFileSync(join(main, 'main.png'), Buffer.alloc(7))
+    writeFileSync(join(scene, 'scene.png'), Buffer.alloc(11))
+
+    expect((await measurePath(main, undefined, [scene])).bytes).toBe(7)
+    expect(
+      (await measurePath(main, undefined, [join(root, 'x', '..', 'out', 'scene')])).bytes
+    ).toBe(7)
+    expect((await measurePath(scene, undefined, [main])).bytes).toBe(11)
+  })
+
   it('stops when the scan is aborted', async () => {
     writeFileSync(join(root, 'one.png'), Buffer.alloc(1))
     const controller = new AbortController()

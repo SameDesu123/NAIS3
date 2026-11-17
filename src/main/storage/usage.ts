@@ -20,8 +20,13 @@ function isMissing(error: unknown): boolean {
  * - 시작 경로는 링크라도 따라간다 (사용자가 링크된 폴더를 저장 폴더로 골랐을 수 있다).
  * - 안쪽의 심볼릭 링크·정션은 따라가지 않는다 — 순환과 다른 드라이브 중복 집계를 막는다.
  * - 읽을 수 없는 하위 폴더는 건너뛰고 incomplete로 표시한다. 집계 중 사라진 파일은 무시한다.
+ * - exclude의 폴더는 통째로 건너뛴다 (다른 저장 폴더가 안에 있을 때 두 번 세지 않게).
  */
-export async function measurePath(path: string, signal?: AbortSignal): Promise<StorageUsageTotal> {
+export async function measurePath(
+  path: string,
+  signal?: AbortSignal,
+  exclude: readonly string[] = []
+): Promise<StorageUsageTotal> {
   signal?.throwIfAborted()
   let root: Stats
   try {
@@ -48,8 +53,9 @@ export async function measurePath(path: string, signal?: AbortSignal): Promise<S
     const files: string[] = []
     for (const entry of entries) {
       const child = join(directory, entry.name)
-      if (entry.isDirectory()) directories.push(child)
-      else if (entry.isFile()) files.push(child)
+      if (entry.isDirectory()) {
+        if (!exclude.some((excluded) => samePath(excluded, child))) directories.push(child)
+      } else if (entry.isFile()) files.push(child)
     }
     for (let i = 0; i < files.length; i += STAT_BATCH) {
       signal?.throwIfAborted()

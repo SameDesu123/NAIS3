@@ -169,6 +169,7 @@ export const EN = {
   'ui.storage': 'Storage',
   'ui.shortcuts': 'Shortcuts',
   'ui.naiAccount': 'NAI Account',
+  'ui.system': 'System',
   'ui.about': 'About',
   'ui.scene': 'Scene',
   'ui.director': 'Director',
@@ -212,7 +213,6 @@ export const EN = {
   'ui.organizedUnderThisFolderByPresetSceneName':
     'Organized under this folder by preset/scene name',
   'ui.storageUsage': 'Storage Usage',
-  'ui.storageAppData': 'App data',
   'ui.storageDatabase': 'Database (including thumbnails)',
   'ui.storageBackups': 'Automatic backups',
   'ui.storageLibrary': 'Library (including images imported from backups)',
@@ -228,7 +228,10 @@ export const EN = {
   'ui.storageMeasuring': 'Calculating…',
   'ui.storageMeasureFailed': 'Could not calculate storage usage: {0}',
   'ui.storageIncomplete': 'Some items could not be read, so the actual usage may be larger.',
-  'ui.storageFoldersOverlap': 'The save folders overlap, so some files are counted in both.',
+  'ui.storageFoldersOverlap':
+    'One save folder is inside the other, so the outer folder size excludes the inner folder.',
+  'ui.storageSharedSaveFolder': 'Main and Scene Save Folder (same folder)',
+  'ui.storageUsageDesktopOnly': 'Storage usage is shown only in the desktop app.',
   'ui.dataBackup': 'Data Backup',
   'ui.fullLibraryJsonNais2BackupCompatible': 'Full library JSON (NAIS2 backup compatible)',
   'ui.exportComplete': 'Export complete',

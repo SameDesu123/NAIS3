@@ -425,8 +425,9 @@ export interface AppStorageUsage extends StorageUsageTotal {
   key: AppStorageKey
 }
 
+/** 저장 폴더 하나의 크기. 메인과 씬이 같은 폴더면 targets에 둘 다 들어간 항목 하나로 온다 */
 export interface SaveFolderUsage extends StorageUsageTotal {
-  target: 'main' | 'scene'
+  targets: ('main' | 'scene')[]
   path: string
 }
 
@@ -613,7 +614,8 @@ export interface IpcInvokeMap {
   'storage:appUsage': { req: void; res: { items: AppStorageUsage[] } }
   /**
    * 메인·씬 저장 폴더 전체 크기 (폴더 안의 다른 파일 포함). 큰 폴더는 오래 걸려 요청할 때만 센다.
-   * overlap = 두 폴더가 같거나 한쪽이 다른 쪽 안에 있음. 새 요청이나 cancel이 오면 canceled
+   * 항목끼리는 겹치지 않는다 — 같은 폴더면 항목 하나, 한쪽이 다른 쪽 안에 있으면(overlap)
+   * 바깥 폴더 크기에서 안쪽 폴더를 뺀다. 새 요청이나 cancel이 오면 canceled
    */
   'storage:saveFolderUsage': {
     req: void
