@@ -76,6 +76,15 @@
   --hue-fuchsia: #c800de;
   --hue-pink: #e60076;
   --hue-rose: #ec003f;
+  /* Chart series (storage usage bar), assigned in this fixed order. Checked as a set for
+     color-vision-deficiency separation against the default light/dark surfaces; light slots
+     2-5 are below 3:1, so every chart that uses them must also list values as text. */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
 
   --font-ui:
     'Pretendard Variable', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable',
@@ -133,6 +142,12 @@
   --hue-fuchsia: #ed6aff;
   --hue-pink: #fb64b6;
   --hue-rose: #ff637e;
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #0ca30c;
 }
 
 /* Image badges (.on-image, dark translucent backdrop) keep the original 400 tones in any theme.
@@ -191,6 +206,12 @@
   --color-tag-copyright: var(--tag-copyright);
   --color-tag-meta: var(--tag-meta);
   --color-tag-fragment: var(--tag-fragment);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
   --color-hue-orange: var(--hue-orange);
   --color-hue-amber: var(--hue-amber);
   --color-hue-emerald: var(--hue-emerald);
