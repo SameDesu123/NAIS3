@@ -33,7 +33,7 @@ import {
   setFolderColor,
   updateCharacter
 } from './characters/repo'
-import { getDbPath, getDb } from './db'
+import { getBackupDir, getDbPath, getDb } from './db'
 import { analyzeArtists } from './images/artists'
 import { metadataFromPng, metadataFromPayloadJson } from './images/metadata'
 import {
@@ -157,6 +157,7 @@ import {
   duplicateRefImage,
   listCharRefs,
   listVibes,
+  refsRoot,
   renameRefFolder,
   reorderRefs,
   updateRefImage
@@ -167,9 +168,11 @@ import {
   imagesRoot,
   isMemoryPath,
   isUnderImagesRoot,
+  libraryRoot,
   sceneDir,
   scenesRoot
 } from './images/storage'
+import { measurePath, measurePaths, pathsOverlap, samePath } from './storage/usage'
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'fs'
 import { basename } from 'path'
 import sharp from './sharp'
@@ -715,6 +718,55 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('settings:resetSaveDir', (req) => {
     setSetting(saveDirKey(req?.target), '')
     return { dir: saveDirOf(req?.target) }
+  })
+
+  handle('storage:appUsage', async () => {
+    const db = getDbPath()
+    const [database, backups, library, refs] = await Promise.all([
+      measurePaths([db, `${db}-wal`, `${db}-shm`]),
+      measurePath(getBackupDir()),
+      measurePath(libraryRoot()),
+      measurePath(refsRoot())
+    ])
+    return {
+      items: [
+        { key: 'database', ...database },
+        { key: 'backups', ...backups },
+        { key: 'library', ...library },
+        { key: 'refs', ...refs }
+      ]
+    }
+  })
+  // 저장 폴더 집계는 한 번에 하나 — 새 요청은 이전 집계를 취소한다
+  let saveFolderScan: AbortController | null = null
+  handle('storage:saveFolderUsage', async () => {
+    saveFolderScan?.abort()
+    const scan = new AbortController()
+    saveFolderScan = scan
+    const mainDir = imagesRoot()
+    const sceneDirRoot = scenesRoot()
+    try {
+      const main = await measurePath(mainDir, scan.signal)
+      // 같은 폴더면 한 번만 센다
+      const scene = samePath(mainDir, sceneDirRoot)
+        ? main
+        : await measurePath(sceneDirRoot, scan.signal)
+      return {
+        folders: [
+          { target: 'main', path: mainDir, ...main },
+          { target: 'scene', path: sceneDirRoot, ...scene }
+        ],
+        overlap: pathsOverlap(mainDir, sceneDirRoot)
+      }
+    } catch (error) {
+      if (scan.signal.aborted) return { canceled: true }
+      throw error
+    } finally {
+      if (saveFolderScan === scan) saveFolderScan = null
+    }
+  })
+  handle('storage:cancelSaveFolderUsage', () => {
+    saveFolderScan?.abort()
   })
   handle('gen:setDelay', ({ ms, randomization }) => {
     ctx.queue.setDelayMs(ms, randomization)

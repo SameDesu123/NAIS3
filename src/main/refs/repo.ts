@@ -21,8 +21,13 @@ const TABLES: Record<Kind, { items: string; folders: string }> = {
   charref: { items: 'charref_images', folders: 'charref_folders' }
 }
 
+/** 참조 이미지 사본 폴더 (만들지 않고 경로만) */
+export function refsRoot(): string {
+  return join(app.getPath('userData'), 'refs')
+}
+
 function refsDir(): string {
-  const dir = join(app.getPath('userData'), 'refs')
+  const dir = refsRoot()
   mkdirSync(dir, { recursive: true })
   return dir
 }

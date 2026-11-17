@@ -49,6 +49,7 @@ import {
   type ShortcutAction
 } from '../stores/shortcuts-store'
 import { NaiTokenStoreLockNotice } from './nai-token-store-lock-notice'
+import { StorageUsage } from './storage-usage'
 import { ThemeToggle } from './theme-toggle'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
@@ -553,11 +554,14 @@ function DelayRangeControl({
 function SaveDirRow({
   target,
   label,
-  hint
+  hint,
+  onChange
 }: {
   target: 'main' | 'scene'
   label: string
   hint: string
+  /** 폴더를 바꾸거나 기본값으로 되돌린 뒤 */
+  onChange?: () => void
 }): React.JSX.Element {
   const t = useT()
   const { dir, isDefault, refresh } = useSaveDir(target)
@@ -579,7 +583,9 @@ function SaveDirRow({
           className="gap-1"
           onClick={async () => {
             const r = await window.nais.invoke('settings:pickSaveDir', { target })
-            if (r.dir) refresh()
+            if (!r.dir) return
+            refresh()
+            onChange?.()
           }}
         >
           <FolderOpen size={14} /> {t('ui.change')}
@@ -591,6 +597,7 @@ function SaveDirRow({
             onClick={async () => {
               await window.nais.invoke('settings:resetSaveDir', { target })
               refresh()
+              onChange?.()
             }}
           >
             <RotateCcw size={14} />
@@ -607,6 +614,8 @@ function StorageSection(): React.JSX.Element {
   const [format, setFormat] = useSetting('image_format', 'png')
   const [dateFolders, setDateFolders] = useBoolSetting('date_folders', true)
   const [historyDeleteFile, setHistoryDeleteFile] = useBoolSetting('history_delete_file', false)
+  const [saveDirsVersion, setSaveDirsVersion] = useState(0)
+  const saveDirsChanged = useCallback(() => setSaveDirsVersion((v) => v + 1), [])
 
   return (
     <div className="flex flex-col gap-3">
@@ -653,12 +662,16 @@ function StorageSection(): React.JSX.Element {
         target="main"
         label={t('ui.mainSaveFolder')}
         hint={t('ui.regularGenerationsAreSavedDirectlyIntoThisFolder')}
+        onChange={saveDirsChanged}
       />
       <SaveDirRow
         target="scene"
         label={t('ui.sceneSaveFolder')}
         hint={t('ui.organizedUnderThisFolderByPresetSceneName')}
+        onChange={saveDirsChanged}
       />
+      {/* 브라우저 모드는 IndexedDB라 디스크 사용량을 따로 셀 폴더가 없다 */}
+      {window.nais.runtime !== 'browser' && <StorageUsage saveDirsVersion={saveDirsVersion} />}
 
       <div className="mt-1 border-t border-line pt-3">
         <p className="text-[13px] text-ink">{t('ui.dataBackup')}</p>

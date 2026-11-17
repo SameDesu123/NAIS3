@@ -410,6 +410,26 @@ export interface LibraryStack {
   coverUrl: string
 }
 
+/** 디스크 사용량 집계 결과 (바이트·파일 수). incomplete = 읽지 못한 하위 항목이 있어 실제보다 작을 수 있음 */
+export interface StorageUsageTotal {
+  bytes: number
+  files: number
+  exists: boolean
+  incomplete: boolean
+}
+
+/** 앱 데이터 폴더(userData) 안에서 NAIS3가 관리하는 항목 */
+export type AppStorageKey = 'database' | 'backups' | 'library' | 'refs'
+
+export interface AppStorageUsage extends StorageUsageTotal {
+  key: AppStorageKey
+}
+
+export interface SaveFolderUsage extends StorageUsageTotal {
+  target: 'main' | 'scene'
+  path: string
+}
+
 /** IPC invoke 채널 계약: 채널명 → (요청, 응답) */
 export interface IpcInvokeMap {
   'db:status': { req: void; res: { version: number; path: string } }
@@ -589,6 +609,17 @@ export interface IpcInvokeMap {
   }
   'settings:pickSaveDir': { req: { target?: 'main' | 'scene' } | void; res: { dir: string | null } }
   'settings:resetSaveDir': { req: { target?: 'main' | 'scene' } | void; res: { dir: string } }
+  /** 앱 데이터 사용량 — DB(-wal/-shm 포함)·자동 백업·라이브러리·참조 이미지 */
+  'storage:appUsage': { req: void; res: { items: AppStorageUsage[] } }
+  /**
+   * 메인·씬 저장 폴더 전체 크기 (폴더 안의 다른 파일 포함). 큰 폴더는 오래 걸려 요청할 때만 센다.
+   * overlap = 두 폴더가 같거나 한쪽이 다른 쪽 안에 있음. 새 요청이나 cancel이 오면 canceled
+   */
+  'storage:saveFolderUsage': {
+    req: void
+    res: { folders: SaveFolderUsage[]; overlap: boolean } | { canceled: true }
+  }
+  'storage:cancelSaveFolderUsage': { req: void; res: void }
   /** 생성 지연 시간(ms)과 랜덤 범위 설정 — 큐에 즉시 반영 + 영속 */
   'gen:setDelay': { req: { ms: number; randomization?: GenerationDelayRandomization }; res: void }
   /** 큐 완료 네이티브 알림 (창이 포커스 없을 때만 표시) */

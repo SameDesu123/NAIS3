@@ -25,7 +25,7 @@ export function getDbPath(): string {
   return join(app.getPath('userData'), 'nais3.db')
 }
 
-function getBackupDir(): string {
+export function getBackupDir(): string {
   return join(app.getPath('userData'), 'backups')
 }
 
