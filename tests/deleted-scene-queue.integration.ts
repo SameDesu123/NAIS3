@@ -23,7 +23,7 @@ import type { GenerationRequest } from '../src/shared/types'
 
 const environment = vi.hoisted(() => ({ directory: '' }))
 vi.mock('electron', () => ({
-  app: { getPath: () => environment.directory, getLocale: () => 'ko' },
+  app: { getPath: () => environment.directory, getName: () => 'NAIS3', getLocale: () => 'ko' },
   BrowserWindow: {},
   dialog: {},
   safeStorage: { isEncryptionAvailable: () => false }
