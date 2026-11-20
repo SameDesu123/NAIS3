@@ -39,11 +39,14 @@ interface ThemeState {
   uiSize: number
   /** 프롬프트 입력 박스 폰트 크기(px) */
   promptSize: number
+  /** Base corner radius in px; the whole rounded-* scale is derived from it */
+  radius: number
   setTheme: (theme: Theme) => void
   setPreset: (presetId: string) => void
   setUiFont: (uiFont: string) => void
   setUiSize: (uiSize: number) => void
   setPromptSize: (promptSize: number) => void
+  setRadius: (radius: number) => void
   /** SQLite settings에서 초기값 로드 (렌더러 스토리지에 persist하지 않는다) */
   hydrate: () => Promise<void>
 }
@@ -80,12 +83,26 @@ function applyPromptSize(size: number): void {
   document.documentElement.style.setProperty('--prompt-size', `${size}px`)
 }
 
+export const DEFAULT_RADIUS = 8
+export const MIN_RADIUS = 0
+export const MAX_RADIUS = 16
+
+function clampRadius(radius: number): number {
+  if (!Number.isFinite(radius)) return DEFAULT_RADIUS
+  return Math.max(MIN_RADIUS, Math.min(MAX_RADIUS, Math.round(radius)))
+}
+
+function applyRadius(radius: number): void {
+  document.documentElement.style.setProperty('--radius', `${radius}px`)
+}
+
 export const useThemeStore = create<ThemeState>((set, get) => ({
   theme: 'dark',
   presetId: 'nais3',
   uiFont: '',
   uiSize: 15,
   promptSize: 15,
+  radius: DEFAULT_RADIUS,
   setTheme: (theme) => {
     set({ theme })
     applyTheme(theme, get().presetId)
@@ -113,28 +130,38 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     applyPromptSize(clamped)
     void window.nais.invoke('settings:set', { key: 'prompt_size', value: String(clamped) })
   },
+  setRadius: (radius) => {
+    const clamped = clampRadius(radius)
+    set({ radius: clamped })
+    applyRadius(clamped)
+    void window.nais.invoke('settings:set', { key: 'ui_radius', value: String(clamped) })
+  },
   hydrate: async () => {
     const [
       { value: theme },
       { value: preset },
       { value: font },
       { value: size },
-      { value: psize }
+      { value: psize },
+      { value: rad }
     ] = await Promise.all([
       window.nais.invoke('settings:get', { key: 'ui_theme' }),
       window.nais.invoke('settings:get', { key: 'ui_theme_preset' }),
       window.nais.invoke('settings:get', { key: 'ui_font' }),
       window.nais.invoke('settings:get', { key: 'ui_size' }),
-      window.nais.invoke('settings:get', { key: 'prompt_size' })
+      window.nais.invoke('settings:get', { key: 'prompt_size' }),
+      window.nais.invoke('settings:get', { key: 'ui_radius' })
     ])
     const resolved: Theme = theme === 'light' || theme === 'system' ? theme : 'dark'
     const presetId = preset ?? 'nais3'
     const uiFont = font ?? ''
     const uiSize = size ? Number(size) : 15
     const promptSize = psize ? Number(psize) : 15
-    set({ theme: resolved, presetId, uiFont, uiSize, promptSize })
+    const radius = rad ? clampRadius(Number(rad)) : DEFAULT_RADIUS
+    set({ theme: resolved, presetId, uiFont, uiSize, promptSize, radius })
     applyTheme(resolved, presetId)
     applyFont(uiFont, uiSize)
     applyPromptSize(promptSize)
+    applyRadius(radius)
   }
 }))

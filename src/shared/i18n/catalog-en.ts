@@ -162,6 +162,7 @@ export const EN = {
   'ui.uiSizeValuePx': 'UI Size — {0}px',
   'ui.promptFontSizeValuePx': 'Prompt Font Size — {0}px',
   'ui.baseCharacterPromptInputBoxes': 'Base/character prompt input boxes',
+  'ui.cornerRadiusValuePx': 'Corner Roundness — {0}px',
   'ui.visibleTabs': 'Visible Tabs',
   'ui.tabsTurnedOffAreHiddenFromTheTopBar': 'Tabs turned off are hidden from the top bar',
   'ui.appearance': 'Appearance',

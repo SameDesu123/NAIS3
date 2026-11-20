@@ -161,6 +161,7 @@ export const KO = {
   'ui.uiSizeValuePx': 'UI 크기 — {0}px',
   'ui.promptFontSizeValuePx': '프롬프트 폰트 크기 — {0}px',
   'ui.baseCharacterPromptInputBoxes': '기본/캐릭터 프롬프트 입력 박스',
+  'ui.cornerRadiusValuePx': '모서리 둥글기 — {0}px',
   'ui.visibleTabs': '표시할 탭',
   'ui.tabsTurnedOffAreHiddenFromTheTopBar': '끈 탭은 상단에서 숨김',
   'ui.appearance': '모양',

@@ -161,6 +161,7 @@ export const ZH_CN = {
   'ui.uiSizeValuePx': 'UI 大小 — {0}px',
   'ui.promptFontSizeValuePx': '提示词字体大小 — {0}px',
   'ui.baseCharacterPromptInputBoxes': '基础/角色提示词输入框',
+  'ui.cornerRadiusValuePx': '圆角大小 — {0}px',
   'ui.visibleTabs': '显示的标签',
   'ui.tabsTurnedOffAreHiddenFromTheTopBar': '未勾选的标签会从顶栏隐藏',
   'ui.appearance': '外观',

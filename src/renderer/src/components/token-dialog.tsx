@@ -37,7 +37,7 @@ import { THEME_PRESETS } from '../lib/theme-presets'
 import { useDirectorStore } from '../stores/director-store'
 import { useGenerationStore } from '../stores/generation-store'
 import { useLayoutStore, type CenterMode } from '../stores/layout-store'
-import { useThemeStore } from '../stores/theme-store'
+import { MAX_RADIUS, MIN_RADIUS, useThemeStore } from '../stores/theme-store'
 import { useUpdateStore } from '../stores/update-store'
 import { askConfirm } from '../stores/dialog-store'
 import { toast } from '../stores/toast-store'
@@ -101,6 +101,8 @@ function AppearanceSection(): React.JSX.Element {
   const setUiSize = useThemeStore((s) => s.setUiSize)
   const promptSize = useThemeStore((s) => s.promptSize)
   const setPromptSize = useThemeStore((s) => s.setPromptSize)
+  const radius = useThemeStore((s) => s.radius)
+  const setRadius = useThemeStore((s) => s.setRadius)
 
   return (
     <div className="divide-y divide-line">
@@ -175,9 +177,37 @@ function AppearanceSection(): React.JSX.Element {
           onValueChange={([v]) => setPromptSize(v)}
         />
       </Row>
+      <Row label={t('ui.cornerRadiusValuePx', radius)}>
+        <div className="flex w-44 flex-col gap-3">
+          <RadiusPreview />
+          <Slider
+            aria-label={t('ui.cornerRadiusValuePx', radius)}
+            min={MIN_RADIUS}
+            max={MAX_RADIUS}
+            step={1}
+            value={[radius]}
+            onValueChange={([v]) => setRadius(v)}
+          />
+        </div>
+      </Row>
       <Row label={t('ui.visibleTabs')} hint={t('ui.tabsTurnedOffAreHiddenFromTheTopBar')}>
         <PageToggles />
       </Row>
+    </div>
+  )
+}
+
+/** Top-left corner of a mock panel with a field and a button inside — it uses the
+ *  real rounded-* classes, so it follows --radius live; the rest fades out */
+function RadiusPreview(): React.JSX.Element {
+  return (
+    <div aria-hidden className="relative h-16 overflow-hidden mask-r-from-80% mask-b-from-60%">
+      <div className="absolute left-0 top-0 h-24 w-64 rounded-xl border border-line bg-surface-2 p-2">
+        <div className="flex gap-1.5">
+          <div className="h-7 w-20 rounded-md border border-line bg-paper" />
+          <div className="h-7 w-12 rounded-md bg-accent" />
+        </div>
+      </div>
     </div>
   )
 }
