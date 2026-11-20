@@ -195,7 +195,7 @@ export function PreviewPane(): React.JSX.Element {
           {info.seed != null && (
             <button
               className={cn(
-                'flex items-center gap-1 rounded transition-colors',
+                'flex items-center gap-1 rounded-sm transition-colors',
                 seedLocked && requestSeed === info.seed ? 'text-accent-ink' : 'hover:text-ink'
               )}
               title={

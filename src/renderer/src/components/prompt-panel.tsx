@@ -582,7 +582,7 @@ function TokenBadge({
   return (
     <span
       className={
-        'rounded bg-paper px-1.5 py-0.5 font-mono text-[10.5px] ' +
+        'rounded-sm bg-paper px-1.5 py-0.5 font-mono text-[10.5px] ' +
         (over ? 'text-danger-ink' : 'text-faint')
       }
       title={
@@ -797,7 +797,7 @@ function SyntaxHelp(): React.JSX.Element {
     <Popover>
       <PopoverTrigger asChild>
         <button
-          className="grid size-5 place-items-center rounded text-faint transition-colors hover:text-ink"
+          className="grid size-5 place-items-center rounded-sm text-faint transition-colors hover:text-ink"
           title={t('ui.promptSyntaxHelp')}
         >
           <Info size={13} />
@@ -808,7 +808,7 @@ function SyntaxHelp(): React.JSX.Element {
         <div className="flex flex-col gap-1.5">
           {rows.map((r) => (
             <div key={r.syntax} className="flex flex-col gap-0.5">
-              <code className="w-fit rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-accent-ink">
+              <code className="w-fit rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-accent-ink">
                 {t(r.syntax)}
               </code>
               <span className="text-[11px] leading-snug text-muted">{t(r.desc)}</span>

@@ -54,7 +54,7 @@ export function KindBadge({ kind, size = 12 }: { kind: string; size?: number }):
   const { Icon, className, label } = kindMeta(kind)
   return (
     <span
-      className="pointer-events-none absolute bottom-1 left-1 grid place-items-center on-image rounded bg-black/80 p-0.5 backdrop-blur-sm"
+      className="pointer-events-none absolute bottom-1 left-1 grid place-items-center on-image rounded-sm bg-black/80 p-0.5 backdrop-blur-sm"
       title={t(label)}
     >
       <Icon size={size} className={className} />

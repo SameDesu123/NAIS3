@@ -49,7 +49,7 @@ export function HistoryPanel(): React.JSX.Element {
         <span className="ml-auto font-mono text-[11px] text-faint">{historyTotal}</span>
         {historyTotal > 0 && (
           <button
-            className="no-drag grid size-6 place-items-center rounded text-faint transition-colors hover:text-danger-ink"
+            className="no-drag grid size-6 place-items-center rounded-sm text-faint transition-colors hover:text-danger-ink"
             title={t('ui.clearAll')}
             onClick={() => void clearAll()}
           >

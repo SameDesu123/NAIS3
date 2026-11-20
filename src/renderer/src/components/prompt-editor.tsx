@@ -444,7 +444,7 @@ export function PromptEditor({
             {query ? `${hits.length === 0 ? 0 : current + 1}/${hits.length}` : ''}
           </span>
           <button
-            className="grid size-5 shrink-0 place-items-center rounded text-faint hover:bg-surface-2 hover:text-ink disabled:opacity-30"
+            className="grid size-5 shrink-0 place-items-center rounded-sm text-faint hover:bg-surface-2 hover:text-ink disabled:opacity-30"
             title={t('ui.previousShiftEnter')}
             disabled={hits.length === 0}
             onClick={() => step(-1)}
@@ -452,7 +452,7 @@ export function PromptEditor({
             <ChevronUp size={13} />
           </button>
           <button
-            className="grid size-5 shrink-0 place-items-center rounded text-faint hover:bg-surface-2 hover:text-ink disabled:opacity-30"
+            className="grid size-5 shrink-0 place-items-center rounded-sm text-faint hover:bg-surface-2 hover:text-ink disabled:opacity-30"
             title={t('ui.nextEnter')}
             disabled={hits.length === 0}
             onClick={() => step(1)}
@@ -460,7 +460,7 @@ export function PromptEditor({
             <ChevronDown size={13} />
           </button>
           <button
-            className="grid size-5 shrink-0 place-items-center rounded text-faint hover:bg-surface-2 hover:text-ink"
+            className="grid size-5 shrink-0 place-items-center rounded-sm text-faint hover:bg-surface-2 hover:text-ink"
             title={t('ui.closeEsc')}
             onClick={closeFind}
           >
@@ -472,7 +472,7 @@ export function PromptEditor({
       {tokens !== null && (
         <span
           className={cn(
-            'pointer-events-none absolute bottom-1 right-1.5 rounded bg-paper/85 px-1 font-mono text-[10.5px] backdrop-blur-sm',
+            'pointer-events-none absolute bottom-1 right-1.5 rounded-sm bg-paper/85 px-1 font-mono text-[10.5px] backdrop-blur-sm',
             tokens > tokenLimit ? 'text-danger-ink' : 'text-muted'
           )}
           title={

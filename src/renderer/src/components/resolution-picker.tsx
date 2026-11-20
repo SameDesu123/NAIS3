@@ -119,7 +119,7 @@ export function ResolutionPicker({
               <button
                 title={t('ui.delete')}
                 onClick={() => remove(i)}
-                className="grid size-6 shrink-0 place-items-center rounded text-faint opacity-0 transition-opacity hover:text-danger-ink group-hover:opacity-100"
+                className="grid size-6 shrink-0 place-items-center rounded-sm text-faint opacity-0 transition-opacity hover:text-danger-ink group-hover:opacity-100"
               >
                 <Trash2 size={12} />
               </button>
@@ -137,7 +137,7 @@ export function ResolutionPicker({
             }}
             placeholder={t('ui.width')}
             inputMode="numeric"
-            className="h-7 w-0 flex-1 rounded border border-line bg-paper px-1.5 text-center text-[12px] outline-none focus:border-accent/50"
+            className="h-7 w-0 flex-1 rounded-sm border border-line bg-paper px-1.5 text-center text-[12px] outline-none focus:border-accent/50"
           />
           <span className="text-[11px] text-faint">×</span>
           <input
@@ -149,7 +149,7 @@ export function ResolutionPicker({
             placeholder={t('ui.height')}
             inputMode="numeric"
             onKeyDown={(e) => e.key === 'Enter' && doAdd()}
-            className="h-7 w-0 flex-1 rounded border border-line bg-paper px-1.5 text-center text-[12px] outline-none focus:border-accent/50"
+            className="h-7 w-0 flex-1 rounded-sm border border-line bg-paper px-1.5 text-center text-[12px] outline-none focus:border-accent/50"
           />
           <button
             title={
@@ -158,7 +158,7 @@ export function ResolutionPicker({
                 : t('ui.add')
             }
             onClick={doAdd}
-            className="grid size-7 shrink-0 place-items-center rounded bg-accent text-on-accent hover:bg-accent-hover"
+            className="grid size-7 shrink-0 place-items-center rounded-sm bg-accent text-on-accent hover:bg-accent-hover"
           >
             <Plus size={14} />
           </button>

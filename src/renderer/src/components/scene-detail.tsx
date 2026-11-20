@@ -291,7 +291,7 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
                 key={n}
                 onClick={() => setCols(n)}
                 className={cn(
-                  'grid h-5 w-5 place-items-center rounded text-[11px] font-medium',
+                  'grid h-5 w-5 place-items-center rounded-sm text-[11px] font-medium',
                   cols === n ? 'bg-paper text-ink' : 'text-muted hover:text-ink'
                 )}
               >
@@ -320,7 +320,7 @@ export function SceneDetail({ scene }: { scene: Scene }): React.JSX.Element {
               >
                 <StreamingFrame key={scene.id} streaming={streaming} />
                 {streaming && (
-                  <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                  <span className="absolute bottom-1 left-1 rounded-sm bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
                     {t('ui.generating')}
                   </span>
                 )}

@@ -368,7 +368,7 @@ function CharacterChecklist({
                 key={c.id}
                 onClick={() => onToggle(c.id)}
                 className={cn(
-                  'flex w-full items-start gap-2 rounded px-1.5 py-1 text-left transition-colors',
+                  'flex w-full items-start gap-2 rounded-sm px-1.5 py-1 text-left transition-colors',
                   checked ? 'bg-accent/10' : 'hover:bg-surface-2',
                   g.color && 'border-l-2 pl-2'
                 )}
@@ -376,7 +376,7 @@ function CharacterChecklist({
               >
                 <span
                   className={cn(
-                    'mt-0.5 grid size-3.5 shrink-0 place-items-center rounded border-2',
+                    'mt-0.5 grid size-3.5 shrink-0 place-items-center rounded-sm border-2',
                     checked ? 'border-accent bg-accent text-on-accent' : 'border-line'
                   )}
                 >
@@ -446,12 +446,12 @@ function ThumbGrid({
                     <ImageIcon size={18} strokeWidth={1.4} />
                   </span>
                 )}
-                <span className="absolute left-1 top-1 rounded bg-black/55 px-1 font-mono text-[9px] text-white">
+                <span className="absolute left-1 top-1 rounded-sm bg-black/55 px-1 font-mono text-[9px] text-white">
                   #{i + 1}
                 </span>
                 <span
                   className={cn(
-                    'absolute bottom-1 right-1 grid size-4 place-items-center rounded border-2 bg-black/45',
+                    'absolute bottom-1 right-1 grid size-4 place-items-center rounded-sm border-2 bg-black/45',
                     checked ? 'border-accent bg-accent text-on-accent' : 'border-white/70'
                   )}
                 >

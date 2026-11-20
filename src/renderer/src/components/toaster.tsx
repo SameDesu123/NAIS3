@@ -40,7 +40,7 @@ export function Toaster(): React.JSX.Element {
               <Icon size={15} className="shrink-0" />
               <span className="min-w-0 flex-1 break-words text-ink">{t.message}</span>
               <button
-                className="shrink-0 rounded p-1 text-faint transition-colors hover:text-ink"
+                className="shrink-0 rounded-sm p-1 text-faint transition-colors hover:text-ink"
                 onClick={() => dismiss(t.id)}
               >
                 <X size={13} />

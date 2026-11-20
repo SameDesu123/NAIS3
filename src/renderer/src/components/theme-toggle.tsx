@@ -32,7 +32,7 @@ export function ThemeToggle(): React.JSX.Element {
           value={mode}
           title={t(label)}
           className={cn(
-            'grid h-6 w-[26px] place-items-center rounded-[5px] text-muted transition-colors hover:text-ink',
+            'grid h-6 w-[26px] place-items-center rounded-sm text-muted transition-colors hover:text-ink',
             theme === mode && 'bg-paper text-ink shadow-[0_1px_2px_rgba(0,0,0,0.12)]'
           )}
         >

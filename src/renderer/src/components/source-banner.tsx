@@ -109,7 +109,7 @@ function ParamRow({
     <div className="flex items-center gap-2">
       <span className="w-14 shrink-0 text-[11.5px] text-muted">{label}</span>
       <button
-        className="grid size-5 shrink-0 place-items-center rounded text-muted hover:bg-surface-2 hover:text-ink"
+        className="grid size-5 shrink-0 place-items-center rounded-sm text-muted hover:bg-surface-2 hover:text-ink"
         onClick={() => onChange(Math.max(min, Math.round((value - step) * 100) / 100))}
       >
         <Minus size={12} />
@@ -123,7 +123,7 @@ function ParamRow({
         onValueChange={([v]) => onChange(Math.round(v * 100) / 100)}
       />
       <button
-        className="grid size-5 shrink-0 place-items-center rounded text-muted hover:bg-surface-2 hover:text-ink"
+        className="grid size-5 shrink-0 place-items-center rounded-sm text-muted hover:bg-surface-2 hover:text-ink"
         onClick={() => onChange(Math.min(1, Math.round((value + step) * 100) / 100))}
       >
         <Plus size={12} />

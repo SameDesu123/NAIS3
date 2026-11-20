@@ -99,7 +99,7 @@ export function ParamsDialog({
                       // 다크 테마에서 bg-paper는 바탕보다 어두워 선택 상태가 뒤집혀 보이므로,
                       // 앱의 다른 선택 표시(탭·디렉터 카드)와 같은 accent 계열로 표시한다.
                       className={cn(
-                        'h-7 flex-1 rounded-[5px] border border-transparent text-[12.5px] text-muted hover:text-ink',
+                        'h-7 flex-1 rounded-sm border border-transparent text-[12.5px] text-muted hover:text-ink',
                         'data-[state=on]:border-accent/40 data-[state=on]:bg-accent-soft data-[state=on]:font-medium data-[state=on]:text-accent-ink'
                       )}
                     >

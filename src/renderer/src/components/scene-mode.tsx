@@ -128,7 +128,7 @@ function PresetDropdown(): React.JSX.Element {
                     <span className="truncate">{p.name}</span>
                   </div>
                   <button
-                    className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-ink group-hover:opacity-100"
+                    className="shrink-0 rounded-sm p-1 text-faint opacity-0 hover:text-ink group-hover:opacity-100"
                     onClick={async () => {
                       const name = await askText(t('ui.presetName'), p.name)
                       if (name) void renamePreset(p.id, name)
@@ -140,7 +140,7 @@ function PresetDropdown(): React.JSX.Element {
                   </button>
                   {presets.length > 1 && (
                     <button
-                      className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-danger-ink group-hover:opacity-100"
+                      className="shrink-0 rounded-sm p-1 text-faint opacity-0 hover:text-danger-ink group-hover:opacity-100"
                       onClick={async () => {
                         if (
                           await askConfirm(t('ui.deletePreset'), {
@@ -262,7 +262,7 @@ function CastSelector(): React.JSX.Element {
                     </span>
                   </div>
                   <button
-                    className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-danger-ink group-hover:opacity-100"
+                    className="shrink-0 rounded-sm p-1 text-faint opacity-0 hover:text-danger-ink group-hover:opacity-100"
                     onClick={async () => {
                       if (
                         await askConfirm(t('ui.deleteCast'), {
@@ -483,7 +483,7 @@ function SceneGrid(): React.JSX.Element {
               aria-label={t('ui.columnCount', n)}
               aria-pressed={columns === n}
               className={cn(
-                'grid h-6 w-6 place-items-center rounded text-[12px] font-medium transition-colors',
+                'grid h-6 w-6 place-items-center rounded-sm text-[12px] font-medium transition-colors',
                 columns === n ? 'bg-paper text-ink shadow-sm' : 'text-muted hover:text-ink'
               )}
             >
@@ -943,7 +943,7 @@ const SceneCard = memo(function SceneCard({
           {editMode ? (
             <span
               className={cn(
-                'absolute right-1.5 top-1.5 grid size-5 place-items-center rounded border-2 transition',
+                'absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-sm border-2 transition',
                 checked ? 'border-accent bg-accent text-on-accent' : 'border-white/80 bg-black/30'
               )}
             >
@@ -993,7 +993,7 @@ const SceneCard = memo(function SceneCard({
               <div className="min-w-0">
                 {editMode ? (
                   <input
-                    className="w-full truncate rounded bg-white/15 px-1 py-0.5 text-[13px] font-medium text-white outline-none placeholder:text-white/50 focus:bg-white/25"
+                    className="w-full truncate rounded-sm bg-white/15 px-1 py-0.5 text-[13px] font-medium text-white outline-none placeholder:text-white/50 focus:bg-white/25"
                     value={scene.name}
                     aria-label={t('ui.sceneName')}
                     onClick={(e) => e.stopPropagation()}

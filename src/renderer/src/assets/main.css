@@ -85,6 +85,8 @@
   --font-mono:
     'JetBrains Mono', Consolas, ui-monospace, 'Pretendard Variable', 'Apple SD Gothic Neo',
     'Malgun Gothic', monospace;
+  /* Corner radius base — the whole rounded-* scale is derived from it (see @theme below),
+     so changing this one value rescales every corner while keeping their proportions */
   --radius: 8px;
   --ui-size: 15px;
   --ui-scale: calc(15 / 14);
@@ -206,7 +208,15 @@
   --color-hue-rose: var(--hue-rose);
   --font-sans: var(--font-ui);
   --font-mono: var(--font-mono);
-  --radius-DEFAULT: var(--radius);
+  /* Radius scale derived from --radius (8px → 2 / 4 / 6 / 8 / 12 / 16 / 24px).
+     Nested surfaces should step down by the padding between them (outer − padding ≈ inner). */
+  --radius-xs: calc(var(--radius) * 0.25);
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 3);
 }
 
 html,

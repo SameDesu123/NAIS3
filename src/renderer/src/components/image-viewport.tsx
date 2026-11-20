@@ -36,7 +36,7 @@ export function ZoomControls({
         <Minus size={14} />
       </Button>
       <button
-        className="min-w-12 rounded px-1 font-mono text-[11px] text-muted hover:text-ink"
+        className="min-w-12 rounded-sm px-1 font-mono text-[11px] text-muted hover:text-ink"
         title={t('ui.inpaintFitToView')}
         onClick={onReset}
       >

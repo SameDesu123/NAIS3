@@ -1008,7 +1008,7 @@ function AccountSection(): React.JSX.Element {
                       {account.label}
                     </span>
                     {account.active && (
-                      <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[9.5px] text-accent-ink">
+                      <span className="rounded-sm bg-accent/15 px-1.5 py-0.5 text-[9.5px] text-accent-ink">
                         {t('ui.active')}
                       </span>
                     )}

@@ -166,7 +166,7 @@ export function CharacterPositionCanvas({
             {!compact && (
               <span
                 className={cn(
-                  'pointer-events-none absolute left-1/2 top-full mt-1 max-w-32 -translate-x-1/2 truncate rounded bg-ink/70 px-1.5 py-px text-[10.5px] text-paper transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100',
+                  'pointer-events-none absolute left-1/2 top-full mt-1 max-w-32 -translate-x-1/2 truncate rounded-sm bg-ink/70 px-1.5 py-px text-[10.5px] text-paper transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100',
                   highlighted || dragging ? 'opacity-100' : 'opacity-0'
                 )}
               >
@@ -389,7 +389,7 @@ function GridSizeControl({
   return (
     <div className="flex items-center gap-0.5" title={t('ui.positionGridCount', label)}>
       <button
-        className="grid size-6 place-items-center rounded text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-35"
+        className="grid size-6 place-items-center rounded-sm text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-35"
         aria-label={t('ui.decreasePositionGridCount', label)}
         disabled={value <= 2}
         onClick={() => onChange(value - 1)}
@@ -398,7 +398,7 @@ function GridSizeControl({
       </button>
       <span className="w-5 text-center">{value}</span>
       <button
-        className="grid size-6 place-items-center rounded text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-35"
+        className="grid size-6 place-items-center rounded-sm text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-35"
         aria-label={t('ui.increasePositionGridCount', label)}
         disabled={value >= 12}
         onClick={() => onChange(value + 1)}

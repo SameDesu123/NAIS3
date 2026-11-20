@@ -134,7 +134,7 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
         >
           <span
             className={cn(
-              'grid size-4 shrink-0 place-items-center rounded border-2',
+              'grid size-4 shrink-0 place-items-center rounded-sm border-2',
               checked ? 'border-accent bg-accent text-on-accent' : 'border-line'
             )}
           >
@@ -143,12 +143,12 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
           {item.thumbnail ? (
             <img
               src={`data:image/webp;base64,${item.thumbnail}`}
-              className="size-7 shrink-0 rounded object-cover"
+              className="size-7 shrink-0 rounded-sm object-cover"
               alt=""
               draggable={false}
             />
           ) : (
-            <span className="grid size-7 shrink-0 place-items-center rounded bg-surface-2 text-faint">
+            <span className="grid size-7 shrink-0 place-items-center rounded-sm bg-surface-2 text-faint">
               <ImagePlus size={14} strokeWidth={1.5} />
             </span>
           )}
@@ -174,13 +174,13 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
         {item.thumbnail ? (
           <img
             src={`data:image/webp;base64,${item.thumbnail}`}
-            className="size-7 shrink-0 rounded object-cover"
+            className="size-7 shrink-0 rounded-sm object-cover"
             alt=""
             onMouseEnter={(e) => showPreview(e, item.thumbnail)}
             onMouseLeave={() => setPreview(null)}
           />
         ) : (
-          <div className="grid size-7 shrink-0 place-items-center rounded bg-surface-2 text-faint">
+          <div className="grid size-7 shrink-0 place-items-center rounded-sm bg-surface-2 text-faint">
             <ImagePlus size={14} strokeWidth={1.5} />
           </div>
         )}

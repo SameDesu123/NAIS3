@@ -594,11 +594,11 @@ function CostChip({ cost }: { cost: number | null }): React.JSX.Element | null {
   const t = useT()
   if (cost == null) return null
   return cost === 0 ? (
-    <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success-ink">
+    <span className="shrink-0 rounded-sm bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success-ink">
       {t('ui.free')}
     </span>
   ) : (
-    <span className="shrink-0 rounded bg-danger/15 px-1.5 py-0.5 font-mono text-[10px] font-medium text-danger-ink">
+    <span className="shrink-0 rounded-sm bg-danger/15 px-1.5 py-0.5 font-mono text-[10px] font-medium text-danger-ink">
       -{cost}
     </span>
   )

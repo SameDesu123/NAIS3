@@ -18,7 +18,7 @@ export function ContextMenuContent({
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content
         className={cn(
-          'z-[100] min-w-[150px] overflow-hidden rounded-lg border border-line bg-surface py-1 text-ink shadow-xl',
+          'z-[100] min-w-[150px] overflow-hidden rounded-lg border border-line bg-surface p-1 text-ink shadow-xl',
           className
         )}
         {...props}
@@ -122,7 +122,7 @@ export function ContextMenuSubContent({
   return (
     <ContextMenuPrimitive.SubContent
       className={cn(
-        'z-[100] min-w-[150px] overflow-hidden rounded-lg border border-line bg-surface py-1 text-ink shadow-xl',
+        'z-[100] min-w-[150px] overflow-hidden rounded-lg border border-line bg-surface p-1 text-ink shadow-xl',
         className
       )}
       {...props}
@@ -135,6 +135,9 @@ export function ContextMenuSeparator({
   ...props
 }: ComponentProps<typeof ContextMenuPrimitive.Separator>) {
   return (
-    <ContextMenuPrimitive.Separator className={cn('my-1 h-px bg-line', className)} {...props} />
+    <ContextMenuPrimitive.Separator
+      className={cn('-mx-1 my-1 h-px bg-line', className)}
+      {...props}
+    />
   )
 }

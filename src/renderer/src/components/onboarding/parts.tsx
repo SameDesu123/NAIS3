@@ -68,7 +68,7 @@ export function StepHeading({
 
 function HeroIcon({ icon: Icon }: { icon: LucideIcon }): React.JSX.Element {
   return (
-    <div className="grid size-[88px] place-items-center rounded-[24px] bg-accent-soft text-accent-ink">
+    <div className="grid size-[88px] place-items-center rounded-3xl bg-accent-soft text-accent-ink">
       <Icon size={42} strokeWidth={1.75} />
     </div>
   )

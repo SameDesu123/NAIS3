@@ -65,7 +65,7 @@ function LegacyPositionPicker({
           <button
             key={`${x}-${y}`}
             className={cn(
-              'size-6 rounded-[4px] border border-line transition-colors',
+              'size-6 rounded-sm border border-line transition-colors',
               center.x === x && center.y === y ? 'bg-accent' : 'bg-paper'
             )}
             title={`(${x}, ${y})`}
@@ -265,7 +265,7 @@ export function CharacterOverlay(): React.JSX.Element {
       >
         <span
           className={cn(
-            'grid size-4 shrink-0 place-items-center rounded border-2',
+            'grid size-4 shrink-0 place-items-center rounded-sm border-2',
             checked ? 'border-accent bg-accent text-on-accent' : 'border-line'
           )}
         >

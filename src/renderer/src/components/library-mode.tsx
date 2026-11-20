@@ -226,7 +226,7 @@ export function LibraryMode(): React.JSX.Element {
             </Button>
             <span className="text-[13.5px] font-semibold">{currentStack.name}</span>
             <button
-              className="grid size-6 place-items-center rounded text-faint transition-colors hover:text-ink"
+              className="grid size-6 place-items-center rounded-sm text-faint transition-colors hover:text-ink"
               title={t('ui.renameStack')}
               aria-label={t('ui.renameStack')}
               onClick={async () => {
@@ -287,7 +287,7 @@ export function LibraryMode(): React.JSX.Element {
               aria-label={t('ui.columnCount', n)}
               aria-pressed={columns === n}
               className={cn(
-                'grid size-6 place-items-center rounded text-[11.5px] font-medium transition-colors',
+                'grid size-6 place-items-center rounded-sm text-[11.5px] font-medium transition-colors',
                 columns === n ? 'bg-paper text-ink shadow-sm' : 'text-faint hover:text-ink'
               )}
             >
@@ -569,7 +569,7 @@ function ImageCard({
         {editMode && (
           <span
             className={cn(
-              'absolute right-1.5 top-1.5 grid size-5 place-items-center rounded border-2 transition',
+              'absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-sm border-2 transition',
               checked ? 'border-accent bg-accent text-on-accent' : 'border-white/80 bg-black/30'
             )}
           >

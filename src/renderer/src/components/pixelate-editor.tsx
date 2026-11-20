@@ -261,7 +261,7 @@ export function PixelateEditorPage({
               type="color"
               value={toneColor}
               onChange={(e) => setToneColor(e.target.value)}
-              className="h-6 w-8 cursor-pointer rounded border border-line bg-transparent p-0"
+              className="h-6 w-8 cursor-pointer rounded-sm border border-line bg-transparent p-0"
             />
           </label>
         )}
