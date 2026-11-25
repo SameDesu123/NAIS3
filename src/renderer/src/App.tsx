@@ -36,15 +36,7 @@ import { bindShortcuts, useShortcutsStore } from './stores/shortcuts-store'
 import { bindUpdateEvents } from './stores/update-store'
 import { bindNavMouse } from './lib/nav-history'
 import { useLanguageStore } from './lib/i18n'
-import {
-  behind,
-  edgeShadow,
-  FRONT,
-  PAGE_SWAP,
-  PAGE_TURN,
-  RECEDE_SHIFT,
-  RECEDE_STYLE
-} from './lib/page-turn'
+import { behind, edgeShadow, FRONT, PAGE_SWAP, PAGE_TURN, RECEDE_SHIFT } from './lib/page-turn'
 import { cn } from './lib/utils'
 import { useWebSearchKeepAlive } from './lib/websearch-keep-alive'
 import { useLayoutStore } from './stores/layout-store'
@@ -307,7 +299,7 @@ function PanelBody({
   return (
     <motion.div
       className={cn('bg-paper', className)}
-      style={{ ...RECEDE_STYLE, ...style }}
+      style={style}
       initial={behind(shift)}
       animate={present ? FRONT : behind(shift)}
       transition={transition}
