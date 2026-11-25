@@ -43,7 +43,7 @@ import { CharacterPositionEditor, CharacterPositionPanel } from './character-pos
 import { PromptEditor } from './prompt-editor'
 import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Button } from './ui/button'
-import { ExpandingIconButton } from './ui/expanding-icon-button'
+import { ToolbarIconButton } from './ui/toolbar-icon-button'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Input } from './ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -517,31 +517,29 @@ export function CharacterOverlay(): React.JSX.Element {
         </div>
       </div>
 
-      {/* 툴바 — 검색은 한 줄 전체, 버튼은 아랫줄에 크게 */}
-      <div className="flex items-center gap-1.5">
-        <ExpandingIconButton
-          icon={<FolderPlus size={17} />}
-          label={t('ui.addFolder')}
-          onClick={() => void createFolder(t('ui.newFolder'))}
-        />
-        <ExpandingIconButton
-          icon={<Dices size={17} />}
-          label={t('ui.randomCharacter')}
-          pressed={randomMode}
-          onClick={() => toggleSelectionMode('random')}
-        />
-        <ExpandingIconButton
-          icon={<CheckSquare size={17} />}
-          label={t('ui.editMode')}
-          pressed={editMode}
-          title={t('ui.editModeMultiSelectClickToToggleShiftClickForRangeCtrlAForAll')}
-          onClick={() => toggleSelectionMode('edit')}
-        />
-        <Button
-          variant="accent"
-          className="flex-1"
-          onClick={() => void createCard(null, maxCharacters)}
-        >
+      {/* 툴바 — 왼쪽 절반은 아이콘 버튼이 1/n씩, 오른쪽 절반은 추가 버튼 */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <div className="flex gap-1.5">
+          <ToolbarIconButton
+            icon={<FolderPlus size={17} />}
+            label={t('ui.addFolder')}
+            onClick={() => void createFolder(t('ui.newFolder'))}
+          />
+          <ToolbarIconButton
+            icon={<Dices size={17} />}
+            label={t('ui.randomCharacter')}
+            pressed={randomMode}
+            onClick={() => toggleSelectionMode('random')}
+          />
+          <ToolbarIconButton
+            icon={<CheckSquare size={17} />}
+            label={t('ui.editMode')}
+            pressed={editMode}
+            hint={t('ui.editModeMultiSelectClickToToggleShiftClickForRangeCtrlAForAll')}
+            onClick={() => toggleSelectionMode('edit')}
+          />
+        </div>
+        <Button variant="accent" onClick={() => void createCard(null, maxCharacters)}>
           <Plus size={16} /> {t('ui.character')}
         </Button>
       </div>
