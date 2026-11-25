@@ -43,6 +43,7 @@ import { CharacterPositionEditor, CharacterPositionPanel } from './character-pos
 import { PromptEditor } from './prompt-editor'
 import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Button } from './ui/button'
+import { ExpandingIconButton } from './ui/expanding-icon-button'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Input } from './ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -518,31 +519,24 @@ export function CharacterOverlay(): React.JSX.Element {
 
       {/* 툴바 — 검색은 한 줄 전체, 버튼은 아랫줄에 크게 */}
       <div className="flex items-center gap-1.5">
-        <Button
-          size="icon"
-          title={t('ui.addFolder')}
+        <ExpandingIconButton
+          icon={<FolderPlus size={17} />}
+          label={t('ui.addFolder')}
           onClick={() => void createFolder(t('ui.newFolder'))}
-        >
-          <FolderPlus size={17} />
-        </Button>
-        <Button
-          size="icon"
-          variant={randomMode ? 'accent' : 'default'}
-          aria-pressed={randomMode}
-          title={t('ui.randomCharacter')}
+        />
+        <ExpandingIconButton
+          icon={<Dices size={17} />}
+          label={t('ui.randomCharacter')}
+          pressed={randomMode}
           onClick={() => toggleSelectionMode('random')}
-        >
-          <Dices size={17} />
-        </Button>
-        <Button
-          size="icon"
-          variant={editMode ? 'accent' : 'default'}
-          aria-pressed={editMode}
+        />
+        <ExpandingIconButton
+          icon={<CheckSquare size={17} />}
+          label={t('ui.editMode')}
+          pressed={editMode}
           title={t('ui.editModeMultiSelectClickToToggleShiftClickForRangeCtrlAForAll')}
           onClick={() => toggleSelectionMode('edit')}
-        >
-          <CheckSquare size={17} />
-        </Button>
+        />
         <Button
           variant="accent"
           className="flex-1"

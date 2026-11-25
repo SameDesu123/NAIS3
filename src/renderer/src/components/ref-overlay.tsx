@@ -35,6 +35,7 @@ import { askConfirm, askText } from '../stores/dialog-store'
 import { DropOverlay } from './drop-overlay'
 import { FolderListView } from './folder-list-view'
 import { Button } from './ui/button'
+import { ExpandingIconButton } from './ui/expanding-icon-button'
 import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Input } from './ui/input'
@@ -327,22 +328,18 @@ export function RefOverlay({ kind }: { kind: 'vibe' | 'charref' }): React.JSX.El
 
       {/* 툴바 — 검색은 한 줄 전체, 버튼은 아랫줄에 크게 */}
       <div className="flex items-center gap-1.5">
-        <Button
-          size="icon"
-          title={t('ui.addFolder')}
+        <ExpandingIconButton
+          icon={<FolderPlus size={17} />}
+          label={t('ui.addFolder')}
           onClick={() => void createFolder(t('ui.newFolder'))}
-        >
-          <FolderPlus size={17} />
-        </Button>
-        <Button
-          size="icon"
-          variant={editMode ? 'accent' : 'default'}
-          aria-pressed={editMode}
+        />
+        <ExpandingIconButton
+          icon={<CheckSquare size={17} />}
+          label={t('ui.editMode')}
+          pressed={editMode}
           title={t('ui.editModeMultiSelectClickToToggleShiftClickForRangeCtrlAForAll')}
           onClick={toggleEditMode}
-        >
-          <CheckSquare size={17} />
-        </Button>
+        />
         <Button variant="accent" className="flex-1" onClick={() => void add(null)}>
           <ImagePlus size={16} /> {t('ui.add')}
         </Button>

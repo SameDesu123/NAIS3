@@ -23,6 +23,7 @@ import { toast } from '../stores/toast-store'
 import { FragmentNameInput } from './fragment-name-input'
 import { FolderListView } from './folder-list-view'
 import { Button } from './ui/button'
+import { ExpandingIconButton } from './ui/expanding-icon-button'
 import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Input } from './ui/input'
 import { PromptEditor } from './prompt-editor'
@@ -235,13 +236,11 @@ export function FragmentOverlay(): React.JSX.Element {
 
       {/* 툴바 — 검색은 한 줄 전체, 버튼은 아랫줄에 크게 */}
       <div className="flex items-center gap-1.5">
-        <Button
-          size="icon"
-          title={t('ui.addFolder')}
+        <ExpandingIconButton
+          icon={<FolderPlus size={17} />}
+          label={t('ui.addFolder')}
           onClick={() => void createFolder(t('ui.newFolder'))}
-        >
-          <FolderPlus size={17} />
-        </Button>
+        />
         <Button
           variant="accent"
           className="flex-1"
