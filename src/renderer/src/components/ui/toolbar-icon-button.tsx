@@ -1,7 +1,7 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { cn } from '../../lib/utils'
 import { Button } from './button'
-import { Tooltip, TooltipContent, TooltipTrigger } from './tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip'
 
 /**
  * 패널 툴바 아이콘 버튼 — 이름은 시스템 title 대신 NAIS3 툴팁으로 보여준다.
@@ -43,5 +43,17 @@ export function ToolbarIconButton({
         {hint ?? label}
       </TooltipContent>
     </Tooltip>
+  )
+}
+
+/**
+ * 툴바 왼쪽 절반 — 아이콘 버튼들이 칸을 1/n씩 나눈다.
+ * 자체 TooltipProvider를 두어 App 밖(단독 렌더, 테스트)에서도 툴팁이 동작한다.
+ */
+export function ToolbarIconGroup({ children }: { children: ReactNode }): React.JSX.Element {
+  return (
+    <TooltipProvider>
+      <div className="flex gap-1.5">{children}</div>
+    </TooltipProvider>
   )
 }

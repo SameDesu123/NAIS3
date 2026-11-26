@@ -43,7 +43,7 @@ import { CharacterPositionEditor, CharacterPositionPanel } from './character-pos
 import { PromptEditor } from './prompt-editor'
 import { ContextMenuItem, ContextMenuSeparator } from './ui/context-menu'
 import { Button } from './ui/button'
-import { ToolbarIconButton } from './ui/toolbar-icon-button'
+import { ToolbarIconButton, ToolbarIconGroup } from './ui/toolbar-icon-button'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Input } from './ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -519,7 +519,7 @@ export function CharacterOverlay(): React.JSX.Element {
 
       {/* 툴바 — 왼쪽 절반은 아이콘 버튼이 1/n씩, 오른쪽 절반은 추가 버튼 */}
       <div className="grid grid-cols-2 gap-1.5">
-        <div className="flex gap-1.5">
+        <ToolbarIconGroup>
           <ToolbarIconButton
             icon={<FolderPlus size={17} />}
             label={t('ui.addFolder')}
@@ -538,7 +538,7 @@ export function CharacterOverlay(): React.JSX.Element {
             hint={t('ui.editModeMultiSelectClickToToggleShiftClickForRangeCtrlAForAll')}
             onClick={() => toggleSelectionMode('edit')}
           />
-        </div>
+        </ToolbarIconGroup>
         <Button variant="accent" onClick={() => void createCard(null, maxCharacters)}>
           <Plus size={16} /> {t('ui.character')}
         </Button>
