@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { MessageId } from '@shared/i18n'
 import { t } from '../lib/i18n'
 import { useCharactersStore } from './characters-store'
+import { useCommandBarStore } from './command-bar-store'
 import { useFragmentsStore } from './fragments-store'
 import { useGenerationStore } from './generation-store'
 import { useLayoutStore } from './layout-store'
@@ -23,6 +24,7 @@ export type ShortcutAction =
   | 'openCharRef'
   | 'openParams'
   | 'resetFragmentCounters'
+  | 'openCommandBar'
 
 export const SHORTCUT_LABELS: Record<ShortcutAction, MessageId> = {
   generate: 'ui.generateGenerateScenes',
@@ -37,7 +39,8 @@ export const SHORTCUT_LABELS: Record<ShortcutAction, MessageId> = {
   openVibe: 'ui.openVibes',
   openCharRef: 'ui.openReferences',
   openParams: 'ui.openGenerationParameters',
-  resetFragmentCounters: 'ui.resetSequentialFragmentCounters'
+  resetFragmentCounters: 'ui.resetSequentialFragmentCounters',
+  openCommandBar: 'ui.openCommandBar'
 }
 
 const DEFAULTS: Record<ShortcutAction, string> = {
@@ -53,7 +56,9 @@ const DEFAULTS: Record<ShortcutAction, string> = {
   openVibe: 'Mod+I',
   openCharRef: 'Mod+Shift+I',
   openParams: 'Mod+P',
-  resetFragmentCounters: 'Mod+Shift+R'
+  resetFragmentCounters: 'Mod+Shift+R',
+  // 마지막에 둔다 — 저장된 바인딩에 이미 Mod+K를 쓴 액션이 있으면 그쪽이 먼저 잡힌다
+  openCommandBar: 'Mod+K'
 }
 
 const isMac = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac')
@@ -90,7 +95,7 @@ interface ShortcutsState {
   hydrate: () => Promise<void>
 }
 
-function runAction(action: ShortcutAction): void {
+export function runAction(action: ShortcutAction): void {
   const layout = useLayoutStore.getState()
   switch (action) {
     case 'generate': {
@@ -141,6 +146,9 @@ function runAction(action: ShortcutAction): void {
         .getState()
         .resetSequential()
         .then(() => toast(t('ui.sequentialFragmentCountersReset'), 'success'))
+      break
+    case 'openCommandBar':
+      useCommandBarStore.getState().toggle()
       break
   }
 }
@@ -212,6 +220,12 @@ export function bindShortcuts(): () => void {
       ([, c]) => c === combo
     )
     if (!entry) return
+    // 커맨드 바가 열려 있으면 그 뒤에서 다른 액션이 돌지 않게 한다 (Mod+K로 닫기만 허용).
+    // 브라우저 기본 동작(Ctrl+P 인쇄 등)도 그대로 막아 둔다
+    if (useCommandBarStore.getState().open && entry[0] !== 'openCommandBar') {
+      e.preventDefault()
+      return
+    }
     // 텍스트 입력 중엔 Enter 단독 등은 방해하지 않되, Mod 조합 단축키는 허용
     const target = e.target as HTMLElement | null
     const typing =

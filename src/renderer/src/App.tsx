@@ -15,6 +15,7 @@ import { DirectorMode } from './components/director-mode'
 import { InpaintHost } from './components/inpaint-host'
 import { LibraryMode } from './components/library-mode'
 import { ArtistTagsDialog } from './components/artist-tags-dialog'
+import { CommandBar } from './components/command-bar'
 import { MetadataDialog } from './components/metadata-dialog'
 import { SidePageHost } from './components/side-page-host'
 import { PromptPanel } from './components/prompt-panel'
@@ -185,6 +186,8 @@ export default function App(): React.JSX.Element {
         <InpaintHost />
         <MetadataDialog />
         <ArtistTagsDialog />
+        {/* 다른 대화상자 위에서도 열리도록 그 뒤에 둔다 */}
+        <CommandBar />
         <Toaster />
         <AnimatePresence>{!ready && <LoadingScreen key="loading" />}</AnimatePresence>
       </div>
