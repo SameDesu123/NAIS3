@@ -52,6 +52,7 @@ const TYPE_COLORS: Record<string, string> = {
  * box-decoration-break: clone draws the line on every fragment split by line wraps.
  */
 const FIND_HIT_BASE: React.CSSProperties = {
+  color: 'var(--ink)',
   borderRadius: 3,
   boxDecorationBreak: 'clone',
   WebkitBoxDecorationBreak: 'clone'
@@ -346,14 +347,14 @@ export function PromptEditor({
           aria-hidden
           className={cn(
             TYPO,
-            'pointer-events-none absolute inset-0 overflow-hidden text-transparent'
+            'pointer-events-none absolute inset-0 z-[1] overflow-hidden text-transparent'
           )}
         >
           {hits.map((start, i) => (
             <span key={start}>
               {value.slice(i === 0 ? 0 : hits[i - 1] + query.length, start)}
               <span style={i === current ? FIND_HIT_CURRENT_STYLE : FIND_HIT_STYLE}>
-                {value.slice(start, start + query.length)}
+                {value.slice(start, start + query.length).replaceAll('\u0336', '\u2060')}
               </span>
             </span>
           ))}
@@ -366,69 +367,71 @@ export function PromptEditor({
         onValueChange={onValueChange}
         textarea={textareaRef}
         typography={TYPO}
-      />
-      <textarea
-        ref={textareaRef}
-        aria-label={ariaLabel}
-        className={cn(
-          TYPO,
-          'relative block h-full w-full resize-none bg-transparent text-transparent outline-none placeholder:text-muted'
-        )}
-        style={{ caretColor: 'var(--ink)' }}
-        spellCheck={false}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => {
-          onValueChange(e.target.value)
-          refreshSuggestions(e.target.value, e.target.selectionStart)
-        }}
-        onScroll={syncScroll}
-        onDoubleClick={(e) => {
-          const ta = e.currentTarget
-          const fragment = fragmentAtSelection(value, ta.selectionStart, ta.selectionEnd)
-          if (!fragment) return
-          clearTimeout(debounceRef.current)
-          searchSeqRef.current++
-          setSuggestions([])
-          useFragmentsStore.getState().openEditor(fragment.id)
-        }}
-        onKeyDown={(e) => {
-          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
-            e.preventDefault()
-            e.stopPropagation()
-            openFind()
-            return
-          }
-          if (e.key === 'Escape' && findOpen) {
-            e.preventDefault()
-            e.stopPropagation()
-            closeFind()
-            return
-          }
-          if (suggestions.length === 0) return
-          if (e.key === 'ArrowDown') {
-            e.preventDefault()
-            setSelected((selected + 1) % suggestions.length)
-          } else if (e.key === 'ArrowUp') {
-            e.preventDefault()
-            setSelected((selected - 1 + suggestions.length) % suggestions.length)
-          } else if (e.key === 'Enter' || e.key === 'Tab') {
-            e.preventDefault()
-            complete(suggestions[selected])
-          } else if (e.key === 'Escape') {
-            e.preventDefault()
-            e.stopPropagation()
+      >
+        <textarea
+          data-prompt-input
+          ref={textareaRef}
+          aria-label={ariaLabel}
+          className={cn(
+            TYPO,
+            'relative block h-full w-full resize-none bg-transparent text-transparent outline-none placeholder:text-muted'
+          )}
+          style={{ caretColor: 'var(--ink)' }}
+          spellCheck={false}
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => {
+            onValueChange(e.target.value)
+            refreshSuggestions(e.target.value, e.target.selectionStart)
+          }}
+          onScroll={syncScroll}
+          onDoubleClick={(e) => {
+            const ta = e.currentTarget
+            const fragment = fragmentAtSelection(value, ta.selectionStart, ta.selectionEnd)
+            if (!fragment) return
+            clearTimeout(debounceRef.current)
+            searchSeqRef.current++
             setSuggestions([])
-          }
-        }}
-        onBlur={() => {
-          // 포커스가 떠나면 추천 닫기. seq를 올려 in-flight 검색 결과가 뒤늦게 패널을
-          // 되열지 못하게 한다 (B7). 150ms 지연은 추천 클릭이 blur보다 먼저 처리되도록.
-          clearTimeout(debounceRef.current)
-          searchSeqRef.current++
-          setTimeout(() => setSuggestions([]), 150)
-        }}
-      />
+            useFragmentsStore.getState().openEditor(fragment.id)
+          }}
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+              e.preventDefault()
+              e.stopPropagation()
+              openFind()
+              return
+            }
+            if (e.key === 'Escape' && findOpen) {
+              e.preventDefault()
+              e.stopPropagation()
+              closeFind()
+              return
+            }
+            if (suggestions.length === 0) return
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              setSelected((selected + 1) % suggestions.length)
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              setSelected((selected - 1 + suggestions.length) % suggestions.length)
+            } else if (e.key === 'Enter' || e.key === 'Tab') {
+              e.preventDefault()
+              complete(suggestions[selected])
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              e.stopPropagation()
+              setSuggestions([])
+            }
+          }}
+          onBlur={() => {
+            // 포커스가 떠나면 추천 닫기. seq를 올려 in-flight 검색 결과가 뒤늦게 패널을
+            // 되열지 못하게 한다 (B7). 150ms 지연은 추천 클릭이 blur보다 먼저 처리되도록.
+            clearTimeout(debounceRef.current)
+            searchSeqRef.current++
+            setTimeout(() => setSuggestions([]), 150)
+          }}
+        />
+      </PromptTagHover>
 
       {/* 찾기 바 — 우상단. Enter=다음, Shift+Enter=이전, Esc=닫기(그 자리에 커서) */}
       {findOpen && (
