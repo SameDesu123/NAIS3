@@ -49,6 +49,12 @@ const options = (): string[] =>
 const selected = (): string =>
   document.querySelector('[role="option"][aria-selected="true"]')?.textContent ?? ''
 
+/** n번째 결과에 곁들인 다른 언어 라벨 */
+function matchedLabel(n: number): { text: string; lang: string } | null {
+  const hint = document.querySelectorAll('[role="option"]')[n]?.querySelector('[lang]')
+  return hint ? { text: hint.textContent ?? '', lang: hint.getAttribute('lang') ?? '' } : null
+}
+
 async function openBar(): Promise<void> {
   document.getElementById('opener')!.focus()
   await act(async () => useCommandBarStore.getState().setOpen(true))
@@ -96,16 +102,24 @@ describe('CommandBar', () => {
     expect(selected()).toContain(formatCombo('Mod+Enter'))
   })
 
-  it('finds commands by initial consonants and by their English label', async () => {
+  it('finds commands in any language and shows the other-language label that matched', async () => {
     await openBar()
     await type('ㄷㄹㅌ')
     expect(options()[0]).toContain('디렉터 모드')
     await type('settings')
     expect(options()[0]).toContain('설정 열기')
-    // 다른 언어의 라벨로도 찾는다
+    // 지금 언어 라벨로 맞으면 다른 언어 라벨은 곁들이지 않는다
+    await type('ㅆㅁ')
+    expect(options()[0]).toBe('씬 모드' + formatCombo('Mod+2'))
+    // 다른 언어의 라벨로 맞으면 그 라벨을 그 언어로 표시해 곁들인다
+    await type('settings')
+    expect(matchedLabel(0)).toEqual({ text: 'Open settings', lang: 'en' })
     await act(async () => useLanguageStore.setState({ lang: 'en' }))
     await type('ㅆㅁ')
     expect(options()[0]).toContain('Scene mode')
+    expect(matchedLabel(0)).toEqual({ text: '씬 모드', lang: 'ko' })
+    await type('scene')
+    expect(matchedLabel(0)).toBeNull()
     await type('zzzz')
     expect(options()).toEqual([])
     expect(document.querySelector('[role="status"]')?.textContent).toBe('No matching commands')

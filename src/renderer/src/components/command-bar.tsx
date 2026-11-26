@@ -19,9 +19,9 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { SUPPORTED_LANGUAGES, translate, type MessageId } from '@shared/i18n'
-import { rankByQuery } from '../lib/command-search'
-import { useT } from '../lib/i18n'
+import { SUPPORTED_LANGUAGES, translate, type Lang, type MessageId } from '@shared/i18n'
+import { rankMatches } from '../lib/command-search'
+import { useLanguageStore, useT } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { useCommandBarStore } from '../stores/command-bar-store'
 import { useLayoutStore, type CenterMode } from '../stores/layout-store'
@@ -91,18 +91,45 @@ const COMMANDS: Command[] = [
   }
 ]
 
-/**
- * 등록된 모든 언어의 라벨로 찾는다 — 영어 화면에서 "ㅅㅈ"이나 "설정"으로, 한국어 화면에서
- * "settings"로 쳐도 나온다. 카탈로그는 바뀌지 않으니 명령마다 한 번만 모은다
- */
-const searchTextCache = new Map<MessageId, string[]>()
-function searchTexts(command: Command): string[] {
-  let texts = searchTextCache.get(command.label)
-  if (!texts) {
-    texts = [...new Set(SUPPORTED_LANGUAGES.map((lang) => translate(lang, command.label, [])))]
-    searchTextCache.set(command.label, texts)
+interface LocalizedLabel {
+  lang: Lang
+  text: string
+}
+
+/** 등록된 모든 언어의 라벨 (같은 글자는 한 번만). 카탈로그는 바뀌지 않으니 한 번만 모은다 */
+const labelCache = new Map<MessageId, LocalizedLabel[]>()
+function allLabels(id: MessageId): LocalizedLabel[] {
+  let labels = labelCache.get(id)
+  if (!labels) {
+    const seen = new Set<string>()
+    labels = []
+    for (const lang of SUPPORTED_LANGUAGES) {
+      const text = translate(lang, id, [])
+      if (seen.has(text)) continue
+      seen.add(text)
+      labels.push({ lang, text })
+    }
+    labelCache.set(id, labels)
   }
-  return texts
+  return labels
+}
+
+/**
+ * 지금 언어 라벨을 맨 앞에, 나머지 언어 라벨을 뒤에 둔다 — 영어 화면에서 "ㅅㅈ"이나 "설정"으로,
+ * 한국어 화면에서 "settings"로 쳐도 나온다. 같은 점수면 지금 언어 라벨로 맞은 것으로 친다
+ */
+function searchLabels(command: Command, lang: Lang): LocalizedLabel[] {
+  const current = translate(lang, command.label, [])
+  return [
+    { lang, text: current },
+    ...allLabels(command.label).filter((label) => label.text !== current)
+  ]
+}
+
+interface CommandResult {
+  command: Command
+  /** 다른 언어 라벨로 맞았으면 그 라벨 — 왜 나왔는지 보이도록 곁들인다 */
+  matchedLabel: LocalizedLabel | null
 }
 
 /**
@@ -154,19 +181,30 @@ export function CommandBar(): React.JSX.Element {
 
 function CommandBarBody({ onChoose }: { onChoose: (command: Command) => void }): React.JSX.Element {
   const t = useT()
+  const lang = useLanguageStore((s) => s.lang)
   const bindings = useShortcutsStore((s) => s.bindings)
   const hiddenPages = useLayoutStore((s) => s.hiddenPages)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const listId = useId()
 
-  const results = useMemo(() => {
-    const available = COMMANDS.filter((c) => !c.page || !hiddenPages.includes(c.page))
-    return rankByQuery(available, query, searchTexts)
-  }, [hiddenPages, query])
+  const results = useMemo((): CommandResult[] => {
+    const labels = new Map(
+      COMMANDS.filter((c) => !c.page || !hiddenPages.includes(c.page)).map((c) => [
+        c,
+        searchLabels(c, lang)
+      ])
+    )
+    return rankMatches([...labels.keys()], query, (c) => labels.get(c)!.map((l) => l.text)).map(
+      ({ item, textIndex }) => ({
+        command: item,
+        matchedLabel: textIndex ? labels.get(item)![textIndex] : null
+      })
+    )
+  }, [hiddenPages, query, lang])
   const current = results[Math.min(active, results.length - 1)]
   const optionId = (command: Command): string => `${listId}-${command.id}`
-  const currentId = current ? optionId(current) : undefined
+  const currentId = current ? optionId(current.command) : undefined
 
   useEffect(() => {
     if (currentId) document.getElementById(currentId)?.scrollIntoView?.({ block: 'nearest' })
@@ -186,7 +224,7 @@ function CommandBarBody({ onChoose }: { onChoose: (command: Command) => void }):
       // 라이트박스처럼 window에서 화살표를 듣는 화면이 뒤에서 같이 움직이지 않게
       e.stopPropagation()
       if (e.key === 'Enter') {
-        if (current) onChoose(current)
+        if (current) onChoose(current.command)
       } else {
         move(e.key === 'ArrowDown' ? 1 : -1)
       }
@@ -225,9 +263,10 @@ function CommandBarBody({ onChoose }: { onChoose: (command: Command) => void }):
         aria-label={t('ui.commandBar')}
         className={cn('min-h-0 overflow-y-auto p-1.5', results.length === 0 && 'hidden')}
       >
-        {results.map((command) => {
+        {results.map((result) => {
+          const { command, matchedLabel } = result
           const Icon = command.icon
-          const selected = command === current
+          const selected = result === current
           return (
             <li
               key={command.id}
@@ -238,7 +277,7 @@ function CommandBarBody({ onChoose }: { onChoose: (command: Command) => void }):
               onMouseDown={(e) => e.preventDefault()}
               // pointerenter가 아니라 move — 키보드로 목록이 스크롤될 때 커서 밑 항목이 선택을 빼앗지 않게
               onPointerMove={() => {
-                if (!selected) setActive(results.indexOf(command))
+                if (!selected) setActive(results.indexOf(result))
               }}
               onClick={() => onChoose(command)}
               className={cn(
@@ -247,7 +286,14 @@ function CommandBarBody({ onChoose }: { onChoose: (command: Command) => void }):
               )}
             >
               <Icon size={15} className={cn('shrink-0', !selected && 'text-muted')} aria-hidden />
-              <span className="min-w-0 flex-1 truncate">{t(command.label)}</span>
+              <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                <span className="truncate">{t(command.label)}</span>
+                {matchedLabel && (
+                  <span lang={matchedLabel.lang} className="truncate text-[12px] text-faint">
+                    {matchedLabel.text}
+                  </span>
+                )}
+              </span>
               {command.shortcut && bindings[command.shortcut] && (
                 <kbd className="shrink-0 font-mono text-[11px] text-faint">
                   {formatCombo(bindings[command.shortcut])}

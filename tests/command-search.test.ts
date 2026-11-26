@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { rankByQuery, scoreMatch } from '../src/renderer/src/lib/command-search'
+import { rankMatches, scoreMatch } from '../src/renderer/src/lib/command-search'
+
+const rankByQuery = <T>(items: readonly T[], query: string, textsOf: (item: T) => string[]): T[] =>
+  rankMatches(items, query, textsOf).map((m) => m.item)
 
 describe('scoreMatch', () => {
   it('matches case-insensitively and ignores spaces', () => {
@@ -40,7 +43,7 @@ describe('scoreMatch', () => {
   })
 })
 
-describe('rankByQuery', () => {
+describe('rankMatches', () => {
   const items = ['Main mode', 'Scene mode', 'Open settings', 'Toggle prompt panel']
 
   it('keeps every item in order for an empty query', () => {
@@ -56,6 +59,17 @@ describe('rankByQuery', () => {
     expect(rankByQuery(items, 'p', (s) => [s])).toEqual(['Toggle prompt panel', 'Open settings'])
     expect(rankByQuery(items, 'se', (s) => [s])[0]).toBe('Open settings')
     expect(rankByQuery(items, 'sc', (s) => [s])[0]).toBe('Scene mode')
+  })
+
+  it('reports which text matched, preferring the earlier one on a tie', () => {
+    const texts = (k: string): string[] =>
+      k === 'scene' ? ['Scene mode', '씬 모드'] : ['Open settings', '설정 열기']
+    expect(rankMatches(['scene'], '', texts)).toEqual([{ item: 'scene', textIndex: null }])
+    expect(rankMatches(['scene'], 'scene', texts)).toEqual([{ item: 'scene', textIndex: 0 }])
+    expect(rankMatches(['scene'], 'ㅆㅁ', texts)).toEqual([{ item: 'scene', textIndex: 1 }])
+    // 뒤 텍스트가 더 잘 맞으면 그쪽, 같은 점수(둘 다 앞머리 일치)면 앞쪽
+    expect(rankMatches(['x'], 's', () => ['Open settings', 'settings'])[0].textIndex).toBe(1)
+    expect(rankMatches(['x'], 'set', () => ['Settings', '설정', 'Setup'])[0].textIndex).toBe(0)
   })
 
   it('uses the best score among an item’s texts', () => {

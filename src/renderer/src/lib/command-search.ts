@@ -80,25 +80,37 @@ export function scoreMatch(text: string, query: string): number | null {
   return j === q.length ? Math.max(1, 40 - gaps) : null
 }
 
+export interface RankedMatch<T> {
+  item: T
+  /** 가장 잘 맞은 텍스트의 위치 (textsOf가 준 배열 기준). 검색어가 비었으면 null */
+  textIndex: number | null
+}
+
 /**
  * 검색어에 맞는 항목만 점수 순으로 돌려준다. 같은 점수끼리는 원래 순서를 지킨다.
- * 항목마다 여러 텍스트(지금 언어 라벨, 영어 라벨 등)를 받아 가장 잘 맞는 것으로 친다.
+ * 항목마다 여러 텍스트(지금 언어 라벨, 다른 언어 라벨 등)를 받아 가장 잘 맞는 것으로 친다.
+ * 점수가 같으면 앞의 텍스트를 고른다 — 지금 언어 라벨을 맨 앞에 주면 그쪽이 우선이다.
  */
-export function rankByQuery<T>(
+export function rankMatches<T>(
   items: readonly T[],
   query: string,
   textsOf: (item: T) => string[]
-): T[] {
-  if (query.trim() === '') return [...items]
-  const scored: { item: T; score: number; index: number }[] = []
+): RankedMatch<T>[] {
+  if (query.trim() === '') return items.map((item) => ({ item, textIndex: null }))
+  const scored: { item: T; score: number; index: number; textIndex: number }[] = []
   items.forEach((item, index) => {
-    let score: number | null = null
-    for (const text of textsOf(item)) {
-      const s = scoreMatch(text, query)
-      if (s !== null && (score === null || s > score)) score = s
+    const texts = textsOf(item)
+    let best: number | null = null
+    let textIndex = 0
+    for (let i = 0; i < texts.length; i++) {
+      const score = scoreMatch(texts[i], query)
+      if (score !== null && (best === null || score > best)) {
+        best = score
+        textIndex = i
+      }
     }
-    if (score !== null) scored.push({ item, score, index })
+    if (best !== null) scored.push({ item, score: best, index, textIndex })
   })
   scored.sort((a, b) => b.score - a.score || a.index - b.index)
-  return scored.map((s) => s.item)
+  return scored.map(({ item, textIndex }) => ({ item, textIndex }))
 }
