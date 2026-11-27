@@ -36,7 +36,14 @@ import { bindShortcuts, useShortcutsStore } from './stores/shortcuts-store'
 import { bindUpdateEvents } from './stores/update-store'
 import { bindNavMouse } from './lib/nav-history'
 import { useLanguageStore } from './lib/i18n'
-import { behind, edgeShadow, FRONT, PAGE_SWAP, PAGE_TURN, RECEDE_SHIFT } from './lib/page-turn'
+import {
+  behind,
+  edgeShadow,
+  recedeVariants,
+  PAGE_SWAP,
+  PAGE_TURN,
+  RECEDE_SHIFT
+} from './lib/page-turn'
 import { cn } from './lib/utils'
 import { useWebSearchKeepAlive } from './lib/websearch-keep-alive'
 import { useLayoutStore } from './stores/layout-store'
@@ -296,12 +303,16 @@ function PanelBody({
   children: React.ReactNode
 }): React.JSX.Element {
   const present = useIsPresent()
+  const ref = useRef<HTMLDivElement>(null)
   return (
     <motion.div
+      ref={ref}
+      custom={ref}
+      variants={recedeVariants(shift)}
       className={cn('bg-paper', className)}
       style={style}
       initial={behind(shift)}
-      animate={present ? FRONT : behind(shift)}
+      animate={present ? 'front' : 'behind'}
       transition={transition}
     >
       {children}
