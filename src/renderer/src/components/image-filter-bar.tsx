@@ -1,5 +1,5 @@
 import { Loader2, Search, SlidersHorizontal, X } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import {
   countFilterSelections,
   hasActiveSearchFilter,
@@ -20,18 +20,99 @@ import { Switch } from './ui/switch'
 
 const QUERY_DEBOUNCE_MS = 200
 
-interface ImageFilterBarProps {
+interface ImageSearchPanelProps {
+  id: string
   scope: 'history' | 'library'
   filter: ImageSearchFilter
   onChange: (filter: ImageSearchFilter) => void
-  /** 일치 수 / 필터 없는 수 — 필터가 있을 때만 보인다 */
-  total: number
-  unfilteredTotal: number
+  open: boolean
+  onClose: () => void
+  /** 헤더의 알약 버튼 — 바깥 클릭 판정에서 빼고, 닫을 때 포커스를 돌려준다 */
+  anchorRef: RefObject<HTMLButtonElement | null>
   /** 좁은 패널(히스토리) — 칩을 한 줄로 줄이고 팝오버를 패널 폭에 맞춘다 */
   compact?: boolean
   searchAllStacks?: boolean
   onSearchAllStacksChange?: (value: boolean) => void
+  /** 칩 아래에 덧붙일 안내 (라이브러리: 필터 중 정렬 꺼짐) */
+  footer?: React.ReactNode
   className?: string
+}
+
+/** 검색 조건 수 — 검색어 1 + 팝오버 선택 수 */
+function conditionCount(filter: ImageSearchFilter): number {
+  return (filter.query?.trim() ? 1 : 0) + countFilterSelections(filter)
+}
+
+/** 헤더에 들어가는 검색 알약. 누르면 헤더 아래에 검색 패널이 뜬다 */
+export function ImageSearchPill({
+  open,
+  filter,
+  panelId,
+  onToggle,
+  buttonRef,
+  className
+}: {
+  open: boolean
+  filter: ImageSearchFilter
+  panelId: string
+  onToggle: () => void
+  buttonRef: RefObject<HTMLButtonElement | null>
+  className?: string
+}): React.JSX.Element {
+  const t = useT()
+  const active = hasActiveSearchFilter(filter)
+  const count = conditionCount(filter)
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      aria-expanded={open}
+      aria-controls={panelId}
+      title={t('ui.searchImages')}
+      className={cn(
+        'no-drag flex h-6 shrink-0 items-center gap-1 rounded-full border px-2.5 text-[11.5px] font-medium transition-colors',
+        active
+          ? 'border-accent/60 bg-accent/10 text-accent-ink'
+          : open
+            ? 'border-line bg-surface-2 text-ink'
+            : 'border-line text-muted hover:bg-surface-2 hover:text-ink',
+        className
+      )}
+      onClick={onToggle}
+    >
+      <Search size={12} />
+      {t('ui.search')}
+      {active && count > 0 && (
+        <span className="grid min-w-[15px] place-items-center rounded-full bg-accent px-1 text-[9.5px] font-semibold leading-[15px] text-on-accent">
+          {count}
+        </span>
+      )}
+    </button>
+  )
+}
+
+/** 목록 우하단에 뜨는 검색 결과 수 (필터가 있을 때만) */
+export function ImageSearchCount({
+  filter,
+  total,
+  unfilteredTotal
+}: {
+  filter: ImageSearchFilter
+  total: number
+  unfilteredTotal: number
+}): React.JSX.Element | null {
+  const indexing = useGenerationStore((s) => s.searchIndex?.indexing === true)
+  if (!hasActiveSearchFilter(filter)) return null
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none absolute bottom-2.5 right-2.5 z-10 flex items-center gap-1 rounded-full border border-line bg-surface/90 px-2.5 py-1 font-mono text-[11px] text-muted shadow-sm backdrop-blur"
+    >
+      {indexing && <Loader2 size={11} className="animate-spin motion-reduce:animate-none" />}
+      {total.toLocaleString()} / {unfilteredTotal.toLocaleString()}
+    </div>
+  )
 }
 
 function without<T>(values: readonly T[] | undefined, value: T): T[] {
@@ -58,21 +139,56 @@ function cleaned(filter: ImageSearchFilter): ImageSearchFilter {
 }
 
 /**
- * 히스토리·라이브러리 공용 검색·필터 바. 검색어는 200ms 디바운스로 반영하고, 한글 조합 중에는
- * 반영하지 않는다 (조합이 끝나면 바로). 필터 팝오버는 열 때 색인의 실제 값(모델·종류·작가)을 받는다.
+ * 히스토리·라이브러리 공용 검색 패널 — 헤더 아래에 떠 있는다. 닫아도 언마운트하지 않고 숨기기만
+ * 해서 입력 중인 검색어·조합 상태를 잃지 않는다 (조건은 닫아도 그대로 걸려 있다).
+ * 검색어는 200ms 디바운스로 반영하고, 한글 조합 중에는 반영하지 않는다 (조합이 끝나면 바로).
+ * 필터 팝오버는 열 때 색인의 실제 값(모델·종류·작가)을 받는다.
  */
-export function ImageFilterBar({
+export function ImageSearchPanel({
+  id,
   scope,
   filter,
   onChange,
-  total,
-  unfilteredTotal,
+  open,
+  onClose,
+  anchorRef,
   compact = false,
   searchAllStacks,
   onSearchAllStacksChange,
+  footer,
   className
-}: ImageFilterBarProps): React.JSX.Element {
+}: ImageSearchPanelProps): React.JSX.Element {
   const t = useT()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const onCloseRef = useRef(onClose)
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  // 열리면 검색창에 포커스
+  useEffect(() => {
+    if (open) inputRef.current?.focus()
+  }, [open])
+
+  // 바깥을 누르면 닫는다 — 알약과 필터 팝오버(포털)는 바깥으로 치지 않는다
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (e: PointerEvent): void => {
+      const target = e.target as Element | null
+      if (!target) return
+      if (panelRef.current?.contains(target) || anchorRef.current?.contains(target)) return
+      if (target.closest('[data-radix-popper-content-wrapper]')) return
+      onCloseRef.current()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [open, anchorRef])
+
+  const close = (): void => {
+    onClose()
+    anchorRef.current?.focus()
+  }
   const searchIndex = useGenerationStore((s) => s.searchIndex)
   const [draft, setDraft] = useState(filter.query ?? '')
   const composing = useRef(false)
@@ -172,7 +288,25 @@ export function ImageFilterBar({
   ]
 
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
+    <div
+      ref={panelRef}
+      id={id}
+      role="search"
+      aria-label={t('ui.searchImages')}
+      hidden={!open}
+      className={cn(
+        'absolute z-20 flex flex-col gap-1.5 rounded-lg border border-line bg-surface p-1.5 shadow-lg',
+        className
+      )}
+      onKeyDown={(e) => {
+        // 패널 안(팝오버 포털 제외)의 ESC — 검색어 지우기는 입력란이 먼저 처리한다
+        if (e.key !== 'Escape' || e.defaultPrevented) return
+        if (!e.currentTarget.contains(e.target as Node)) return
+        e.preventDefault()
+        e.stopPropagation()
+        close()
+      }}
+    >
       <div className="flex items-center gap-1">
         <div className="relative min-w-0 flex-1">
           <Search
@@ -180,6 +314,7 @@ export function ImageFilterBar({
             className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-faint"
           />
           <input
+            ref={inputRef}
             type="search"
             value={draft}
             aria-label={t('ui.searchImages')}
@@ -240,7 +375,7 @@ export function ImageFilterBar({
         />
       </div>
 
-      {(chips.length > 0 || active || indexing) && (
+      {(chips.length > 0 || indexing) && (
         <div
           className={cn(
             'flex items-center gap-1 text-[11px]',
@@ -264,11 +399,6 @@ export function ImageFilterBar({
               </button>
             </span>
           ))}
-          {active && (
-            <span className="ml-auto shrink-0 font-mono text-faint" aria-live="polite">
-              {total.toLocaleString()} / {unfilteredTotal.toLocaleString()}
-            </span>
-          )}
           {indexing && (
             <span
               className="flex shrink-0 items-center gap-1 text-faint"
@@ -281,6 +411,7 @@ export function ImageFilterBar({
           )}
         </div>
       )}
+      {active && footer}
     </div>
   )
 }
@@ -391,6 +522,8 @@ function FilterPopover({
       </PopoverTrigger>
       <PopoverContent
         align={compact ? 'start' : 'end'}
+        // 팝오버를 닫는 ESC가 검색 패널·라이브러리(필터 해제·스택 나가기)까지 가지 않게
+        onEscapeKeyDown={(e) => e.stopPropagation()}
         className={cn(
           'flex max-h-[70vh] flex-col gap-3 overflow-y-auto p-3',
           compact ? 'w-[300px]' : 'w-[360px]'

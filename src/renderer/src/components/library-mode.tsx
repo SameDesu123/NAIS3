@@ -25,7 +25,7 @@ import {
   Ungroup,
   Upload
 } from 'lucide-react'
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { hasActiveSearchFilter } from '@shared/search-query'
 import type { LibraryImage, LibraryStack } from '@shared/types'
 import { imageUrl, thumbnailFallback } from '../lib/constants'
@@ -37,7 +37,7 @@ import { useLibraryStore } from '../stores/library-store'
 import { isLeavingDropZone, useDragEndCleanup } from '../lib/drop-zone'
 import { DropOverlay } from './drop-overlay'
 import { ImageContextMenu } from './image-context-menu'
-import { ImageFilterBar } from './image-filter-bar'
+import { ImageSearchCount, ImageSearchPanel, ImageSearchPill } from './image-filter-bar'
 import { Lightbox } from './lightbox'
 import { Button } from './ui/button'
 import {
@@ -113,6 +113,9 @@ export function LibraryMode(): React.JSX.Element {
   // 필터 중엔 일부만 보이므로 드래그 정렬·스택 드롭을 끈다 (보이지 않는 이미지 순서가 꼬인다)
   const filtered = hasActiveSearchFilter(filter)
   const showStackBadge = filtered && searchAllStacks
+  const searchPillRef = useRef<HTMLButtonElement>(null)
+  const searchPanelId = useId()
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const [dragOver, setDragOver] = useState(false)
   useDragEndCleanup(() => setDragOver(false))
@@ -272,8 +275,18 @@ export function LibraryMode(): React.JSX.Element {
             <span className="text-[13.5px] font-semibold">{t('ui.library')}</span>
           </>
         )}
-        <span className="font-mono text-[11px] text-faint">{total}</span>
+        {/* 필터 중의 일치 수는 그리드 우하단에 뜬다 */}
+        {!filtered && <span className="font-mono text-[11px] text-faint">{total}</span>}
         <div className="flex-1" />
+
+        <ImageSearchPill
+          open={searchOpen}
+          filter={filter}
+          panelId={searchPanelId}
+          buttonRef={searchPillRef}
+          onToggle={() => setSearchOpen((v) => !v)}
+          className="mr-1"
+        />
 
         {/* 카드 비율: 세로/가로/정사각 (씬 모드와 동일 순환) */}
         <IconBtn
@@ -345,158 +358,167 @@ export function LibraryMode(): React.JSX.Element {
         />
       </div>
 
-      <div className="border-b border-line px-3 py-2">
-        <ImageFilterBar
+      {/* 그리드 — 검색 패널과 결과 수는 그 위에 떠 있다 */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <ImageSearchPanel
+          id={searchPanelId}
           scope="library"
           filter={filter}
           onChange={setFilter}
-          total={total}
-          unfilteredTotal={unfilteredTotal}
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          anchorRef={searchPillRef}
           searchAllStacks={searchAllStacks}
           onSearchAllStacksChange={setSearchAllStacks}
+          footer={
+            images.length > 1 && (
+              <p className="px-0.5 text-[11px] text-faint">{t('ui.searchDragSortDisabled')}</p>
+            )
+          }
+          className="right-3 top-2 w-[min(440px,calc(100%-24px))]"
         />
-        {filtered && images.length > 1 && (
-          <p className="mt-1 text-[11px] text-faint">{t('ui.searchDragSortDisabled')}</p>
-        )}
-      </div>
-
-      {/* 그리드 */}
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {noResults ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-faint">
-            <p className="text-[13px] font-medium">{t('ui.searchNoResults')}</p>
-            <Button size="sm" onClick={() => setFilter({})}>
-              {t('ui.searchReset')}
-            </Button>
-          </div>
-        ) : empty ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-faint">
-            <ImagePlus size={44} strokeWidth={1.2} className="opacity-40" />
-            <p className="text-[14px] font-medium">{t('ui.addOrDragImagesHere')}</p>
-            <p className="text-[12px] opacity-60">{t('ui.youCanAlsoDropHistoryThumbnailsHere')}</p>
-          </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            onDragStart={onDragStart}
-            onDragCancel={() => setDragImg(null)}
-            onDragEnd={onDragEnd}
-          >
-            <SortableContext
-              items={images.map((i) => `img-${i.id}`)}
-              strategy={rectSortingStrategy}
+        <ImageSearchCount filter={filter} total={total} unfilteredTotal={unfilteredTotal} />
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          {noResults ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-faint">
+              <p className="text-[13px] font-medium">{t('ui.searchNoResults')}</p>
+              <Button size="sm" onClick={() => setFilter({})}>
+                {t('ui.searchReset')}
+              </Button>
+            </div>
+          ) : empty ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-faint">
+              <ImagePlus size={44} strokeWidth={1.2} className="opacity-40" />
+              <p className="text-[14px] font-medium">{t('ui.addOrDragImagesHere')}</p>
+              <p className="text-[12px] opacity-60">
+                {t('ui.youCanAlsoDropHistoryThumbnailsHere')}
+              </p>
+            </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              onDragStart={onDragStart}
+              onDragCancel={() => setDragImg(null)}
+              onDragEnd={onDragEnd}
             >
-              <div
-                className="grid gap-3"
-                style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+              <SortableContext
+                items={images.map((i) => `img-${i.id}`)}
+                strategy={rectSortingStrategy}
               >
-                {!currentStack &&
-                  !filtered &&
-                  stacks.map((stack) => (
-                    <StackCard
-                      key={`s-${stack.id}`}
-                      stack={stack}
+                <div
+                  className="grid gap-3"
+                  style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+                >
+                  {!currentStack &&
+                    !filtered &&
+                    stacks.map((stack) => (
+                      <StackCard
+                        key={`s-${stack.id}`}
+                        stack={stack}
+                        orientation={cardOrientation}
+                        onOpen={() => openStack(stack)}
+                        onRename={async () => {
+                          const name = await askText(t('ui.stackName'), stack.name)
+                          if (name) void renameStack(stack.id, name)
+                        }}
+                        onExport={() => void exportStack(stack)}
+                        onUnstack={async () => {
+                          if (
+                            await askConfirm(t('ui.unstack'), {
+                              message: t(
+                                'ui.unstackValueTheImagesAreNotDeletedAndReturnToUncategorized',
+                                stack.name
+                              ),
+                              confirmLabel: t('ui.clear')
+                            })
+                          )
+                            void deleteStack(stack.id)
+                        }}
+                      />
+                    ))}
+                  {images.map((img, i) => (
+                    <ImageCard
+                      key={img.id}
+                      img={img}
                       orientation={cardOrientation}
-                      onOpen={() => openStack(stack)}
-                      onRename={async () => {
-                        const name = await askText(t('ui.stackName'), stack.name)
-                        if (name) void renameStack(stack.id, name)
-                      }}
-                      onExport={() => void exportStack(stack)}
-                      onUnstack={async () => {
-                        if (
-                          await askConfirm(t('ui.unstack'), {
-                            message: t(
-                              'ui.unstackValueTheImagesAreNotDeletedAndReturnToUncategorized',
-                              stack.name
-                            ),
-                            confirmLabel: t('ui.clear')
-                          })
-                        )
-                          void deleteStack(stack.id)
-                      }}
+                      checked={selection.has(img.id)}
+                      editMode={editMode}
+                      sortDisabled={filtered}
+                      stackBadge={showStackBadge ? img.stackName : undefined}
+                      onClick={(e) =>
+                        editMode
+                          ? e.shiftKey
+                            ? rangeSelect(img.id)
+                            : toggleSelected(img.id)
+                          : setLightboxIdx(i)
+                      }
+                      onDelete={() => void confirmDelete([img.id])}
+                      menuExtra={
+                        <>
+                          <ContextMenuSeparator />
+                          {currentStack ? (
+                            <ContextMenuItem
+                              onSelect={() => void moveToStack(idsWith(img.id), null)}
+                            >
+                              <Ungroup size={13} className="text-hue-orange" />{' '}
+                              {t('ui.removeFromStack')}
+                            </ContextMenuItem>
+                          ) : (
+                            <ContextMenuSub>
+                              <ContextMenuSubTrigger>
+                                <Layers size={13} className="text-hue-cyan" /> {t('ui.addToStack')}
+                              </ContextMenuSubTrigger>
+                              <ContextMenuSubContent>
+                                {stacks.map((s) => (
+                                  <ContextMenuItem
+                                    key={s.id}
+                                    onSelect={() => void moveToStack(idsWith(img.id), s.id)}
+                                  >
+                                    <Layers size={13} className="text-faint" /> {s.name}
+                                  </ContextMenuItem>
+                                ))}
+                                {stacks.length > 0 && <ContextMenuSeparator />}
+                                <ContextMenuItem
+                                  onSelect={async () => {
+                                    const name = await askText(
+                                      t('ui.stackName'),
+                                      '',
+                                      t('ui.eGCoverCandidates')
+                                    )
+                                    if (name) void createStackWith(name, idsWith(img.id))
+                                  }}
+                                >
+                                  <Plus size={13} /> {t('ui.newStack')}
+                                </ContextMenuItem>
+                              </ContextMenuSubContent>
+                            </ContextMenuSub>
+                          )}
+                        </>
+                      }
                     />
                   ))}
-                {images.map((img, i) => (
-                  <ImageCard
-                    key={img.id}
-                    img={img}
-                    orientation={cardOrientation}
-                    checked={selection.has(img.id)}
-                    editMode={editMode}
-                    sortDisabled={filtered}
-                    stackBadge={showStackBadge ? img.stackName : undefined}
-                    onClick={(e) =>
-                      editMode
-                        ? e.shiftKey
-                          ? rangeSelect(img.id)
-                          : toggleSelected(img.id)
-                        : setLightboxIdx(i)
-                    }
-                    onDelete={() => void confirmDelete([img.id])}
-                    menuExtra={
-                      <>
-                        <ContextMenuSeparator />
-                        {currentStack ? (
-                          <ContextMenuItem onSelect={() => void moveToStack(idsWith(img.id), null)}>
-                            <Ungroup size={13} className="text-hue-orange" />{' '}
-                            {t('ui.removeFromStack')}
-                          </ContextMenuItem>
-                        ) : (
-                          <ContextMenuSub>
-                            <ContextMenuSubTrigger>
-                              <Layers size={13} className="text-hue-cyan" /> {t('ui.addToStack')}
-                            </ContextMenuSubTrigger>
-                            <ContextMenuSubContent>
-                              {stacks.map((s) => (
-                                <ContextMenuItem
-                                  key={s.id}
-                                  onSelect={() => void moveToStack(idsWith(img.id), s.id)}
-                                >
-                                  <Layers size={13} className="text-faint" /> {s.name}
-                                </ContextMenuItem>
-                              ))}
-                              {stacks.length > 0 && <ContextMenuSeparator />}
-                              <ContextMenuItem
-                                onSelect={async () => {
-                                  const name = await askText(
-                                    t('ui.stackName'),
-                                    '',
-                                    t('ui.eGCoverCandidates')
-                                  )
-                                  if (name) void createStackWith(name, idsWith(img.id))
-                                }}
-                              >
-                                <Plus size={13} /> {t('ui.newStack')}
-                              </ContextMenuItem>
-                            </ContextMenuSubContent>
-                          </ContextMenuSub>
-                        )}
-                      </>
-                    }
-                  />
-                ))}
-              </div>
-            </SortableContext>
-            {/* 드래그 중 커서를 따라가는 가벼운 클론 */}
-            <DragOverlay dropAnimation={null}>
-              {dragImg && (
-                <div
-                  className="overflow-hidden rounded-lg border border-accent bg-surface-2 shadow-xl"
-                  style={{ aspectRatio: CARD_ASPECT[cardOrientation] }}
-                >
-                  <img
-                    src={dragImg.thumbnailUrl || imageUrl(dragImg.filePath)}
-                    className="h-full w-full object-cover"
-                    draggable={false}
-                    alt=""
-                  />
                 </div>
-              )}
-            </DragOverlay>
-            <div ref={sentinelRef} className="h-1" />
-          </DndContext>
-        )}
+              </SortableContext>
+              {/* 드래그 중 커서를 따라가는 가벼운 클론 */}
+              <DragOverlay dropAnimation={null}>
+                {dragImg && (
+                  <div
+                    className="overflow-hidden rounded-lg border border-accent bg-surface-2 shadow-xl"
+                    style={{ aspectRatio: CARD_ASPECT[cardOrientation] }}
+                  >
+                    <img
+                      src={dragImg.thumbnailUrl || imageUrl(dragImg.filePath)}
+                      className="h-full w-full object-cover"
+                      draggable={false}
+                      alt=""
+                    />
+                  </div>
+                )}
+              </DragOverlay>
+              <div ref={sentinelRef} className="h-1" />
+            </DndContext>
+          )}
+        </div>
       </div>
 
       {/* 편집 모드 일괄 작업 바 */}
