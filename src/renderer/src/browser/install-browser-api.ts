@@ -4,6 +4,7 @@ import { processWildcards, resetSequentialCounters } from '../../../main/fragmen
 import { removeComments } from '@shared/nai-presets'
 import { modelCapabilities } from '@shared/nai-models'
 import { metadataFromPayloadJson } from '@shared/image-metadata'
+import { compileSearchFilter } from '@shared/search-query'
 import { applyRandomCharacterPrompt } from '@shared/random-character'
 import { UPSCALE_MODEL, UPSCALE_SCALE } from '../../../main/nai/upscale-request'
 import {
@@ -27,6 +28,7 @@ import type {
   FreeBgRemovalAttempt,
   GenerationDelayRandomization,
   GenerationRequest,
+  ImageSearchFilter,
   IpcEventMap,
   IpcInvokeMap,
   ListFolder,
@@ -41,6 +43,7 @@ import {
   type BrowserImage,
   type BrowserState
 } from './browser-db'
+import { browserSearchFacets, filterBrowserImages, filterBrowserLibrary } from './browser-search'
 
 const listeners = new Map<keyof IpcEventMap, Set<(payload: unknown) => void>>()
 const queue: QueueStatus = { items: [], running: false, delayMs: 600 }
@@ -793,10 +796,22 @@ async function dispatch(channel: string, rawRequest: unknown): Promise<unknown> 
     const state = await readBrowserState()
     const offset = Number(request.offset) || 0
     const limit = Number(request.limit) || 60
+    const search = compileSearchFilter(request.filter as ImageSearchFilter | undefined)
+    const images = search ? filterBrowserImages(state.images, search) : state.images
     return {
-      items: state.images.slice(offset, offset + limit).map(withThumbnailUrl),
-      total: state.images.length
+      items: images.slice(offset, offset + limit).map(withThumbnailUrl),
+      total: images.length,
+      unfilteredTotal: state.images.length
     }
+  }
+  if (channel === 'search:facets') {
+    return browserSearchFacets(await readBrowserState(), request.scope as 'history' | 'library')
+  }
+  if (channel === 'search:indexStatus') {
+    // 브라우저 작업 공간은 색인 없이 매번 찾는다 — 늘 다 된 상태
+    const state = await readBrowserState()
+    const total = state.images.length + state.libraryImages.length
+    return { indexing: false, indexed: total, total }
   }
   if (channel === 'images:payload') {
     const item = (await readBrowserState()).images.find((candidate) => candidate.id === request.id)
@@ -1463,9 +1478,15 @@ async function libraryDispatch(
     const action = channel.slice(channel.indexOf(':') + 1)
     if (action === 'list') {
       const stackId = request.stackId as number | null | undefined
-      const all = state.libraryImages.filter((item) =>
-        stackId === undefined ? item.stackId == null : item.stackId === stackId
+      const scoped = state.libraryImages.filter((item) =>
+        stackId === undefined || stackId === null ? item.stackId == null : item.stackId === stackId
       )
+      const search = compileSearchFilter(request.filter as ImageSearchFilter | undefined)
+      const allStacks = search !== null && request.searchAllStacks === true
+      const all = search
+        ? filterBrowserLibrary(state, allStacks ? state.libraryImages : scoped, search)
+        : scoped
+      const stackNames = new Map(state.libraryStacks.map((stack) => [stack.id, stack.name]))
       const offset = Number(request.offset) || 0
       const limit = Number(request.limit) || 60
       const stacks = state.libraryStacks.map((stack) => {
@@ -1478,9 +1499,15 @@ async function libraryDispatch(
         }
       })
       return {
-        items: all.slice(offset, offset + limit).map(withThumbnailUrl),
-        stacks: stackId === undefined || stackId === null ? stacks : [],
-        total: all.length
+        items: all.slice(offset, offset + limit).map((item) => ({
+          ...withThumbnailUrl(item),
+          ...(allStacks
+            ? { stackName: item.stackId != null ? (stackNames.get(item.stackId) ?? null) : null }
+            : {})
+        })),
+        stacks: !search && (stackId === undefined || stackId === null) ? stacks : [],
+        total: all.length,
+        unfilteredTotal: allStacks ? state.libraryImages.length : scoped.length
       }
     }
     if (action === 'import') {
