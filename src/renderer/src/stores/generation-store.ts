@@ -2,10 +2,13 @@ import { create } from 'zustand'
 import type {
   GenerationRequest,
   HistoryItem,
+  ImageSearchFilter,
   OpusUsageStatus,
   PromptParts,
-  QueueStatus
+  QueueStatus,
+  SearchIndexStatus
 } from '@shared/types'
+import { hasActiveSearchFilter } from '@shared/search-query'
 import {
   ANLAS_GUARD_KEYS,
   anlasGuardSettingEntries,
@@ -80,7 +83,15 @@ interface GenerationState {
   /** 생성 중 유저가 클릭해 고정한 보기 — 스트리밍보다 우선 표시 */
   viewPinned: boolean
   history: HistoryItem[]
+  /** 필터가 있으면 일치 수 */
   historyTotal: number
+  /** 필터 없는 전체 기록 수 */
+  historyUnfilteredTotal: number
+  historyLoading: boolean
+  /** 히스토리 검색·필터 — 비어 있으면 평소 목록 */
+  historyFilter: ImageSearchFilter
+  /** 검색 색인 백필 상태 (null = 아직 모름) */
+  searchIndex: SearchIndexStatus | null
 
   patchRequest: (patch: Partial<GenerationRequest>) => void
   setSeedLocked: (locked: boolean) => void
@@ -92,7 +103,11 @@ interface GenerationState {
   hydrate: () => Promise<void>
   generate: () => Promise<void>
   cancelAll: () => Promise<void>
+  /** 첫 페이지부터 지금 보이는 만큼 다시 읽는다 (새 생성·삭제 후) */
   refreshHistory: () => Promise<void>
+  /** 다음 페이지 (무한 스크롤) */
+  loadMoreHistory: () => Promise<void>
+  setHistoryFilter: (filter: ImageSearchFilter) => void
   view: (filePath: string | null) => void
   /** i2i/인페인트 소스 설정·해제 */
   source: { imageBase64: string; maskBase64?: string; width: number; height: number } | null
@@ -117,6 +132,10 @@ interface GenerationState {
   confirmInpaint: (maskBase64: string) => void
   cancelInpaint: () => void
 }
+
+const HISTORY_PAGE = 60
+/** 히스토리 응답 순서 보장 — 필터를 바꾸거나 새로 읽으면 이전 응답은 버린다 */
+let historySeq = 0
 
 export const useGenerationStore = create<GenerationState>((set, get) => ({
   request: DEFAULT_REQUEST,
@@ -160,6 +179,10 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   viewPinned: false,
   history: [],
   historyTotal: 0,
+  historyUnfilteredTotal: 0,
+  historyLoading: false,
+  historyFilter: {},
+  searchIndex: null,
 
   patchRequest: (patch) => {
     const request = withoutTransientSource({ ...get().request, ...patch })
@@ -229,6 +252,10 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     const queue = await window.nais.invoke('queue:status', undefined)
     set({ queue })
     await get().refreshHistory()
+    void window.nais
+      .invoke('search:indexStatus', undefined)
+      .then((searchIndex) => set({ searchIndex }))
+      .catch(() => undefined)
     void get().refreshAnlas()
   },
 
@@ -297,8 +324,17 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
 
   refreshHistory: async () => {
-    const { items, total } = await window.nais.invoke('images:list', { limit: 60, offset: 0 })
-    set({ history: items, historyTotal: total })
+    // 스크롤해 둔 만큼은 유지한다 — 새 생성마다 60장으로 줄면 보던 자리가 사라진다
+    await loadHistoryPage(Math.max(HISTORY_PAGE, get().history.length), true)
+  },
+  loadMoreHistory: async () => {
+    const { history, historyTotal, historyLoading } = get()
+    if (historyLoading || history.length >= historyTotal) return
+    await loadHistoryPage(HISTORY_PAGE, false)
+  },
+  setHistoryFilter: (historyFilter) => {
+    set({ historyFilter })
+    void loadHistoryPage(HISTORY_PAGE, true)
   },
 
   // 생성 중에 유저가 다른 이미지를 클릭하면 "고정 보기" — 스트리밍이 화면을 덮지 않는다 (B11)
@@ -393,6 +429,33 @@ function flushParams(): void {
 if (typeof window !== 'undefined') window.addEventListener('beforeunload', flushParams)
 
 /** 메인 프로세스 이벤트 구독 — 앱 시작 시 1회 */
+async function loadHistoryPage(limit: number, reset: boolean): Promise<void> {
+  const store = useGenerationStore
+  const seq = reset ? ++historySeq : historySeq
+  const { historyFilter, history } = store.getState()
+  const filter = hasActiveSearchFilter(historyFilter) ? historyFilter : undefined
+  store.setState({ historyLoading: true })
+  try {
+    const res = await window.nais.invoke('images:list', {
+      limit,
+      offset: reset ? 0 : history.length,
+      ...(filter ? { filter } : {})
+    })
+    if (seq !== historySeq) return
+    // 그사이 새 생성이 앞에 붙으면 offset이 밀려 같은 행이 다시 온다 — id로 거른다
+    const seen = new Set(reset ? [] : store.getState().history.map((item) => item.id))
+    store.setState({
+      history: reset
+        ? res.items
+        : [...store.getState().history, ...res.items.filter((i) => !seen.has(i.id))],
+      historyTotal: res.total,
+      historyUnfilteredTotal: res.unfilteredTotal
+    })
+  } finally {
+    if (seq === historySeq) store.setState({ historyLoading: false })
+  }
+}
+
 export function bindGenerationEvents(): () => void {
   // 생성 소요 시간 추적 (id별 시작 시각 → 완료 시 평균 갱신)
   const startTimes = new Map<string, number>()
@@ -542,6 +605,13 @@ export function bindGenerationEvents(): () => void {
   const offVibes = window.nais.on('vibes:encoded', () => {
     void useVibesStore.getState().load()
   })
+  // 색인이 다 차면 필터 결과를 다시 읽는다 (색인 중엔 아직 안 된 기록이 결과에서 빠져 있다)
+  const offSearchIndex = window.nais.on('search:indexProgress', (status) => {
+    const state = useGenerationStore.getState()
+    const finished = state.searchIndex?.indexing === true && !status.indexing
+    useGenerationStore.setState({ searchIndex: status })
+    if (finished && hasActiveSearchFilter(state.historyFilter)) void state.refreshHistory()
+  })
   return () => {
     offQueue()
     offHalted()
@@ -550,5 +620,6 @@ export function bindGenerationEvents(): () => void {
     offAccount()
     clearInterval(usageRefreshTimer)
     offVibes()
+    offSearchIndex()
   }
 }

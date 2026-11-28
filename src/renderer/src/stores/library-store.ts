@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { LibraryImage, LibraryStack } from '@shared/types'
+import { hasActiveSearchFilter } from '@shared/search-query'
+import type { ImageSearchFilter, LibraryImage, LibraryStack } from '@shared/types'
 import { t } from '../lib/i18n'
 import { toast } from './toast-store'
 
@@ -11,8 +12,14 @@ interface LibraryState {
   stacks: LibraryStack[]
   images: LibraryImage[]
   total: number
+  /** 필터 없이 같은 범위(루트·스택, 전체 스택 검색이면 라이브러리 전체)의 이미지 수 */
+  unfilteredTotal: number
   loading: boolean
   loaded: boolean
+  /** 검색·필터 — 비어 있으면 평소 목록 */
+  filter: ImageSearchFilter
+  /** 필터가 있을 때 스택 구분 없이 전체에서 찾는다 */
+  searchAllStacks: boolean
   /** null = 루트, 값 = 열려 있는 스택 */
   currentStack: LibraryStack | null
   columns: number // 2~5
@@ -21,6 +28,8 @@ interface LibraryState {
   selection: Set<number>
 
   load: (reset: boolean) => Promise<void>
+  setFilter: (filter: ImageSearchFilter) => void
+  setSearchAllStacks: (value: boolean) => void
   openStack: (stack: LibraryStack | null) => void
   setColumns: (n: number) => void
   setCardOrientation: (o: 'portrait' | 'landscape' | 'square') => void
@@ -58,8 +67,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   stacks: [],
   images: [],
   total: 0,
+  unfilteredTotal: 0,
   loading: false,
   loaded: false,
+  filter: {},
+  searchAllStacks: localStorage.getItem('library_search_all_stacks') === '1',
   currentStack: null,
   columns: Number(localStorage.getItem('library_columns')) || 4,
   cardOrientation:
@@ -70,22 +82,40 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   load: async (reset) => {
     const seq = ++loadSeq
-    const { currentStack } = get()
+    const { currentStack, filter, searchAllStacks } = get()
+    const filtered = hasActiveSearchFilter(filter)
     const offset = reset ? 0 : get().images.length
     set({ loading: true })
     const res = await window.nais.invoke('library:list', {
       stackId: currentStack?.id ?? null,
       limit: PAGE,
-      offset
+      offset,
+      ...(filtered ? { filter, searchAllStacks } : {})
     })
     if (seq !== loadSeq) return // 더 최신 로드가 있으면 폐기
     set({
       images: reset ? res.items : [...get().images, ...res.items],
-      stacks: currentStack ? get().stacks : res.stacks,
+      // 필터 중엔 스택 카드를 받지 않는다 — 필터를 풀면 다시 받는다
+      stacks: currentStack || filtered ? get().stacks : res.stacks,
       total: res.total,
+      unfilteredTotal: res.unfilteredTotal,
       loading: false,
       loaded: true
     })
+  },
+
+  setFilter: (filter) => {
+    selectionAnchor = null
+    set({ filter, selection: new Set() })
+    void get().load(true)
+  },
+  setSearchAllStacks: (searchAllStacks) => {
+    localStorage.setItem('library_search_all_stacks', searchAllStacks ? '1' : '0')
+    set({ searchAllStacks })
+    if (hasActiveSearchFilter(get().filter)) {
+      set({ selection: new Set() })
+      void get().load(true)
+    }
   },
 
   openStack: (stack) => {
