@@ -91,6 +91,13 @@ import {
 } from './nai/client'
 import { listImages, getImagePayload, saveGeneratedImage } from './images/storage'
 import {
+  getSearchIndexStatus,
+  isSearchAvailable,
+  setSearchProgressListener,
+  startSearchBackfill
+} from './search/indexer'
+import { searchFacets } from './search/query'
+import {
   enqueueReservedScenes,
   planReservedScenes,
   bindSceneReservationRecovery,
@@ -382,7 +389,12 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   })
   handle('queue:status', () => ctx.queue.status())
 
-  handle('images:list', ({ limit, offset }) => listImages(limit, offset))
+  handle('images:list', ({ limit, offset, filter }) => listImages(limit, offset, filter))
+  handle('search:facets', ({ scope }) =>
+    isSearchAvailable() ? searchFacets(getDb(), scope) : { models: [], kinds: [], topArtists: [] }
+  )
+  handle('search:indexStatus', () => getSearchIndexStatus())
+  setSearchProgressListener((status) => broadcast('search:indexProgress', status))
   handle('images:payload', ({ id }) => ({ payloadJson: getImagePayload(id) }))
 
   handle('scenePresets:list', () => ({ items: listPresets() }))
@@ -520,6 +532,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
       return { error: t('ui.unknownBackupFormat') }
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) }
+    } finally {
+      // 복원된 기록·라이브러리 행은 색인이 없다 (복원 전 행의 색인은 삭제 트리거가 지웠다)
+      startSearchBackfill()
     }
   })
   handle('backup:listRecoverable', () => {
@@ -612,7 +627,9 @@ export function registerIpcHandlers(ctx: { dbVersion: number; queue: GenerationQ
   handle('images:clearAll', () => ({ count: clearAllImages() }))
 
   // 라이브러리 — 큐레이션 컬렉션
-  handle('library:list', ({ stackId, limit, offset }) => listLibrary(stackId, limit, offset))
+  handle('library:list', ({ stackId, limit, offset, filter, searchAllStacks }) =>
+    listLibrary(stackId, limit, offset, filter, searchAllStacks)
+  )
   handle('library:import', async ({ stackId }) => ({
     count: await importViaDialog(stackId ?? null)
   }))

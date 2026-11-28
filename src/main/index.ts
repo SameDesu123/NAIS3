@@ -35,6 +35,7 @@ import {
 } from './nai/account-router'
 import { enforceGenerationGuard } from './nai/anlas-guard'
 import { localPromptMetadata } from './nai/payload'
+import { initSearchIndex, startSearchBackfill } from './search/indexer'
 import { prepareCharRefs, prepareVibes } from './refs/prepare'
 import { referencesSentFor } from '../shared/precise-reference'
 import { GenerationQueue } from './queue/generation-queue'
@@ -170,6 +171,7 @@ const startup = app.whenReady().then(async () => {
     })
     const initialized = initDb()
     dbVersion = initialized.version
+    initSearchIndex()
     // DB가 열린 직후 언어를 1회 확정·고정 (기존 설치는 한국어 유지)
     resolveInitialLanguage(initialized.isNewDatabase)
     // 새 설치만 첫 실행 온보딩 — 렌더러가 끝나면 0으로 바꾼다
@@ -309,6 +311,10 @@ const startup = app.whenReady().then(async () => {
     const scene = rawRequest.sceneId ? getScene(rawRequest.sceneId) : null
     const sceneId = scene ? scene.id : undefined
     const localMetadata = localPromptMetadata(request)
+    // 켜진 캐릭터 카드 이름 — 검색용으로 기록(payload_json)에만 남긴다
+    const characterNames = request.characterPrompts.flatMap((c) =>
+      c.enabled && c.name?.trim() ? [c.name.trim()] : []
+    )
 
     // 자동저장 OFF: 메인 생성은 파일로 저장하지 않는다 — 원본은 메모리(최근 20장)에만,
     // 히스토리에는 썸네일 행으로 남는다 (NAIS2 방식). 씬 생성은 항상 씬 폴더에 저장.
@@ -321,7 +327,8 @@ const startup = app.whenReady().then(async () => {
           seed: request.seed,
           kind: source ? (source.maskBase64 ? 'inpaint' : 'i2i') : 't2i',
           format: imageFormat,
-          localMetadata
+          localMetadata,
+          characterNames
         })
       : // 씬 생성은 씬루트/<프리셋>/<씬 이름>/에 모아 저장 (NAIS2와 동일 계층)
         await saveGeneratedImage({
@@ -334,7 +341,8 @@ const startup = app.whenReady().then(async () => {
           format: imageFormat,
           sceneName: scene?.name,
           scenePresetName: scene ? (getPresetName(scene.presetId) ?? undefined) : undefined,
-          localMetadata
+          localMetadata,
+          characterNames
         })
 
     // 씬 생성이면 해당 씬 갱신 알림 (목록 썸네일/개수, 상세 이미지 갱신용)
@@ -363,6 +371,8 @@ const startup = app.whenReady().then(async () => {
   })
 
   registerIpcHandlers({ dbVersion, queue })
+  // 색인 없는 기록을 채운다 — 창이 뜨는 걸 막지 않게 조금씩 (진행은 search:indexProgress)
+  setTimeout(startSearchBackfill, 2000)
 
   app.on('browser-window-created', (_, window) => {
     // zoom: false(기본값)는 Cmd/Ctrl+'-'를 막는다. 확대·축소 단축키는 watchZoomShortcuts가 처리한다

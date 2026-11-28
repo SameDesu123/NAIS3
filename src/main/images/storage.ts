@@ -4,9 +4,18 @@ import { mkdirSync, readdirSync, writeFileSync } from 'fs'
 import { isAbsolute, join, relative } from 'path'
 import sharp from '../sharp'
 import { isThumbnailSource, thumbnailUrl, type ThumbnailSource } from '../../shared/thumbnail-url'
-import type { DirectorMethod, HistoryItem, ImageMetadata, LocalEditKind } from '../../shared/types'
+import type {
+  DirectorMethod,
+  HistoryItem,
+  ImageMetadata,
+  ImageSearchFilter,
+  LocalEditKind
+} from '../../shared/types'
 import { getDb } from '../db'
 import { getSetting } from '../db/settings'
+import { indexImage, isSearchAvailable } from '../search/indexer'
+import { buildSearchWhere, HISTORY_SCOPE } from '../search/query'
+import { compileSearchFilter } from '../../shared/search-query'
 
 /**
  * 생성 이미지 저장 규칙 (P3의 핵심):
@@ -133,6 +142,8 @@ export async function saveEphemeralImage(input: {
   kind: 't2i' | 'i2i' | 'inpaint'
   format?: 'png' | 'webp'
   localMetadata?: Pick<ImageMetadata, 'promptParts'>
+  /** 켜진 캐릭터 카드 이름 — payload_json의 nais3에만 남긴다 (검색용, PNG에는 넣지 않음) */
+  characterNames?: string[]
 }): Promise<SavedImage> {
   const ext = input.format ?? 'png'
   const filePath = `${MEMORY_PREFIX}${randomUUID()}.${ext}`
@@ -157,8 +168,9 @@ export async function saveEphemeralImage(input: {
       thumbnail,
       input.kind,
       input.seed,
-      payloadWithLocalMetadata(input.sentPayload, input.localMetadata)
+      payloadWithLocalMetadata(input.sentPayload, input.localMetadata, input.characterNames)
     )
+  indexImage(Number(result.lastInsertRowid))
 
   // GLOB(대소문자 구분)이라야 idx_images_file_path 범위 탐색을 탄다 — LIKE는 전체 스캔
   const stale = db
@@ -197,6 +209,8 @@ export async function saveGeneratedImage(input: {
   scenePresetName?: string
   /** 전송 payload에는 없는 NAIS3 전용 왕복 메타데이터 */
   localMetadata?: Pick<ImageMetadata, 'promptParts'>
+  /** 켜진 캐릭터 카드 이름 — payload_json의 nais3에만 남긴다 (검색용, PNG에는 넣지 않음) */
+  characterNames?: string[]
 }): Promise<SavedImage> {
   const now = new Date()
   // 여기 오면 항상 실제 폴더에 저장한다. 자동저장 OFF의 "저장 안 함" 판정은
@@ -260,9 +274,10 @@ export async function saveGeneratedImage(input: {
         thumbnail,
         input.kind,
         input.seed,
-        payloadWithLocalMetadata(input.sentPayload, input.localMetadata),
+        payloadWithLocalMetadata(input.sentPayload, input.localMetadata, input.characterNames),
         (input.resolveSceneId ? input.resolveSceneId() : input.sceneId) ?? null
       ) as { id: number; scene_id: number | null }
+    indexImage(Number(row.id))
 
     return {
       id: Number(row.id),
@@ -295,11 +310,14 @@ function writeNewFile(dir: string, name: string, ext: string, data: Buffer, star
 
 function payloadWithLocalMetadata(
   sentPayload: string,
-  localMetadata?: Pick<ImageMetadata, 'promptParts'>
+  localMetadata?: Pick<ImageMetadata, 'promptParts'>,
+  characterNames?: string[]
 ): string {
-  if (!localMetadata) return sentPayload
+  const names = (characterNames ?? []).map((n) => n.trim()).filter(Boolean)
+  if (!localMetadata && names.length === 0) return sentPayload
+  const nais3 = { ...localMetadata, ...(names.length > 0 ? { characterNames: names } : {}) }
   try {
-    return JSON.stringify({ ...JSON.parse(sentPayload), nais3: localMetadata })
+    return JSON.stringify({ ...JSON.parse(sentPayload), nais3 })
   } catch {
     return sentPayload
   }
@@ -346,34 +364,65 @@ function injectNais3Params(png: Buffer, meta: Pick<ImageMetadata, 'promptParts'>
   return Buffer.concat([png.subarray(0, ihdrEnd), chunk, png.subarray(ihdrEnd)])
 }
 
-export function listImages(limit: number, offset: number): { items: HistoryItem[]; total: number } {
+interface HistoryRow {
+  id: number
+  file_path: string
+  thumb_size: number | null
+  kind: string
+  seed: number | null
+  created_at: string
+}
+
+const HISTORY_COLUMNS =
+  'i.id, i.file_path, length(i.thumbnail) AS thumb_size, i.kind, i.seed, i.created_at'
+
+function toHistoryItem(r: HistoryRow): HistoryItem {
+  return {
+    id: r.id,
+    filePath: r.file_path,
+    thumbnailUrl: storedThumbnailUrl('image', r.id, r.created_at, r.thumb_size),
+    kind: r.kind,
+    seed: r.seed,
+    createdAt: r.created_at
+  }
+}
+
+/**
+ * 히스토리 목록. 필터가 없으면 예전 그대로 images만 읽는다. 필터가 있으면 검색 색인에서 id를 먼저
+ * 고르고(조건·정렬·페이지 모두 meta에서) 그 행들만 images에서 읽는다 — 아직 색인되지 않은 행은
+ * 필터 결과에 나오지 않는다 (색인 중 배지가 그걸 알린다).
+ */
+export function listImages(
+  limit: number,
+  offset: number,
+  filter?: ImageSearchFilter
+): { items: HistoryItem[]; total: number; unfilteredTotal: number } {
   const db = getDb()
-  const total = (db.prepare('SELECT COUNT(*) AS c FROM images').get() as { c: number }).c
+  const unfilteredTotal = (db.prepare('SELECT COUNT(*) AS c FROM images').get() as { c: number }).c
+  const search = isSearchAvailable() ? compileSearchFilter(filter) : null
+  if (!search) {
+    const rows = db
+      .prepare(`SELECT ${HISTORY_COLUMNS} FROM images i ORDER BY i.id DESC LIMIT ? OFFSET ?`)
+      .all(limit, offset) as HistoryRow[]
+    return { total: unfilteredTotal, unfilteredTotal, items: rows.map(toHistoryItem) }
+  }
+
+  const where = buildSearchWhere(db, HISTORY_SCOPE, search)
+  const total = db
+    .prepare(`SELECT COUNT(*) FROM image_search_meta m WHERE ${where.sql}`)
+    .pluck()
+    .get(...where.params) as number
   const rows = db
     .prepare(
-      `SELECT id, file_path, length(thumbnail) AS thumb_size, kind, seed, created_at
-       FROM images ORDER BY id DESC LIMIT ? OFFSET ?`
+      `SELECT ${HISTORY_COLUMNS} FROM images i
+       WHERE i.id IN (
+         SELECT m.image_id FROM image_search_meta m WHERE ${where.sql}
+         ORDER BY m.image_id DESC LIMIT ? OFFSET ?
+       )
+       ORDER BY i.id DESC`
     )
-    .all(limit, offset) as {
-    id: number
-    file_path: string
-    thumb_size: number | null
-    kind: string
-    seed: number | null
-    created_at: string
-  }[]
-
-  return {
-    total,
-    items: rows.map((r) => ({
-      id: r.id,
-      filePath: r.file_path,
-      thumbnailUrl: storedThumbnailUrl('image', r.id, r.created_at, r.thumb_size),
-      kind: r.kind,
-      seed: r.seed,
-      createdAt: r.created_at
-    }))
-  }
+    .all(...where.params, limit, offset) as HistoryRow[]
+  return { total, unfilteredTotal, items: rows.map(toHistoryItem) }
 }
 
 export function getImagePayload(id: number): string | null {

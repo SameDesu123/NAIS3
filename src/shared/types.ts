@@ -457,6 +457,8 @@ export interface LibraryImage {
   width: number | null
   height: number | null
   stackId: number | null
+  /** 소속 스택 이름 — 모든 스택을 포함한 검색 결과에만 채운다 */
+  stackName?: string | null
 }
 
 /** 라이브러리 스택(그룹) — 카드 여러 장을 묶어 보관 */
@@ -466,6 +468,49 @@ export interface LibraryStack {
   count: number
   /** Thumbnail URL of the stack's newest image ('' if none) */
   coverUrl: string
+}
+
+/** 검색 필터의 생성 종류 묶음. director = 디렉터 툴과 로컬 편집(모자이크·픽셀화) 전체 */
+export type SearchKindGroup = 't2i' | 'i2i' | 'inpaint' | 'upscale' | 'scene' | 'director'
+
+/** 히스토리·라이브러리 공용 검색 필터. 비어 있으면 기존 목록 쿼리를 그대로 쓴다 */
+export interface ImageSearchFilter {
+  /** 자유 검색어 — 프롬프트·작가·캐릭터·파일명, 인라인 토큰(artist:, char:, seed:, model:, kind:, -제외) */
+  query?: string
+  /** 작가 태그 (모두 포함 — AND) */
+  artists?: string[]
+  /** 캐릭터 키워드 (모두 포함 — AND) */
+  characters?: string[]
+  /** 정규화 모델 id (하나라도 — OR) */
+  models?: string[]
+  /** 정확히 일치하는 시드 */
+  seed?: number | null
+  /** 생성 종류 (하나라도 — OR) */
+  kinds?: SearchKindGroup[]
+  /** 로컬 날짜 경계를 UTC 'YYYY-MM-DD HH:MM:SS'로 바꾼 하한·상한 (포함) */
+  dateFromUtc?: string | null
+  dateToUtc?: string | null
+  /** 히스토리 전용: 즐겨찾기만 */
+  favoritesOnly?: boolean
+}
+
+export interface SearchFacetCount {
+  value: string
+  count: number
+}
+
+/** 필터 팝오버의 선택지 — 색인된 이미지에 실제로 있는 값과 그 수 */
+export interface SearchFacets {
+  models: SearchFacetCount[]
+  kinds: SearchFacetCount[]
+  topArtists: SearchFacetCount[]
+}
+
+/** 검색 색인 백필 상태 — indexed/total은 히스토리와 라이브러리를 합친 수 */
+export interface SearchIndexStatus {
+  indexing: boolean
+  indexed: number
+  total: number
 }
 
 /**
@@ -604,10 +649,14 @@ export interface IpcInvokeMap {
   }
   'queue:cancel': { req: { ids: string[] }; res: void }
   'queue:status': { req: void; res: QueueStatus }
+  /** filter가 있으면 일치하는 기록만 — total은 일치 수, unfilteredTotal은 전체 기록 수 */
   'images:list': {
-    req: { limit: number; offset: number }
-    res: { items: HistoryItem[]; total: number }
+    req: { limit: number; offset: number; filter?: ImageSearchFilter }
+    res: { items: HistoryItem[]; total: number; unfilteredTotal: number }
   }
+  /** 필터 팝오버 선택지 (모델·종류·자주 쓴 작가) */
+  'search:facets': { req: { scope: 'history' | 'library' }; res: SearchFacets }
+  'search:indexStatus': { req: void; res: SearchIndexStatus }
   'images:payload': { req: { id: number }; res: { payloadJson: string | null } }
   'settings:get': { req: { key: string }; res: { value: string | null } }
   'settings:set': { req: { key: string; value: string }; res: void }
@@ -899,8 +948,17 @@ export interface IpcInvokeMap {
 
   /** 라이브러리 — stackId 미지정=루트(스택 목록 + 미분류 이미지), 지정=해당 스택 내부 */
   'library:list': {
-    req: { stackId?: number | null; limit: number; offset: number }
-    res: { items: LibraryImage[]; stacks: LibraryStack[]; total: number }
+    req: {
+      stackId?: number | null
+      limit: number
+      offset: number
+      /** 있으면 스택 카드 없이 일치하는 이미지만 */
+      filter?: ImageSearchFilter
+      /** 필터가 있을 때 스택 구분 없이 라이브러리 전체에서 찾는다 */
+      searchAllStacks?: boolean
+    }
+    /** unfilteredTotal = 같은 범위(루트·스택)의 필터 없는 이미지 수 */
+    res: { items: LibraryImage[]; stacks: LibraryStack[]; total: number; unfilteredTotal: number }
   }
   /** 파일 다이얼로그(다중)로 가져오기 — 라이브러리 폴더에 복사 + 썸네일 생성 */
   'library:import': { req: { stackId?: number | null }; res: { count: number } }
@@ -963,6 +1021,8 @@ export interface IpcEventMap {
   'window:zoomChanged': { factor: number }
   /** 바이브 인코딩 완료 — 카드의 인코딩 표시 갱신용 */
   'vibes:encoded': Record<string, never>
+  /** 검색 색인 백필 진행 (시작·청크마다·끝) */
+  'search:indexProgress': SearchIndexStatus
   /** 무료 배경 제거(HF Space) 진행 — 연결·대기열·처리, 폴백 Space로 넘어갔는지 */
   'images:removeBackgroundFreeProgress': FreeBgRemovalProgress
   /** 자동 업데이트 상태 (GitHub release) */

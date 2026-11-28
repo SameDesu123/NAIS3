@@ -112,22 +112,54 @@ function parseLocalParams(text: Record<string, string>): LocalMetadataParams | u
   return undefined
 }
 
+function parseComment(raw: string | undefined): NaiMetadataParams | null {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as NaiMetadataParams
+  } catch {
+    return null
+  }
+}
+
+function metadataFromParts(
+  comment: NaiMetadataParams,
+  extra: { software?: string; model?: string; description?: string },
+  local: LocalMetadataParams | undefined
+): ImageMetadata {
+  const c = comment as NaiMetadataParams & { prompt?: string; uc?: string }
+  return normalizeImageMetadata(comment, {
+    prompt: c.prompt ?? extra.description ?? '',
+    uc: c.uc ?? '',
+    model: extra.model,
+    software: extra.software,
+    local
+  })
+}
+
+/**
+ * PNG 텍스트 청크만으로 정규화 메타 (동기, stealth 폴백 없음). 검색 색인 백필처럼 많은 파일을
+ * 빨리 훑을 때 쓴다 — 픽셀을 디코딩하지 않는다. 없으면 null
+ */
+export function metadataFromPngText(buf: Buffer): ImageMetadata | null {
+  const text = parsePngTextChunks(buf)
+  const comment = parseComment(text.Comment)
+  if (!comment) return null
+  return metadataFromParts(
+    comment,
+    { software: text.Software, model: text.Source, description: text.Description },
+    parseLocalParams(text)
+  )
+}
+
 /** PNG 버퍼 → 정규화 메타 (tEXt Comment → stealth 폴백). 없으면 null */
 export async function metadataFromPng(buf: Buffer): Promise<ImageMetadata | null> {
   const text = parsePngTextChunks(buf)
   const local = parseLocalParams(text)
-  let comment: NaiMetadataParams | null = null
+  let comment = parseComment(text.Comment)
   let extra = {
     software: text.Software,
     model: text.Source,
     description: text.Description
-  }
-  if (text.Comment) {
-    try {
-      comment = JSON.parse(text.Comment) as NaiMetadataParams
-    } catch {
-      comment = null
-    }
   }
   if (!comment) {
     const stealth = await extractStealthComment(buf)
@@ -138,12 +170,5 @@ export async function metadataFromPng(buf: Buffer): Promise<ImageMetadata | null
     }
   }
   if (!comment) return null
-  const c = comment as NaiMetadataParams & { prompt?: string; uc?: string }
-  return normalizeImageMetadata(comment, {
-    prompt: c.prompt ?? extra.description ?? '',
-    uc: c.uc ?? '',
-    model: extra.model,
-    software: extra.software,
-    local
-  })
+  return metadataFromParts(comment, extra, local)
 }

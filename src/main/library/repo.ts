@@ -4,10 +4,13 @@ import { basename, extname, join } from 'path'
 import { BrowserWindow } from 'electron'
 import { showOpenDialog } from '../dialogs'
 import sharp from '../sharp'
-import type { LibraryImage, LibraryStack } from '../../shared/types'
+import { compileSearchFilter } from '../../shared/search-query'
+import type { ImageSearchFilter, LibraryImage, LibraryStack } from '../../shared/types'
 import { getDb } from '../db'
 import { t } from '../i18n'
 import { libraryRoot, storedThumbnailUrl } from '../images/storage'
+import { indexLibraryImage, isSearchAvailable } from '../search/indexer'
+import { buildSearchWhere, LIBRARY_SCOPE } from '../search/query'
 
 /**
  * 라이브러리 — 사용자가 직접 모아두는 큐레이션 컬렉션 (NAIS2 라이브러리 이식).
@@ -30,6 +33,7 @@ interface ImageRow {
   height: number | null
   stack_id: number | null
   created_at: string
+  stack_name?: string | null
 }
 
 function toImage(r: ImageRow): LibraryImage {
@@ -40,30 +44,65 @@ function toImage(r: ImageRow): LibraryImage {
     thumbnailUrl: storedThumbnailUrl('library', r.id, r.created_at, r.thumb_size),
     width: r.width,
     height: r.height,
-    stackId: r.stack_id
+    stackId: r.stack_id,
+    ...(r.stack_name !== undefined ? { stackName: r.stack_name } : {})
   }
 }
 
-/** stackId 미지정/null = 루트(스택 목록 + 미분류 이미지), 지정 = 해당 스택 내부 */
+const LIBRARY_COLUMNS =
+  'l.id, l.name, l.file_path, length(l.thumbnail) AS thumb_size, l.width, l.height, l.stack_id, l.created_at'
+
+/**
+ * stackId 미지정/null = 루트(스택 목록 + 미분류 이미지), 지정 = 해당 스택 내부.
+ * 필터가 있으면 검색 색인으로 고른다 — searchAllStacks면 스택 구분 없이 전체에서 찾고 각 이미지에
+ * 스택 이름을 붙이며, 스택 카드는 돌려주지 않는다. 정렬은 언제나 배치 순서(sort_order) 그대로.
+ */
 export function listLibrary(
   stackId: number | null | undefined,
   limit: number,
-  offset: number
-): { items: LibraryImage[]; stacks: LibraryStack[]; total: number } {
+  offset: number,
+  filter?: ImageSearchFilter,
+  searchAllStacks = false
+): { items: LibraryImage[]; stacks: LibraryStack[]; total: number; unfilteredTotal: number } {
   const db = getDb()
   const inStack = stackId != null
-  const where = inStack ? 'stack_id = ?' : 'stack_id IS NULL'
-  const params = inStack ? [stackId] : []
+  const scopeWhere = inStack ? 'l.stack_id = ?' : 'l.stack_id IS NULL'
+  const scopeParams = inStack ? [stackId] : []
+  const search = isSearchAvailable() ? compileSearchFilter(filter) : null
+  const allStacks = search !== null && searchAllStacks
+  const unfilteredTotal = db
+    .prepare(`SELECT COUNT(*) FROM library_images l WHERE ${allStacks ? '1' : scopeWhere}`)
+    .pluck()
+    .get(...(allStacks ? [] : scopeParams)) as number
+
+  if (search) {
+    const where = buildSearchWhere(db, LIBRARY_SCOPE, search)
+    const scope = searchAllStacks ? '1' : scopeWhere
+    const params = [...(searchAllStacks ? [] : scopeParams), ...where.params]
+    const matched = `l.id IN (SELECT m.library_image_id FROM library_search_meta m WHERE ${where.sql})`
+    const total = db
+      .prepare(`SELECT COUNT(*) FROM library_images l WHERE ${scope} AND ${matched}`)
+      .pluck()
+      .get(...params) as number
+    const rows = db
+      .prepare(
+        `SELECT ${LIBRARY_COLUMNS}${searchAllStacks ? ', s.name AS stack_name' : ''}
+         FROM library_images l
+         ${searchAllStacks ? 'LEFT JOIN library_stacks s ON s.id = l.stack_id' : ''}
+         WHERE ${scope} AND ${matched}
+         ORDER BY l.sort_order DESC, l.id DESC LIMIT ? OFFSET ?`
+      )
+      .all(...params, limit, offset) as ImageRow[]
+    return { items: rows.map(toImage), stacks: [], total, unfilteredTotal }
+  }
 
   const rows = db
     .prepare(
-      `SELECT id, name, file_path, length(thumbnail) AS thumb_size, width, height, stack_id, created_at
-       FROM library_images WHERE ${where} ORDER BY sort_order DESC, id DESC LIMIT ? OFFSET ?`
+      `SELECT ${LIBRARY_COLUMNS} FROM library_images l WHERE ${scopeWhere}
+       ORDER BY l.sort_order DESC, l.id DESC LIMIT ? OFFSET ?`
     )
-    .all(...params, limit, offset) as ImageRow[]
-  const { c: total } = db
-    .prepare(`SELECT COUNT(*) AS c FROM library_images WHERE ${where}`)
-    .get(...params) as { c: number }
+    .all(...scopeParams, limit, offset) as ImageRow[]
+  const total = unfilteredTotal
 
   const stacks = inStack
     ? []
@@ -95,7 +134,7 @@ export function listLibrary(
         coverUrl: storedThumbnailUrl('library', s.cover_id, s.cover_created_at, s.cover_size)
       }))
 
-  return { items: rows.map(toImage), stacks, total }
+  return { items: rows.map(toImage), stacks, total, unfilteredTotal }
 }
 
 /** 원본 버퍼 → curated/ 저장 + 640 webp 썸네일 + 행 삽입 (refs addRefImages 패턴) */
@@ -103,7 +142,9 @@ async function insertImage(
   buf: Buffer,
   name: string,
   ext: string,
-  stackId: number | null
+  stackId: number | null,
+  /** 히스토리에서 가져온 원본 경로 — 그 기록의 payload로 검색 색인을 만든다 */
+  sourcePath?: string
 ): Promise<void> {
   const dest = join(curatedDir(), `${randomUUID()}${ext || '.png'}`)
   writeFileSync(dest, buf)
@@ -112,12 +153,13 @@ async function insertImage(
     .resize(640, 640, { fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 90 })
     .toBuffer()
-  getDb()
+  const result = getDb()
     .prepare(
       `INSERT INTO library_images (name, file_path, thumbnail, width, height, stack_id, sort_order)
        VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM library_images))`
     )
     .run(name, dest, thumbnail, meta.width ?? null, meta.height ?? null, stackId)
+  indexLibraryImage(Number(result.lastInsertRowid), { buffer: buf, name, sourcePath })
 }
 
 /**
@@ -156,7 +198,7 @@ export async function importPaths(filePaths: string[], stackId: number | null): 
   let count = 0
   for (const src of filePaths) {
     if (!existsSync(src)) continue
-    await insertImage(readFileSync(src), basename(src, extname(src)), extname(src), stackId)
+    await insertImage(readFileSync(src), basename(src, extname(src)), extname(src), stackId, src)
     count++
   }
   return count
