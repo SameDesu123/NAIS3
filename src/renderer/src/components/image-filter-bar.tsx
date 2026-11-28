@@ -376,12 +376,8 @@ export function ImageSearchPanel({
       </div>
 
       {(chips.length > 0 || indexing) && (
-        <div
-          className={cn(
-            'flex items-center gap-1 text-[11px]',
-            compact ? 'no-scrollbar overflow-x-auto' : 'flex-wrap'
-          )}
-        >
+        // 좁은 패널에서도 줄바꿈한다 — 가로 스크롤은 잘린 칩에 닿을 단서가 없다
+        <div className="flex flex-wrap items-center gap-1 text-[11px]">
           {chips.map((chip) => (
             <span
               key={chip.key}
@@ -522,6 +518,7 @@ function FilterPopover({
       </PopoverTrigger>
       <PopoverContent
         align={compact ? 'start' : 'end'}
+        collisionPadding={8}
         // 팝오버를 닫는 ESC가 검색 패널·라이브러리(필터 해제·스택 나가기)까지 가지 않게
         onEscapeKeyDown={(e) => e.stopPropagation()}
         className={cn(

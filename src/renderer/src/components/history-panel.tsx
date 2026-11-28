@@ -120,7 +120,8 @@ export function HistoryPanel(): React.JSX.Element {
         {/* 스크롤바 숨김(공간 0) → 좌우 p-1.5 완전 대칭. 트랙패드/휠로 스크롤 */}
         <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-1.5">
           {history.length === 0 && filtered ? (
-            <div className="mt-8 flex flex-col items-center gap-2 text-center">
+            // 가운데에 둔다 — 위쪽은 열린 검색 패널이 덮고 있을 수 있다
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
               <p className="text-[12px] text-faint">{t('ui.searchNoResults')}</p>
               <button
                 type="button"
