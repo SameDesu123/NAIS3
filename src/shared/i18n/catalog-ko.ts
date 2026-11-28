@@ -973,7 +973,31 @@ export const KO = {
   'ui.onboardingPromptSingleHint': '모든 태그를 한곳에 씁니다.',
   'ui.onboardingPromptSplit': '세 칸',
   'ui.onboardingPromptSplitHint': '자주 쓰는 태그는 고정해 두고 바꿀 부분만 고칩니다.',
-  'ui.onboardingStorageTitle': '이미지 저장'
+  'ui.onboardingStorageTitle': '이미지 저장',
+  'ui.searchImages': '프롬프트·작가·시드 검색',
+  'ui.searchFilters': '검색 필터',
+  'ui.searchModel': '모델',
+  'ui.searchKind': '종류',
+  'ui.searchArtists': '작가',
+  'ui.searchCharacter': '캐릭터 이름',
+  'ui.searchSeed': '시드',
+  'ui.searchDate': '날짜',
+  'ui.searchDateFrom': '시작 날짜',
+  'ui.searchDateTo': '끝 날짜',
+  'ui.searchToday': '오늘',
+  'ui.searchLast7Days': '최근 7일',
+  'ui.searchLast30Days': '최근 30일',
+  'ui.searchFavoritesOnly': '즐겨찾기만',
+  'ui.searchAllStacks': '모든 스택에서 찾기',
+  'ui.searchReset': '필터 초기화',
+  'ui.searchClearQuery': '검색어 지우기',
+  'ui.searchRemoveFilter': '필터 빼기: {0}',
+  'ui.searchNoResults': '조건에 맞는 이미지가 없음',
+  'ui.searchIndexing': '색인 중 {0}%',
+  'ui.searchIndexingHint': '예전 이미지를 색인하는 중이라 일부 결과가 아직 빠져 있을 수 있음',
+  'ui.searchDragSortDisabled': '필터 중에는 끌어서 정렬할 수 없음',
+  'ui.searchSyntaxHint':
+    '-단어로 빼기, "따옴표"로 구절, artist: char: seed: model: kind: 로 항목 지정'
 } as const
 
 export type MessageId = keyof typeof KO

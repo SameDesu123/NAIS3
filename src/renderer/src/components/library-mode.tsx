@@ -26,15 +26,18 @@ import {
   Upload
 } from 'lucide-react'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { hasActiveSearchFilter } from '@shared/search-query'
 import type { LibraryImage, LibraryStack } from '@shared/types'
 import { imageUrl, thumbnailFallback } from '../lib/constants'
 import { useT } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { askConfirm, askText } from '../stores/dialog-store'
+import { useGenerationStore } from '../stores/generation-store'
 import { useLibraryStore } from '../stores/library-store'
 import { isLeavingDropZone, useDragEndCleanup } from '../lib/drop-zone'
 import { DropOverlay } from './drop-overlay'
 import { ImageContextMenu } from './image-context-menu'
+import { ImageFilterBar } from './image-filter-bar'
 import { Lightbox } from './lightbox'
 import { Button } from './ui/button'
 import {
@@ -101,6 +104,15 @@ export function LibraryMode(): React.JSX.Element {
   const exportStack = useLibraryStore((s) => s.exportStack)
   const moveToStack = useLibraryStore((s) => s.moveToStack)
   const createStackWith = useLibraryStore((s) => s.createStackWith)
+  const unfilteredTotal = useLibraryStore((s) => s.unfilteredTotal)
+  const filter = useLibraryStore((s) => s.filter)
+  const setFilter = useLibraryStore((s) => s.setFilter)
+  const searchAllStacks = useLibraryStore((s) => s.searchAllStacks)
+  const setSearchAllStacks = useLibraryStore((s) => s.setSearchAllStacks)
+  const indexing = useGenerationStore((s) => s.searchIndex?.indexing === true)
+  // 필터 중엔 일부만 보이므로 드래그 정렬·스택 드롭을 끈다 (보이지 않는 이미지 순서가 꼬인다)
+  const filtered = hasActiveSearchFilter(filter)
+  const showStackBadge = filtered && searchAllStacks
 
   const [dragOver, setDragOver] = useState(false)
   useDragEndCleanup(() => setDragOver(false))
@@ -152,16 +164,31 @@ export function LibraryMode(): React.JSX.Element {
     return () => io.disconnect()
   }, [images.length, total, loading, load])
 
-  // ESC — 라이트박스가 열려 있으면 그쪽이 우선, 스택 안이면 루트로
+  // ESC — 라이트박스가 열려 있으면 그쪽이 우선, 다음은 필터 해제, 그다음 스택 안이면 루트로
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape' || e.defaultPrevented) return
       if (lightboxIdx >= 0) return
-      if (useLibraryStore.getState().currentStack) openStack(null)
+      const state = useLibraryStore.getState()
+      if (hasActiveSearchFilter(state.filter)) state.setFilter({})
+      else if (state.currentStack) openStack(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [lightboxIdx, openStack])
+
+  // 색인이 다 채워지면 필터 결과를 다시 받는다 (백필 중엔 빠진 이미지가 있었다)
+  const wasIndexing = useRef(indexing)
+  useEffect(() => {
+    if (
+      wasIndexing.current &&
+      !indexing &&
+      hasActiveSearchFilter(useLibraryStore.getState().filter)
+    ) {
+      void load(true)
+    }
+    wasIndexing.current = indexing
+  }, [indexing, load])
 
   async function confirmDelete(ids: number[]): Promise<void> {
     if (
@@ -195,7 +222,9 @@ export function LibraryMode(): React.JSX.Element {
     void Promise.all(files.map(read)).then((imgs) => importBase64(imgs))
   }
 
-  const empty = loaded && !loading && images.length === 0 && stacks.length === 0 && !currentStack
+  const empty =
+    loaded && !loading && !filtered && images.length === 0 && stacks.length === 0 && !currentStack
+  const noResults = loaded && !loading && filtered && images.length === 0
 
   return (
     <div
@@ -316,9 +345,31 @@ export function LibraryMode(): React.JSX.Element {
         />
       </div>
 
+      <div className="border-b border-line px-3 py-2">
+        <ImageFilterBar
+          scope="library"
+          filter={filter}
+          onChange={setFilter}
+          total={total}
+          unfilteredTotal={unfilteredTotal}
+          searchAllStacks={searchAllStacks}
+          onSearchAllStacksChange={setSearchAllStacks}
+        />
+        {filtered && images.length > 1 && (
+          <p className="mt-1 text-[11px] text-faint">{t('ui.searchDragSortDisabled')}</p>
+        )}
+      </div>
+
       {/* 그리드 */}
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {empty ? (
+        {noResults ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-faint">
+            <p className="text-[13px] font-medium">{t('ui.searchNoResults')}</p>
+            <Button size="sm" onClick={() => setFilter({})}>
+              {t('ui.searchReset')}
+            </Button>
+          </div>
+        ) : empty ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-faint">
             <ImagePlus size={44} strokeWidth={1.2} className="opacity-40" />
             <p className="text-[14px] font-medium">{t('ui.addOrDragImagesHere')}</p>
@@ -340,6 +391,7 @@ export function LibraryMode(): React.JSX.Element {
                 style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
               >
                 {!currentStack &&
+                  !filtered &&
                   stacks.map((stack) => (
                     <StackCard
                       key={`s-${stack.id}`}
@@ -372,6 +424,8 @@ export function LibraryMode(): React.JSX.Element {
                     orientation={cardOrientation}
                     checked={selection.has(img.id)}
                     editMode={editMode}
+                    sortDisabled={filtered}
+                    stackBadge={showStackBadge ? img.stackName : undefined}
                     onClick={(e) =>
                       editMode
                         ? e.shiftKey
@@ -533,7 +587,9 @@ function ImageCard({
   editMode,
   onClick,
   onDelete,
-  menuExtra
+  menuExtra,
+  sortDisabled = false,
+  stackBadge
 }: {
   img: LibraryImage
   orientation: CardOrientation
@@ -542,8 +598,12 @@ function ImageCard({
   onClick: (e: React.MouseEvent) => void
   onDelete: () => void
   menuExtra?: React.ReactNode
+  /** 필터 중 — 끌어서 정렬·스택 이동을 막는다 */
+  sortDisabled?: boolean
+  /** 전체 스택 검색 결과에서 이 이미지가 든 스택 이름 */
+  stackBadge?: string | null
 }): React.JSX.Element {
-  const sortable = useSortable({ id: `img-${img.id}` })
+  const sortable = useSortable({ id: `img-${img.id}`, disabled: sortDisabled })
   return (
     <ImageContextMenu filePath={img.filePath} onDelete={onDelete} hideLibraryAdd extra={menuExtra}>
       <div
@@ -566,6 +626,12 @@ function ImageCard({
           {...thumbnailFallback(img.filePath)}
           alt=""
         />
+        {stackBadge && (
+          <span className="pointer-events-none absolute bottom-1.5 left-1.5 flex max-w-[calc(100%-12px)] items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10.5px] font-medium text-white backdrop-blur-sm">
+            <Layers size={10} className="shrink-0" />
+            <span className="truncate">{stackBadge}</span>
+          </span>
+        )}
         {editMode && (
           <span
             className={cn(
