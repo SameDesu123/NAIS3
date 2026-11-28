@@ -25,7 +25,10 @@ export function browserLibraryDocument(
   })
 }
 
-export function filterBrowserImages(images: BrowserImage[], search: CompiledSearch): BrowserImage[] {
+export function filterBrowserImages(
+  images: BrowserImage[],
+  search: CompiledSearch
+): BrowserImage[] {
   return images.filter((image) =>
     matchesSearchDocument(browserImageDocument(image), search, {
       createdAt: image.createdAt,
@@ -55,7 +58,10 @@ function counted(counts: Map<string, number>): SearchFacetCount[] {
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
 }
 
-export function browserSearchFacets(state: BrowserState, scope: 'history' | 'library'): SearchFacets {
+export function browserSearchFacets(
+  state: BrowserState,
+  scope: 'history' | 'library'
+): SearchFacets {
   const docs =
     scope === 'history'
       ? state.images.map(browserImageDocument)
@@ -72,5 +78,9 @@ export function browserSearchFacets(state: BrowserState, scope: 'history' | 'lib
     if (group) bump(kinds, group)
     for (const name of new Set(doc.artistText.split(' '))) if (name) bump(artists, name)
   }
-  return { models: counted(models), kinds: counted(kinds), topArtists: counted(artists).slice(0, 30) }
+  return {
+    models: counted(models),
+    kinds: counted(kinds),
+    topArtists: counted(artists).slice(0, 30)
+  }
 }

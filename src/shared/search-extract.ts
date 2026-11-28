@@ -96,7 +96,9 @@ function buildDocument(input: {
     seed: input.seed,
     promptText: normalizeSearchText(input.prompt),
     artistText: extractArtists([input.prompt, ...input.characterPrompts]).join(' '),
-    characterText: normalizeSearchText([...input.characterNames, ...input.characterPrompts].join(', ')),
+    characterText: normalizeSearchText(
+      [...input.characterNames, ...input.characterPrompts].join(', ')
+    ),
     nameText: normalizeSearchText(input.name ?? '')
   }
 }
